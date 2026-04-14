@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { loginUser } from "../../../api/authApi";
+import { getBranchSlugs, loginUser } from "../../../api/authApi";
 import styles from "./Login.module.css";
 import { Link } from "react-router-dom";
 
@@ -32,12 +32,13 @@ export default function Login() {
 
   const [checkingAuth, setCheckingAuth] = useState(true);
   const [form, setForm] = useState({
-    email: "",
+    identifier: "",
     password: "",
     branch_slug: localStorage.getItem("branch_slug") || ""
   });
 
   const [loading, setLoading] = useState(false);
+  const [branches, setBranches] = useState([]);
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -52,6 +53,24 @@ export default function Login() {
     clearAuthStorage();
     setCheckingAuth(false);
   }, [navigate]);
+
+  useEffect(() => {
+    const fetchBranchSlugs = async () => {
+      try {
+        const res = await getBranchSlugs();
+        const list = Array.isArray(res?.data) ? res.data : [];
+        setBranches(list);
+
+        if (!form.branch_slug && list.length) {
+          setForm((prev) => ({ ...prev, branch_slug: list[0].slug }));
+        }
+      } catch (err) {
+        setBranches([]);
+      }
+    };
+
+    fetchBranchSlugs();
+  }, []);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -68,7 +87,7 @@ export default function Login() {
 
     try {
       const payload = {
-        email: form.email.trim(),
+        identifier: form.identifier.trim(),
         password: form.password,
         branch_slug: form.branch_slug.trim()
       };
@@ -122,21 +141,21 @@ export default function Login() {
           <div className={styles.brand}>
             <div className={styles.logoCircle}>🎮</div>
             <h1>Arena Pro</h1>
-            <p>Login with your email, password and branch</p>
+            <p>Login with your username/email, password and branch</p>
           </div>
 
         <form onSubmit={handleLogin} className={styles.form}>
           <div className={styles.formGroup}>
-            <label htmlFor="email">Staff Email</label>
+            <label htmlFor="identifier">Username or Email</label>
             <div className={styles.inputWrap}>
               <span className={styles.inputIcon}>👤</span>
               <input
-                id="email"
-                type="email"
-                name="email"
-                value={form.email}
+                id="identifier"
+                type="text"
+                name="identifier"
+                value={form.identifier}
                 onChange={handleChange}
-                placeholder="Enter your email"
+                placeholder="Enter your username or email"
                 autoComplete="username"
               />
             </div>
@@ -162,15 +181,19 @@ export default function Login() {
             <label htmlFor="branch_slug">Branch Slug</label>
             <div className={styles.inputWrap}>
               <span className={styles.inputIcon}>🏬</span>
-              <input
+              <select
                 id="branch_slug"
-                type="text"
                 name="branch_slug"
                 value={form.branch_slug}
                 onChange={handleChange}
-                placeholder="main-branch"
-                autoComplete="off"
-              />
+              >
+                <option value="">Select branch</option>
+                {branches.map((branch) => (
+                  <option key={`${branch.business_id}-${branch.slug}`} value={branch.slug}>
+                    {branch.business_name} - {branch.name} ({branch.slug})
+                  </option>
+                ))}
+              </select>
             </div>
           </div>
 

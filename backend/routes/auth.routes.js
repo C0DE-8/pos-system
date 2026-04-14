@@ -6,25 +6,56 @@ const authMiddleware = require("../middleware/authMiddleware");
 
 const router = express.Router();
 
-// /api/auth/login - login with email + password + branch_slug
+// /api/auth/branch-slugs - get active branch slugs for login selector
+router.get("/branch-slugs", async (req, res) => {
+  try {
+    const rows = await query(
+      `
+      SELECT
+        bb.slug,
+        bb.name,
+        bb.business_id,
+        b.name AS business_name
+      FROM business_branches bb
+      JOIN businesses b ON b.id = bb.business_id
+      WHERE bb.is_active = 1
+        AND b.is_active = 1
+      ORDER BY b.name ASC, bb.name ASC
+      `
+    );
+
+    return res.json({
+      success: true,
+      data: rows
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+});
+
+// /api/auth/login - login with username/email + password + branch_slug
 router.post("/login", async (req, res) => {
   try {
-    const { email, password, branch_slug } = req.body;
+    const { identifier, email, username, password, branch_slug } = req.body;
+    const loginValue = String(identifier || email || username || "").trim();
 
-    if (!email || !password || !branch_slug) {
+    if (!loginValue || !password || !branch_slug) {
       return res.status(400).json({
         success: false,
-        message: "email, password and branch_slug are required"
+        message: "username/email, password and branch_slug are required"
       });
     }
 
     const users = await query(
       `SELECT *
        FROM users
-       WHERE email = ?
+       WHERE (email = ? OR name = ?)
        AND is_active = 1 
        LIMIT 1`,
-      [email]
+      [loginValue, loginValue]
     );
 
     if (!users.length) {

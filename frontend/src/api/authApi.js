@@ -9,6 +9,11 @@ export const loginUser = async (payload) => {
   return data;
 };
 
+export const getBranchSlugs = async () => {
+  const { data } = await API.get("/auth/branch-slugs");
+  return data;
+};
+
 export const getSavedBranchSlug = () => {
   return localStorage.getItem("branch_slug") || "";
 };

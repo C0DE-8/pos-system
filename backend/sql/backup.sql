@@ -1045,6 +1045,8 @@ COMMIT;
 /*!40101 SET CHARACTER_SET_RESULTS=@OLD_CHARACTER_SET_RESULTS */;
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 
+
+
 -- --------------------------------------------------------
 -- MULTI-BUSINESS + DIGITAL MENU + REPORTING MIGRATION BLOCK
 -- --------------------------------------------------------

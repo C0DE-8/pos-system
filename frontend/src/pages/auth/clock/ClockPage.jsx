@@ -1,6 +1,7 @@
 // src/pages/auth/clock/ClockPage.jsx
 import { useEffect, useState } from "react";
 import {
+  getBranchSlugs,
   loginClockUser,
   logoutClockUser,
   saveClockSession,
@@ -33,13 +34,14 @@ export default function ClockPage() {
   const [clockedUser, setClockedUser] = useState(null);
 
   const [form, setForm] = useState({
-    email: "",
+    identifier: "",
     password: "",
     branch_slug: localStorage.getItem("branch_slug") || ""
   });
 
   const [loading, setLoading] = useState(false);
   const [logoutLoading, setLogoutLoading] = useState(false);
+  const [branches, setBranches] = useState([]);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
@@ -54,6 +56,22 @@ export default function ClockPage() {
     }
 
     setCheckingSession(false);
+  }, []);
+
+  useEffect(() => {
+    const fetchBranchSlugs = async () => {
+      try {
+        const res = await getBranchSlugs();
+        const list = Array.isArray(res?.data) ? res.data : [];
+        setBranches(list);
+        if (!form.branch_slug && list.length) {
+          setForm((prev) => ({ ...prev, branch_slug: list[0].slug }));
+        }
+      } catch (err) {
+        setBranches([]);
+      }
+    };
+    fetchBranchSlugs();
   }, []);
 
   const handleChange = (e) => {
@@ -72,7 +90,7 @@ export default function ClockPage() {
 
     try {
       const payload = {
-        email: form.email.trim(),
+        identifier: form.identifier.trim(),
         password: form.password,
         branch_slug: form.branch_slug.trim()
       };
@@ -90,7 +108,7 @@ export default function ClockPage() {
       setClockedUser(data.user);
       setSuccess(`Clock in successful. Welcome, ${data.user.name}.`);
       setForm({
-        email: "",
+        identifier: "",
         password: "",
         branch_slug: payload.branch_slug
       });
@@ -149,22 +167,22 @@ export default function ClockPage() {
         <div className={styles.brand}>
           <div className={styles.logoCircle}>🕒</div>
           <h1>Staff Clock</h1>
-          <p>Clock in with email, password and branch</p>
+          <p>Clock in with username/email, password and branch</p>
         </div>
 
         {!clockedUser ? (
           <form onSubmit={handleClockIn} className={styles.form}>
             <div className={styles.formGroup}>
-              <label htmlFor="email">Staff Email</label>
+              <label htmlFor="identifier">Username or Email</label>
               <div className={styles.inputWrap}>
                 <span className={styles.inputIcon}>👤</span>
                 <input
-                  id="email"
-                  type="email"
-                  name="email"
-                  value={form.email}
+                  id="identifier"
+                  type="text"
+                  name="identifier"
+                  value={form.identifier}
                   onChange={handleChange}
-                  placeholder="Enter your email"
+                  placeholder="Enter your username or email"
                   autoComplete="username"
                 />
               </div>
@@ -190,15 +208,19 @@ export default function ClockPage() {
               <label htmlFor="branch_slug">Branch Slug</label>
               <div className={styles.inputWrap}>
                 <span className={styles.inputIcon}>🏬</span>
-                <input
+                <select
                   id="branch_slug"
-                  type="text"
                   name="branch_slug"
                   value={form.branch_slug}
                   onChange={handleChange}
-                  placeholder="main-branch"
-                  autoComplete="off"
-                />
+                >
+                  <option value="">Select branch</option>
+                  {branches.map((branch) => (
+                    <option key={`${branch.business_id}-${branch.slug}`} value={branch.slug}>
+                      {branch.business_name} - {branch.name} ({branch.slug})
+                    </option>
+                  ))}
+                </select>
               </div>
             </div>
 

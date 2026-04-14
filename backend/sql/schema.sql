@@ -1389,6 +1389,10 @@ ALTER TABLE `warehouse_history`
 --
 ALTER TABLE `warehouse_stock`
   ADD CONSTRAINT `warehouse_stock_ibfk_1` FOREIGN KEY (`product_id`) REFERENCES `products` (`id`) ON DELETE CASCADE;
+
+-- branch image support for business management uploads
+ALTER TABLE `business_branches`
+  ADD COLUMN IF NOT EXISTS `image_url` varchar(255) DEFAULT NULL;
 COMMIT;
 
 /*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
