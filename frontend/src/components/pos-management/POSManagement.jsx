@@ -39,6 +39,17 @@ import {
 import { getSettings } from "../../api/settingsApi";
 import { getMe } from "../../api/authApi";
 import { getMembers } from "../../api/membersApi";
+import {
+  checkoutCustomerOrder,
+  getCustomerOrderById,
+  getIncomingCustomerOrders,
+  holdCustomerOrder,
+  resumeCustomerOrder,
+  updateCustomerOrderStatus
+} from "../../api/customerOrdersApi";
+import CustomerOrdersAlert from "../pos/CustomerOrdersAlert";
+import CustomerOrdersDrawer from "../pos/CustomerOrdersDrawer";
+import CustomerOrderDetailsModal from "../pos/CustomerOrderDetailsModal";
 import styles from "./POSManagement.module.css";
 
 const PAYMENT_METHODS = [
@@ -113,6 +124,25 @@ export default function POSManagement() {
   const [mobileProductsOpen, setMobileProductsOpen] = useState(true);
   const [mobilePendingOpen, setMobilePendingOpen] = useState(false);
   const [mobileSummaryOpen, setMobileSummaryOpen] = useState(true);
+  const [customerOrders, setCustomerOrders] = useState([]);
+  const [customerOrdersOpen, setCustomerOrdersOpen] = useState(false);
+  const [activeCustomerOrder, setActiveCustomerOrder] = useState(null);
+  const [heldCustomerIds, setHeldCustomerIds] = useState(() => {
+    try {
+      const raw = localStorage.getItem("held_customer_order_ids");
+      return raw ? JSON.parse(raw) : [];
+    } catch (error) {
+      return [];
+    }
+  });
+  const [checkoutCustomerIds, setCheckoutCustomerIds] = useState(() => {
+    try {
+      const raw = localStorage.getItem("checkout_customer_order_ids");
+      return raw ? JSON.parse(raw) : [];
+    } catch (error) {
+      return [];
+    }
+  });
 
   const formatMoney = (value) => {
     const currency = settings?.currency || "NGN";
@@ -133,7 +163,21 @@ export default function POSManagement() {
   useEffect(() => {
     loadInitialData();
     loadPendingCarts();
+    loadCustomerOrders();
   }, []);
+
+  useEffect(() => {
+    const timer = setInterval(loadCustomerOrders, 15000);
+    return () => clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
+    localStorage.setItem("held_customer_order_ids", JSON.stringify(heldCustomerIds));
+  }, [heldCustomerIds]);
+
+  useEffect(() => {
+    localStorage.setItem("checkout_customer_order_ids", JSON.stringify(checkoutCustomerIds));
+  }, [checkoutCustomerIds]);
 
   const loadInitialData = async () => {
     try {
@@ -198,6 +242,15 @@ export default function POSManagement() {
       setError(err?.response?.data?.message || "Failed to load pending carts");
     } finally {
       setLoadingPending(false);
+    }
+  };
+
+  const loadCustomerOrders = async () => {
+    try {
+      const res = await getIncomingCustomerOrders();
+      setCustomerOrders(res?.data || []);
+    } catch (err) {
+      setError(err?.response?.data?.message || "Failed to load customer orders");
     }
   };
 
@@ -513,6 +566,129 @@ export default function POSManagement() {
       manage_stock: item.manage_stock
     }));
   }, [computedCart]);
+
+  const groupedCustomerOrders = useMemo(() => {
+    const grouped = {
+      new: [],
+      held: [],
+      checkout: [],
+      preparing: [],
+      ready: [],
+      completed: []
+    };
+
+    customerOrders.forEach((order) => {
+      if (heldCustomerIds.includes(order.id)) {
+        grouped.held.push(order);
+      } else if (checkoutCustomerIds.includes(order.id)) {
+        grouped.checkout.push(order);
+      } else if (order.fulfillment_status === "preparing") {
+        grouped.preparing.push(order);
+      } else if (order.fulfillment_status === "ready") {
+        grouped.ready.push(order);
+      } else if (["completed", "cancelled"].includes(order.fulfillment_status)) {
+        grouped.completed.push(order);
+      } else {
+        grouped.new.push(order);
+      }
+    });
+
+    return grouped;
+  }, [customerOrders, heldCustomerIds, checkoutCustomerIds]);
+
+  const customerCounts = useMemo(
+    () => ({
+      new: groupedCustomerOrders.new.length,
+      held: groupedCustomerOrders.held.length,
+      checkout: groupedCustomerOrders.checkout.length
+    }),
+    [groupedCustomerOrders]
+  );
+
+  const openCustomerOrder = async (order) => {
+    try {
+      const res = await getCustomerOrderById(order.id);
+      setActiveCustomerOrder({ order: res?.order || order, items: res?.items || [] });
+    } catch (err) {
+      setError(err?.response?.data?.message || "Failed to load order details");
+    }
+  };
+
+  const handleHoldCustomerOrder = async (order) => {
+    try {
+      await holdCustomerOrder(order.id);
+      setHeldCustomerIds((prev) => Array.from(new Set([...prev, order.id])));
+      setCheckoutCustomerIds((prev) => prev.filter((id) => id !== order.id));
+      loadCustomerOrders();
+    } catch (err) {
+      setError(err?.response?.data?.message || "Failed to hold customer order");
+    }
+  };
+
+  const handleResumeCustomerOrder = async (order) => {
+    try {
+      await resumeCustomerOrder(order.id);
+      setHeldCustomerIds((prev) => prev.filter((id) => id !== order.id));
+      loadCustomerOrders();
+    } catch (err) {
+      setError(err?.response?.data?.message || "Failed to resume customer order");
+    }
+  };
+
+  const handleCheckoutCustomerOrder = async (order) => {
+    try {
+      await checkoutCustomerOrder(order.id);
+      setCheckoutCustomerIds((prev) => Array.from(new Set([...prev, order.id])));
+      setHeldCustomerIds((prev) => prev.filter((id) => id !== order.id));
+      loadCustomerOrders();
+    } catch (err) {
+      setError(err?.response?.data?.message || "Failed to move to checkout");
+    }
+  };
+
+  const sendCustomerOrderToCheckoutCart = () => {
+    if (!activeCustomerOrder?.items?.length) return;
+    const mapped = activeCustomerOrder.items.map((item, index) => ({
+      cart_id: `customer-${activeCustomerOrder.order.id}-${item.id || index}-${Date.now()}`,
+      product_id: item.product_id,
+      item_name: item.item_name,
+      icon: item.icon || "🍽️",
+      item_type: "fixed",
+      qty: Number(item.qty || 1),
+      unit_price: Number(item.unit_price || 0),
+      cost: 0,
+      item_discount_pct: 0,
+      session_start: null,
+      session_end: null,
+      elapsed_seconds: 0,
+      final_price: Number(item.final_price || 0),
+      manage_stock: false
+    }));
+
+    setCart(mapped);
+    setCustomer(activeCustomerOrder.order.customer_name || "Walk-in");
+    setSelectedMember(null);
+    setMemberSearch(activeCustomerOrder.order.customer_name || "");
+    setPendingNote(`From customer order ${activeCustomerOrder.order.order_code}`);
+    setCheckoutCustomerIds((prev) => Array.from(new Set([...prev, activeCustomerOrder.order.id])));
+    setCustomerOrdersOpen(false);
+    setActiveCustomerOrder(null);
+  };
+
+  const handleUpdateCustomerStatus = async (status) => {
+    if (!activeCustomerOrder?.order?.id) return;
+    try {
+      await updateCustomerOrderStatus(activeCustomerOrder.order.id, {
+        fulfillment_status: status
+      });
+      await loadCustomerOrders();
+      setActiveCustomerOrder((prev) =>
+        prev ? { ...prev, order: { ...prev.order, fulfillment_status: status } } : prev
+      );
+    } catch (err) {
+      setError(err?.response?.data?.message || "Failed to update order status");
+    }
+  };
 
   const buildOrderPayload = () => ({
     customer: displayedCustomerName,
@@ -1069,6 +1245,22 @@ export default function POSManagement() {
 
   return (
     <div className={styles.posShell}>
+      <CustomerOrdersAlert counts={customerCounts} onOpen={() => setCustomerOrdersOpen(true)} />
+      <CustomerOrdersDrawer
+        open={customerOrdersOpen}
+        onClose={() => setCustomerOrdersOpen(false)}
+        groupedOrders={groupedCustomerOrders}
+        onOpenOrder={openCustomerOrder}
+        onHold={handleHoldCustomerOrder}
+        onResume={handleResumeCustomerOrder}
+        onCheckout={handleCheckoutCustomerOrder}
+      />
+      <CustomerOrderDetailsModal
+        orderDetails={activeCustomerOrder}
+        onClose={() => setActiveCustomerOrder(null)}
+        onSendToCheckout={sendCustomerOrderToCheckoutCart}
+        onUpdateStatus={handleUpdateCustomerStatus}
+      />
       <div className={styles.mobileTopBar}>
         <button
           type="button"

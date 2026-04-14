@@ -123,6 +123,62 @@
   line-height: 1.6;
 }
 
+.chartSubtitle {
+  margin-top: -4px;
+  margin-bottom: 14px;
+  color: #9fb4ca;
+  font-size: 13px;
+}
+
+.chartList {
+  display: grid;
+  gap: 12px;
+}
+
+.chartRow {
+  display: grid;
+  gap: 8px;
+}
+
+.chartRowHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.chartLabel {
+  color: #e2e8f0;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.chartValue {
+  color: #bfdbfe;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.chartTrack {
+  width: 100%;
+  height: 10px;
+  border-radius: 999px;
+  background: rgba(71, 85, 105, 0.45);
+  overflow: hidden;
+}
+
+.chartBar {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #3b82f6, #22d3ee);
+}
+
+.emptyText {
+  margin: 6px 0 0;
+  color: #94a3b8;
+  font-size: 13px;
+}
+
 .tableCard table {
   width: 100%;
   border-collapse: collapse;
@@ -154,6 +210,69 @@
 
 .tableCard tbody tr:hover {
   background: rgba(51, 65, 85, 0.22);
+}
+
+.skeletonTitle,
+.skeletonSelect,
+.skeletonKicker,
+.skeletonValue,
+.skeletonSectionTitle,
+.skeletonListRow {
+  background: linear-gradient(90deg, rgba(71, 85, 105, 0.35), rgba(148, 163, 184, 0.35), rgba(71, 85, 105, 0.35));
+  background-size: 200% 100%;
+  animation: shimmer 1.3s linear infinite;
+}
+
+.skeletonTitle {
+  height: 28px;
+  width: 260px;
+  border-radius: 10px;
+}
+
+.skeletonSelect {
+  height: 42px;
+  width: 170px;
+  border-radius: 12px;
+}
+
+.skeletonKicker {
+  width: 44%;
+  height: 14px;
+  border-radius: 8px;
+}
+
+.skeletonValue {
+  margin-top: 12px;
+  width: 70%;
+  height: 34px;
+  border-radius: 10px;
+}
+
+.skeletonSectionTitle {
+  width: 40%;
+  height: 22px;
+  border-radius: 8px;
+}
+
+.skeletonList {
+  display: grid;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.skeletonListRow {
+  width: 100%;
+  height: 14px;
+  border-radius: 999px;
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
 }
 
 @media (max-width: 768px) {

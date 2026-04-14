@@ -1,0 +1,7 @@
+.overlay { position: fixed; inset: 0; background: rgba(2,6,23,0.7); z-index: 60; display: grid; place-items: center; padding: 14px; }
+.modal { width: min(680px, 100%); background: #0f172a; border: 1px solid #334155; border-radius: 12px; padding: 12px; color: #e2e8f0; display: grid; gap: 8px; max-height: 90vh; overflow: auto; }
+.head { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.head button,.actions button { border: 1px solid #334155; background: #1e293b; color: #f8fafc; border-radius: 8px; padding: 6px 10px; }
+.items { display: grid; gap: 8px; }
+.item { border: 1px solid #1e293b; border-radius: 8px; padding: 8px; display: flex; justify-content: space-between; gap: 10px; }
+.actions { display: flex; flex-wrap: wrap; gap: 6px; }

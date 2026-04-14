@@ -1,0 +1,8 @@
+.overlay { position: fixed; inset: 0; background: rgba(2,6,23,0.55); z-index: 55; display: flex; justify-content: flex-end; }
+.drawer { width: min(560px, 100%); background: #020617; color: #e2e8f0; border-left: 1px solid #334155; height: 100%; display: grid; grid-template-rows: auto 1fr; }
+.head { padding: 12px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #334155; }
+.head button { border: 1px solid #334155; background: #1e293b; color: #f8fafc; border-radius: 8px; padding: 6px 10px; }
+.body { overflow: auto; padding: 10px; display: grid; gap: 10px; }
+.section { border: 1px solid #1e293b; border-radius: 10px; padding: 10px; background: #0f172a; }
+.section h4 { margin: 0 0 8px; text-transform: capitalize; }
+.list { display: grid; gap: 8px; }

@@ -1,0 +1,6 @@
+.card { border: 1px solid #334155; border-radius: 10px; padding: 10px; background: #0f172a; display: grid; gap: 6px; }
+.top { display: flex; justify-content: space-between; gap: 8px; }
+.top span { color: #93c5fd; text-transform: capitalize; }
+.card p { margin: 0; color: #cbd5e1; font-size: 13px; }
+.actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.actions button { border: 1px solid #334155; background: #1e293b; color: #f8fafc; border-radius: 7px; padding: 5px 8px; }

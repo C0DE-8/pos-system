@@ -10,6 +10,71 @@ import {
 } from "../../api/reportsApi";
 import styles from "./ReportsManagement.module.css";
 
+function BarChartCard({ title, subtitle, data, valueKey, labelKey, formatter }) {
+  const max = Math.max(...data.map((item) => Number(item?.[valueKey] || 0)), 0);
+
+  return (
+    <section className={styles.tableCard}>
+      <h3>{title}</h3>
+      {subtitle ? <p className={styles.chartSubtitle}>{subtitle}</p> : null}
+      {!data.length ? (
+        <p className={styles.emptyText}>No data available for this period.</p>
+      ) : (
+        <div className={styles.chartList}>
+          {data.map((item, idx) => {
+            const value = Number(item?.[valueKey] || 0);
+            const widthPercent = max > 0 ? Math.max((value / max) * 100, 4) : 4;
+            return (
+              <div key={`${item?.[labelKey] || "label"}-${idx}`} className={styles.chartRow}>
+                <div className={styles.chartRowHead}>
+                  <span className={styles.chartLabel}>{item?.[labelKey] || "N/A"}</span>
+                  <span className={styles.chartValue}>{formatter(value)}</span>
+                </div>
+                <div className={styles.chartTrack}>
+                  <div className={styles.chartBar} style={{ width: `${widthPercent}%` }} />
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </section>
+  );
+}
+
+function ReportsLoader() {
+  return (
+    <div className={styles.wrap}>
+      <div className={styles.head}>
+        <div className={styles.skeletonTitle} />
+        <div className={styles.skeletonSelect} />
+      </div>
+
+      <div className={styles.grid}>
+        {[1, 2, 3, 4].map((item) => (
+          <div key={item} className={styles.card}>
+            <div className={styles.skeletonKicker} />
+            <div className={styles.skeletonValue} />
+          </div>
+        ))}
+      </div>
+
+      <div className={styles.tables}>
+        {[1, 2, 3, 4, 5, 6].map((section) => (
+          <section key={section} className={styles.tableCard}>
+            <div className={styles.skeletonSectionTitle} />
+            <div className={styles.skeletonList}>
+              {[1, 2, 3, 4].map((row) => (
+                <div key={row} className={styles.skeletonListRow} />
+              ))}
+            </div>
+          </section>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default function ReportsManagement() {
   const [range, setRange] = useState("7d");
   const [loading, setLoading] = useState(true);
@@ -58,7 +123,7 @@ export default function ReportsManagement() {
     `₦${Number(value || 0).toLocaleString("en-NG", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
   if (loading) {
-    return <div className={styles.wrap}>Loading reports...</div>;
+    return <ReportsLoader />;
   }
 
   return (
@@ -97,6 +162,24 @@ export default function ReportsManagement() {
       </div>
 
       <div className={styles.tables}>
+        <BarChartCard
+          title="Sales Trend Chart"
+          subtitle="Visual trend of net sales by time bucket."
+          data={salesTrends}
+          valueKey="net_sales"
+          labelKey="bucket"
+          formatter={money}
+        />
+
+        <BarChartCard
+          title="Branch Sales Chart"
+          subtitle="Compare branch sales contribution in this range."
+          data={branches}
+          valueKey="sales_total"
+          labelKey="branch_name"
+          formatter={money}
+        />
+
         <section className={styles.tableCard}>
           <h3>Sales Trends</h3>
           <table>
