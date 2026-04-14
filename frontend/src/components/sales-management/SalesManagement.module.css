@@ -1,0 +1,908 @@
+.wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.analyticsGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 18px;
+}
+
+.analyticsCard {
+  background: linear-gradient(135deg, #0f172a, #1e293b);
+  color: #ffffff;
+  border-radius: 20px;
+  padding: 18px;
+  box-shadow: 0 16px 40px rgba(15, 23, 42, 0.18);
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+}
+
+.analyticsCard h4 {
+  margin: 0 0 8px;
+  font-size: 14px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.82);
+}
+
+.analyticsCard p {
+  margin: 0;
+  font-size: 26px;
+  font-weight: 800;
+  color: #ffffff;
+}
+
+.analyticsCard span {
+  display: inline-block;
+  margin-top: 8px;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.analyticsIcon {
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.12);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  flex-shrink: 0;
+}
+
+.topGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 18px;
+}
+
+.statCard,
+.card,
+.chartCard {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 18px;
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.05);
+}
+
+.statCard {
+  padding: 18px;
+}
+
+.statCard h3 {
+  margin: 0 0 10px;
+  font-size: 15px;
+  color: #334155;
+  font-weight: 700;
+}
+
+.statCard p {
+  margin: 0;
+  font-size: 28px;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.statCard span {
+  display: inline-block;
+  margin-top: 8px;
+  font-size: 13px;
+  color: #64748b;
+}
+
+.card,
+.chartCard {
+  padding: 20px;
+}
+
+.cardHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 18px;
+}
+
+.title {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.subtitle {
+  margin: 6px 0 0;
+  font-size: 13px;
+  color: #64748b;
+}
+
+.headerActions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.toolbar {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 18px;
+  flex-wrap: wrap;
+}
+
+/* Search */
+.searchBox {
+  flex: 1;
+  min-width: 260px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 14px;
+  border: 1px solid #cbd5e1;
+  border-radius: 14px;
+  background: #ffffff;
+  transition: all 0.2s ease;
+}
+
+.searchBox svg {
+  color: #64748b;
+  font-size: 17px;
+  flex-shrink: 0;
+}
+
+.searchInput,
+.filterSelect,
+.textarea,
+.dateInput {
+  border: 1px solid #cbd5e1;
+  border-radius: 12px;
+  font-size: 14px;
+  outline: none;
+  background: #fff;
+}
+
+.searchInput {
+  flex: 1;
+  border: none;
+  height: 100%;
+  padding: 0;
+  min-width: 0;
+  background: transparent;
+  font-size: 14px;
+  color: #0f172a;
+}
+
+.searchInput::placeholder {
+  color: #94a3b8;
+  font-size: 14px;
+}
+
+.filterSelect {
+  min-width: 180px;
+  height: 46px;
+  padding: 0 12px;
+}
+
+.textarea {
+  width: 100%;
+  padding: 12px;
+  resize: vertical;
+}
+
+/* Date */
+.dateFilterGroup {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.dateInputWrap {
+  min-width: 180px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 14px;
+  border: 1px solid #cbd5e1;
+  border-radius: 14px;
+  background: #ffffff;
+  transition: all 0.2s ease;
+}
+
+.dateInputWrap svg {
+  color: #64748b;
+  font-size: 16px;
+  flex-shrink: 0;
+}
+
+.dateInput {
+  border: none;
+  outline: none;
+  height: 100%;
+  width: 100%;
+  padding: 0;
+  background: transparent;
+  color: #0f172a;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.dateInput::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+  opacity: 0.7;
+}
+
+.searchBox:focus-within,
+.filterSelect:focus,
+.textarea:focus,
+.dateInputWrap:focus-within {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+}
+
+.activeFilterNote {
+  margin-bottom: 16px;
+  padding: 12px 14px;
+  border: 1px solid #bfdbfe;
+  background: #eff6ff;
+  color: #1e3a8a;
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.primaryBtn,
+.secondaryBtn,
+.dangerBtn,
+.disabledBtn,
+.closeBtn {
+  border: none;
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.primaryBtn,
+.secondaryBtn,
+.dangerBtn,
+.disabledBtn {
+  min-height: 40px;
+  padding: 0 14px;
+}
+
+.primaryBtn {
+  background: #2563eb;
+  color: #ffffff;
+}
+
+.primaryBtn:hover {
+  background: #1d4ed8;
+}
+
+.secondaryBtn {
+  background: #e2e8f0;
+  color: #0f172a;
+}
+
+.secondaryBtn:hover {
+  background: #cbd5e1;
+}
+
+.dangerBtn {
+  background: #dc2626;
+  color: #ffffff;
+}
+
+.dangerBtn:hover {
+  background: #b91c1c;
+}
+
+.disabledBtn {
+  background: #e5e7eb;
+  color: #64748b;
+  cursor: not-allowed;
+}
+
+.primaryBtn:disabled,
+.secondaryBtn:disabled,
+.dangerBtn:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.errorBox,
+.successBox,
+.refundReasonBox {
+  border-radius: 12px;
+  padding: 12px 14px;
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 14px;
+}
+
+.errorBox {
+  background: #fee2e2;
+  border: 1px solid #fecaca;
+  color: #991b1b;
+}
+
+.successBox {
+  background: #dcfce7;
+  border: 1px solid #bbf7d0;
+  color: #166534;
+}
+
+.refundReasonBox {
+  background: #fff7ed;
+  border: 1px solid #fdba74;
+  color: #9a3412;
+  margin-top: 16px;
+}
+
+.chartWrap {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 14px;
+  align-items: end;
+  min-height: 240px;
+  padding-top: 10px;
+}
+
+.chartBarItem {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.chartValue {
+  font-size: 12px;
+  color: #334155;
+  text-align: center;
+  word-break: break-word;
+}
+
+.chartTrack {
+  width: 100%;
+  max-width: 54px;
+  height: 190px;
+  background: #f1f5f9;
+  border-radius: 18px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 8px;
+}
+
+.chartBar {
+  width: 100%;
+  border-radius: 12px;
+  background: linear-gradient(180deg, #3b82f6 0%, #1d4ed8 100%);
+  box-shadow: 0 10px 20px rgba(37, 99, 235, 0.18);
+  transition: 0.25s ease;
+}
+
+.chartLabel {
+  font-size: 13px;
+  color: #64748b;
+  font-weight: 700;
+}
+
+.tableWrapper {
+  overflow-x: auto;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.table th {
+  text-align: left;
+  padding: 12px;
+  font-size: 13px;
+  color: #64748b;
+  border-bottom: 1px solid #e2e8f0;
+  white-space: nowrap;
+}
+
+.table td {
+  padding: 14px 12px;
+  font-size: 14px;
+  border-bottom: 1px solid #f1f5f9;
+  color: #0f172a;
+  vertical-align: middle;
+}
+
+.table tr:hover {
+  background: #f8fafc;
+}
+
+.paymentText {
+  display: inline-block;
+  min-width: 140px;
+  line-height: 1.45;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.badge {
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  display: inline-block;
+}
+
+.badgeSuccess {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.badgeDanger {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.actionButtons {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.loader,
+.emptyState {
+  min-height: 220px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #64748b;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.emptyStateSmall,
+.emptyCell {
+  min-height: 100px;
+  text-align: center;
+  color: #64748b;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.modalOverlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  z-index: 999;
+}
+
+.modal,
+.smallModal {
+  background: #ffffff;
+  border-radius: 20px;
+  width: 100%;
+  box-shadow: 0 20px 50px rgba(15, 23, 42, 0.25);
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+.modal {
+  max-width: 1180px;
+  padding: 20px;
+}
+
+.smallModal {
+  max-width: 520px;
+  padding: 20px;
+}
+
+.modalHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 18px;
+}
+
+.modalHeader h3 {
+  margin: 0;
+  font-size: 20px;
+  color: #0f172a;
+}
+
+.modalHeader p {
+  margin: 6px 0 0;
+  font-size: 13px;
+  color: #64748b;
+}
+
+.closeBtn {
+  width: 42px;
+  height: 42px;
+  background: #f1f5f9;
+  color: #0f172a;
+  font-size: 18px;
+  line-height: 1;
+}
+
+.closeBtn:hover {
+  background: #e2e8f0;
+}
+
+.receiptLayout {
+  display: grid;
+  grid-template-columns: 320px 1fr;
+  gap: 18px;
+  align-items: start;
+}
+
+.receiptPreviewCard {
+  background: linear-gradient(180deg, #f8fafc, #eef2f7);
+  border: 1px solid #dbe4ee;
+  border-radius: 18px;
+  padding: 16px;
+  position: sticky;
+  top: 0;
+}
+
+.receiptPreviewHeader {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 12px;
+}
+
+.receiptPreviewHeader h4 {
+  margin: 0;
+  font-size: 15px;
+  color: #0f172a;
+}
+
+.receiptPreviewHeader span {
+  font-size: 12px;
+  color: #64748b;
+}
+
+.receiptPreviewWrap {
+  display: flex;
+  justify-content: center;
+  padding: 12px;
+  border-radius: 14px;
+  background: linear-gradient(180deg, #e2e8f0, #f8fafc);
+  border: 1px dashed #cbd5e1;
+}
+
+.receiptPaper {
+  width: 230px;
+  max-width: 100%;
+  background: #fff;
+  border: 1px dashed #d4d4d8;
+  border-radius: 12px;
+  padding: 14px 12px;
+  box-shadow: 0 10px 22px rgba(15, 23, 42, 0.08);
+}
+
+.saleMetaPanel {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.detailsGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.detailCard {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  padding: 14px;
+}
+
+.detailCard span {
+  display: block;
+  font-size: 12px;
+  color: #64748b;
+  margin-bottom: 6px;
+}
+
+.detailCard strong {
+  color: #0f172a;
+  font-size: 15px;
+}
+
+.itemsSection {
+  margin-top: 18px;
+}
+
+.itemsHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+
+.itemsHeader h4 {
+  margin: 0;
+  font-size: 16px;
+  color: #0f172a;
+}
+
+.itemsHeader span {
+  font-size: 13px;
+  color: #64748b;
+}
+
+.formGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.formGroup label {
+  font-size: 13px;
+  font-weight: 700;
+  color: #334155;
+}
+
+.modalActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.hiddenPrintArea {
+  position: absolute;
+  left: -99999px;
+  top: 0;
+  width: 300px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.thermalReceipt {
+  width: 100%;
+  color: #111;
+  font-family: "Courier New", monospace;
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.rStamp {
+  border: 2px solid #dc2626;
+  color: #dc2626;
+  text-align: center;
+  font-size: 11px;
+  font-weight: 900;
+  padding: 5px;
+  margin-bottom: 10px;
+  border-radius: 8px;
+  letter-spacing: 1px;
+}
+
+.rLogo {
+  text-align: center;
+  font-size: 16px;
+  font-weight: 800;
+  margin-bottom: 4px;
+  word-break: break-word;
+  overflow-wrap: break-word;
+}
+
+.rCenter {
+  text-align: center;
+  font-size: 11px;
+  color: #3f3f46;
+  margin-bottom: 2px;
+  word-break: break-word;
+  overflow-wrap: break-word;
+}
+
+.rSectionTitle {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.7px;
+  color: #18181b;
+  margin-bottom: 4px;
+}
+
+.rHr {
+  border: 0;
+  border-top: 1px dashed #a1a1aa;
+  margin: 10px 0;
+}
+
+.rRow,
+.rRowSmall {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 3px 0;
+  width: 100%;
+}
+
+.rRow > span:first-child,
+.rRowSmall > span:first-child {
+  flex: 1;
+  min-width: 0;
+  word-break: break-word;
+  overflow-wrap: break-word;
+}
+
+.rRow > span:last-child,
+.rRowSmall > span:last-child {
+  flex-shrink: 0;
+  text-align: right;
+  white-space: nowrap;
+  max-width: 44%;
+}
+
+.rRowSmall {
+  font-size: 10px;
+}
+
+.rBold {
+  font-weight: 800;
+}
+
+.rSubText {
+  font-size: 10px;
+  color: #71717a;
+  margin: 2px 0;
+  word-break: break-word;
+  overflow-wrap: break-word;
+}
+
+.rGrand {
+  font-weight: 900;
+  font-size: 13px;
+  margin-top: 3px;
+}
+
+.receiptItemBlock {
+  padding-bottom: 4px;
+  margin-bottom: 4px;
+}
+
+.discountRow span {
+  color: #dc2626;
+  font-weight: 700;
+}
+
+.loyaltyRow span {
+  color: #7c3aed;
+  font-weight: 700;
+}
+
+@media (max-width: 1200px) {
+  .analyticsGrid,
+  .topGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .detailsGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .receiptLayout {
+    grid-template-columns: 1fr;
+  }
+
+  .receiptPreviewCard {
+    position: static;
+  }
+}
+
+@media (max-width: 860px) {
+  .chartWrap {
+    grid-template-columns: repeat(7, minmax(50px, 1fr));
+    overflow-x: auto;
+    padding-bottom: 10px;
+  }
+
+  .cardHeader,
+  .modalHeader {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .headerActions {
+    width: 100%;
+  }
+
+  .dateFilterGroup {
+    width: 100%;
+  }
+
+  .dateInputWrap {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .receiptPreviewWrap {
+    padding: 10px;
+  }
+}
+
+@media (max-width: 700px) {
+  .analyticsGrid,
+  .topGrid,
+  .detailsGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .searchBox,
+  .filterSelect,
+  .dateInputWrap {
+    width: 100%;
+    min-width: 100%;
+  }
+
+  .dateFilterGroup {
+    flex-direction: column;
+    align-items: stretch;
+    width: 100%;
+  }
+
+  .dateFilterGroup .secondaryBtn {
+    width: 100%;
+  }
+
+  .modalActions {
+    flex-direction: column;
+  }
+
+  .modalActions .secondaryBtn,
+  .modalActions .dangerBtn,
+  .headerActions .secondaryBtn,
+  .headerActions .primaryBtn {
+    width: 100%;
+  }
+
+  .actionButtons {
+    flex-direction: column;
+  }
+
+  .actionButtons button {
+    width: 100%;
+  }
+
+  .receiptPaper {
+    width: 100%;
+    max-width: 240px;
+  }
+
+  .modal {
+    padding: 16px;
+  }
+}

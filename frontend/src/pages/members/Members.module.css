@@ -1,0 +1,18 @@
+.layout {
+  display: flex;
+  min-height: 100vh;
+  background: #f8fafc;
+}
+
+.content {
+  flex: 1;
+  padding: 30px;
+}
+
+.title {
+  color: #0f172a;
+}
+
+.text {
+  color: #64748b;
+}

@@ -1,0 +1,46 @@
+.panel {
+  background: #ffffff;
+  border-radius: 18px;
+  padding: 20px;
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.06);
+}
+
+.panelHeader {
+  margin-bottom: 16px;
+}
+
+.panelHeader h3 {
+  margin: 0;
+  color: #0f172a;
+  font-size: 18px;
+}
+
+.permissionsTable {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.permissionRow {
+  display: grid;
+  grid-template-columns: 140px 1fr;
+  gap: 16px;
+  padding: 14px;
+  border-radius: 12px;
+  background: #f8fafc;
+}
+
+.permissionRow span:first-child {
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.permissionRow span:last-child {
+  color: #475569;
+}
+
+@media (max-width: 640px) {
+  .permissionRow {
+    grid-template-columns: 1fr;
+  }
+}

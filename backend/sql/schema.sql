@@ -1,0 +1,3 @@
+ALTER TABLE settings
+ADD COLUMN expiry_alert_enabled TINYINT(1) NOT NULL DEFAULT 1,
+ADD COLUMN expiry_alert_days INT NOT NULL DEFAULT 7;

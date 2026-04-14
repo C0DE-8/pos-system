@@ -1,0 +1,61 @@
+.page {
+  height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f1f5f9;
+}
+
+.card {
+  background: white;
+  padding: 50px;
+  border-radius: 18px;
+  text-align: center;
+  box-shadow: 0 20px 40px rgba(15, 23, 42, 0.08);
+  border: 1px solid #e2e8f0;
+  width: 420px;
+}
+
+.icon {
+  font-size: 50px;
+  color: #ef4444;
+  margin-bottom: 12px;
+}
+
+.code {
+  font-size: 64px;
+  margin: 0;
+  color: #0f172a;
+  font-weight: 800;
+}
+
+.title {
+  margin-top: 8px;
+  font-size: 22px;
+  font-weight: 700;
+}
+
+.text {
+  margin-top: 12px;
+  font-size: 14px;
+  color: #64748b;
+}
+
+.button {
+  margin-top: 20px;
+  padding: 12px 20px;
+  border-radius: 10px;
+  border: none;
+  background: #2563eb;
+  color: white;
+  font-weight: 600;
+  cursor: pointer;
+
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.button:hover {
+  background: #1e40af;
+}

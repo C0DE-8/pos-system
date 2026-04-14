@@ -1,0 +1,43 @@
+.toasterWrap {
+  z-index: 99999;
+}
+
+.toast {
+  min-width: 320px;
+  max-width: 380px;
+  padding: 14px 16px !important;
+  border-radius: 18px !important;
+  font-size: 14px !important;
+  font-weight: 600 !important;
+  line-height: 1.5 !important;
+  background: #ffffff !important;
+  color: #0f172a !important;
+  border: 1px solid #e2e8f0 !important;
+  box-shadow: 0 18px 40px rgba(15, 23, 42, 0.14) !important;
+}
+
+.success {
+  background: linear-gradient(135deg, #166534 0%, #15803d 100%) !important;
+  color: #ffffff !important;
+  border: none !important;
+}
+
+.error {
+  background: linear-gradient(135deg, #b91c1c 0%, #dc2626 100%) !important;
+  color: #ffffff !important;
+  border: none !important;
+}
+
+.loading {
+  background: linear-gradient(135deg, #1d4ed8 0%, #2563eb 100%) !important;
+  color: #ffffff !important;
+  border: none !important;
+}
+
+@media (max-width: 600px) {
+  .toast {
+    min-width: unset;
+    width: calc(100vw - 24px);
+    max-width: 100%;
+  }
+}
