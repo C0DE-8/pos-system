@@ -1,15 +1,33 @@
 const express = require("express");
 const { pool, query } = require("../config/db");
 const { authenticateToken, requirePermission } = require("../middleware/auth");
+const { ensureBusinessContext, isAdmin } = require("../utils/tenant");
+const branchAccessMiddleware = require("../middleware/branchAccessMiddleware");
 
 const router = express.Router();
 
 router.use(authenticateToken);
 
 // get all POs
-router.get("/", requirePermission("purchaseOrders"), async (req, res) => {
+router.get("/", requirePermission("purchaseOrders"), branchAccessMiddleware, async (req, res) => {
   try {
-    const rows = await query("SELECT * FROM purchase_orders ORDER BY id DESC");
+    if (!ensureBusinessContext(req, res)) return;
+    const where = [];
+    const params = [];
+    if (!isAdmin(req.user)) {
+      where.push("business_id = ?");
+      params.push(req.user.business_id);
+      if (req.user.branch_id) {
+        where.push("branch_id = ?");
+        params.push(req.user.branch_id);
+      }
+    }
+    const rows = await query(
+      `SELECT * FROM purchase_orders
+       ${where.length ? `WHERE ${where.join(" AND ")}` : ""}
+       ORDER BY id DESC`,
+      params
+    );
     res.json({ success: true, data: rows });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
@@ -17,9 +35,10 @@ router.get("/", requirePermission("purchaseOrders"), async (req, res) => {
 });
 
 // create PO
-router.post("/", requirePermission("purchaseOrders"), async (req, res) => {
+router.post("/", requirePermission("purchaseOrders"), branchAccessMiddleware, async (req, res) => {
   const conn = await pool.getConnection();
   try {
+    if (!ensureBusinessContext(req, res)) return;
     const { supplier, items = [] } = req.body;
     if (!supplier || !items.length) {
       return res.status(400).json({ success: false, message: "Supplier and items required" });
@@ -31,9 +50,9 @@ router.post("/", requirePermission("purchaseOrders"), async (req, res) => {
     const total = items.reduce((sum, i) => sum + Number(i.qty) * Number(i.cost), 0);
 
     const [poResult] = await conn.execute(
-      `INSERT INTO purchase_orders (po_code, supplier, total_amount, created_by)
-       VALUES (?, ?, ?, ?)`,
-      [poCode, supplier, total, req.user.id]
+      `INSERT INTO purchase_orders (po_code, supplier, total_amount, created_by, business_id, branch_id)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      [poCode, supplier, total, req.user.id, req.user.business_id, req.user.branch_id || null]
     );
 
     const poId = poResult.insertId;
@@ -58,15 +77,24 @@ router.post("/", requirePermission("purchaseOrders"), async (req, res) => {
 });
 
 // receive PO
-router.post("/:id/receive", requirePermission("purchaseOrders"), async (req, res) => {
+router.post("/:id/receive", requirePermission("purchaseOrders"), branchAccessMiddleware, async (req, res) => {
   const conn = await pool.getConnection();
   try {
+    if (!ensureBusinessContext(req, res)) return;
     await conn.beginTransaction();
 
-    const [poRows] = await conn.execute(
-      "SELECT * FROM purchase_orders WHERE id = ? LIMIT 1",
-      [req.params.id]
-    );
+    let poSql = "SELECT * FROM purchase_orders WHERE id = ?";
+    const poParams = [req.params.id];
+    if (!isAdmin(req.user)) {
+      poSql += " AND business_id = ?";
+      poParams.push(req.user.business_id);
+      if (req.user.branch_id) {
+        poSql += " AND branch_id = ?";
+        poParams.push(req.user.branch_id);
+      }
+    }
+    poSql += " LIMIT 1";
+    const [poRows] = await conn.execute(poSql, poParams);
 
     if (!poRows.length) {
       await conn.rollback();
@@ -96,9 +124,18 @@ router.post("/:id/receive", requirePermission("purchaseOrders"), async (req, res
 
         await conn.execute("UPDATE products SET stock = ? WHERE id = ?", [afterQty, item.product_id]);
         await conn.execute(
-          `INSERT INTO stock_history (product_id, before_qty, after_qty, change_qty, reason, by_user_id)
-           VALUES (?, ?, ?, ?, ?, ?)`,
-          [item.product_id, beforeQty, afterQty, item.qty, `PO received #${req.params.id}`, req.user.id]
+          `INSERT INTO stock_history (product_id, before_qty, after_qty, change_qty, reason, by_user_id, business_id, branch_id)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            item.product_id,
+            beforeQty,
+            afterQty,
+            item.qty,
+            `PO received #${req.params.id}`,
+            req.user.id,
+            po.business_id || req.user.business_id,
+            po.branch_id || req.user.branch_id || null
+          ]
         );
       }
     }

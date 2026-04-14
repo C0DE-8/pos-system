@@ -1,6 +1,8 @@
 const express = require("express");
 const { query } = require("../config/db");
 const { authenticateToken, requirePermission } = require("../middleware/auth");
+const { ensureBusinessContext, isAdmin } = require("../utils/tenant");
+const branchAccessMiddleware = require("../middleware/branchAccessMiddleware");
 
 const router = express.Router();
 
@@ -30,10 +32,13 @@ function normalizeNullableNumber(value) {
 // categories / get all categories
 router.get("/categories", requirePermission("inventory"), async (req, res) => {
   try {
+    if (!ensureBusinessContext(req, res)) return;
     const rows = await query(
       `SELECT id, name, type, created_at
        FROM categories
+       WHERE business_id = ?
        ORDER BY name ASC`
+      , [req.user.business_id]
     );
 
     res.json({ success: true, data: rows });
@@ -45,6 +50,7 @@ router.get("/categories", requirePermission("inventory"), async (req, res) => {
 // categories / create category
 router.post("/categories", requirePermission("inventory"), async (req, res) => {
   try {
+    if (!ensureBusinessContext(req, res)) return;
     const { name, type = "other" } = req.body;
 
     if (!name || !String(name).trim()) {
@@ -62,8 +68,8 @@ router.post("/categories", requirePermission("inventory"), async (req, res) => {
     }
 
     const existingCategory = await query(
-      `SELECT id FROM categories WHERE name = ? LIMIT 1`,
-      [String(name).trim()]
+      `SELECT id FROM categories WHERE name = ? AND business_id = ? LIMIT 1`,
+      [String(name).trim(), req.user.business_id]
     );
 
     if (existingCategory.length) {
@@ -74,8 +80,8 @@ router.post("/categories", requirePermission("inventory"), async (req, res) => {
     }
 
     await query(
-      `INSERT INTO categories (name, type) VALUES (?, ?)`,
-      [String(name).trim(), type]
+      `INSERT INTO categories (name, type, business_id) VALUES (?, ?, ?)`,
+      [String(name).trim(), type, req.user.business_id]
     );
 
     res.status(201).json({
@@ -188,8 +194,10 @@ router.delete("/categories/:id", requirePermission("inventory"), async (req, res
 });
 
 // products / get all active products
-router.get("/", requirePermission("pos"), async (req, res) => {
+router.get("/", requirePermission("pos"), branchAccessMiddleware, async (req, res) => {
   try {
+    if (!ensureBusinessContext(req, res)) return;
+    const branchId = req.query.branch_id;
     const rows = await query(
       `
       SELECT 
@@ -215,9 +223,11 @@ router.get("/", requirePermission("pos"), async (req, res) => {
       FROM products p
       LEFT JOIN categories c ON c.id = p.category_id
       WHERE p.is_active = 1
+        AND p.business_id = ?
+        ${!isAdmin(req.user) ? "AND p.branch_id = ?" : branchId ? "AND p.branch_id = ?" : ""}
       ORDER BY p.id DESC
       `
-    );
+    , !isAdmin(req.user) ? [req.user.business_id, req.user.branch_id] : branchId ? [req.user.business_id, branchId] : [req.user.business_id]);
 
     res.json({
       success: true,
@@ -233,8 +243,11 @@ router.get("/", requirePermission("pos"), async (req, res) => {
 });
 
 // products / special product lists
-router.get("/lists", requirePermission("pos"), async (req, res) => {
+router.get("/lists", requirePermission("pos"), branchAccessMiddleware, async (req, res) => {
   try {
+    const branchId = req.query.branch_id;
+    const scopedBranchSql = !isAdmin(req.user) ? "AND p.branch_id = ?" : branchId ? "AND p.branch_id = ?" : "";
+    const scopedParams = !isAdmin(req.user) ? [req.user.business_id, req.user.branch_id] : branchId ? [req.user.business_id, branchId] : [req.user.business_id];
     const unlimitedProducts = await query(
       `
       SELECT 
@@ -260,9 +273,11 @@ router.get("/lists", requirePermission("pos"), async (req, res) => {
       FROM products p
       LEFT JOIN categories c ON c.id = p.category_id
       WHERE p.is_unlimited = 1
+        AND p.business_id = ?
+        ${scopedBranchSql}
       ORDER BY p.id DESC
       `
-    );
+    , scopedParams);
 
     const timedProducts = await query(
       `
@@ -289,9 +304,11 @@ router.get("/lists", requirePermission("pos"), async (req, res) => {
       FROM products p
       LEFT JOIN categories c ON c.id = p.category_id
       WHERE p.type = 'timed'
+        AND p.business_id = ?
+        ${scopedBranchSql}
       ORDER BY p.id DESC
       `
-    );
+    , scopedParams);
 
     const expiryTrackedProducts = await query(
       `
@@ -318,9 +335,11 @@ router.get("/lists", requirePermission("pos"), async (req, res) => {
       FROM products p
       LEFT JOIN categories c ON c.id = p.category_id
       WHERE p.has_expiry = 1
+        AND p.business_id = ?
+        ${scopedBranchSql}
       ORDER BY p.id DESC
       `
-    );
+    , scopedParams);
 
     const disabledProducts = await query(
       `
@@ -347,9 +366,11 @@ router.get("/lists", requirePermission("pos"), async (req, res) => {
       FROM products p
       LEFT JOIN categories c ON c.id = p.category_id
       WHERE p.is_active = 0
+        AND p.business_id = ?
+        ${scopedBranchSql}
       ORDER BY p.id DESC
       `
-    );
+    , scopedParams);
 
     res.json({
       success: true,
@@ -375,8 +396,9 @@ router.get("/lists", requirePermission("pos"), async (req, res) => {
 });
 
 // products / get single product by id
-router.get("/:id", requirePermission("inventory"), async (req, res) => {
+router.get("/:id", requirePermission("inventory"), branchAccessMiddleware, async (req, res) => {
   try {
+    if (!ensureBusinessContext(req, res)) return;
     const { id } = req.params;
 
     const rows = await query(
@@ -403,10 +425,15 @@ router.get("/:id", requirePermission("inventory"), async (req, res) => {
         c.type AS category_type
       FROM products p
       LEFT JOIN categories c ON c.id = p.category_id
-      WHERE p.id = ?
+      WHERE p.id = ? AND p.business_id = ?
+      ${!isAdmin(req.user) ? "AND p.branch_id = ?" : req.query.branch_id ? "AND p.branch_id = ?" : ""}
       LIMIT 1
       `,
-      [id]
+      !isAdmin(req.user)
+        ? [id, req.user.business_id, req.user.branch_id]
+        : req.query.branch_id
+          ? [id, req.user.business_id, req.query.branch_id]
+          : [id, req.user.business_id]
     );
 
     if (!rows.length) {
@@ -429,8 +456,9 @@ router.get("/:id", requirePermission("inventory"), async (req, res) => {
 });
 
 // products / create product
-router.post("/", requirePermission("inventory"), async (req, res) => {
+router.post("/", requirePermission("inventory"), branchAccessMiddleware, async (req, res) => {
   try {
+    if (!ensureBusinessContext(req, res)) return;
     const {
       name,
       icon = "📦",
@@ -545,9 +573,11 @@ router.post("/", requirePermission("inventory"), async (req, res) => {
         consumable_type,
         has_expiry,
         expiry_date,
-        shelf_life_days
+        shelf_life_days,
+        business_id,
+        branch_id
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `,
       [
         String(name).trim(),
@@ -564,7 +594,9 @@ router.post("/", requirePermission("inventory"), async (req, res) => {
         finalConsumableType,
         expiryValue,
         finalExpiryDate,
-        finalShelfLifeDays
+        finalShelfLifeDays,
+        req.user.business_id,
+        req.user.branch_id || null
       ]
     );
 

@@ -9,6 +9,10 @@ export const loginUser = async (payload) => {
   return data;
 };
 
+export const getSavedBranchSlug = () => {
+  return localStorage.getItem("branch_slug") || "";
+};
+
 export const getMe = async () => {
   const { data } = await API.get("/auth/me");
   return data;

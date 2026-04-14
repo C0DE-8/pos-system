@@ -1,15 +1,33 @@
 const express = require("express");
 const { query } = require("../config/db");
 const { authenticateToken, requirePermission } = require("../middleware/auth");
+const { ensureBusinessContext, isAdmin } = require("../utils/tenant");
+const branchAccessMiddleware = require("../middleware/branchAccessMiddleware");
 
 const router = express.Router();
 
 router.use(authenticateToken);
 
 // get KDS orders
-router.get("/", requirePermission("kds"), async (req, res) => {
+router.get("/", requirePermission("kds"), branchAccessMiddleware, async (req, res) => {
   try {
-    const orders = await query("SELECT * FROM kds_orders ORDER BY id DESC");
+    if (!ensureBusinessContext(req, res)) return;
+    const where = [];
+    const params = [];
+    if (!isAdmin(req.user)) {
+      where.push("business_id = ?");
+      params.push(req.user.business_id);
+      if (req.user.branch_id) {
+        where.push("branch_id = ?");
+        params.push(req.user.branch_id);
+      }
+    }
+    const orders = await query(
+      `SELECT * FROM kds_orders
+       ${where.length ? `WHERE ${where.join(" AND ")}` : ""}
+       ORDER BY id DESC`,
+      params
+    );
     for (const order of orders) {
       order.items = await query(
         "SELECT * FROM kds_order_items WHERE kds_order_id = ?",
@@ -23,13 +41,15 @@ router.get("/", requirePermission("kds"), async (req, res) => {
 });
 
 // create KDS order
-router.post("/", requirePermission("kds"), async (req, res) => {
+router.post("/", requirePermission("kds"), branchAccessMiddleware, async (req, res) => {
   try {
+    if (!ensureBusinessContext(req, res)) return;
     const { ticket_name, customer, items = [] } = req.body;
 
     const result = await query(
-      "INSERT INTO kds_orders (ticket_name, customer, status) VALUES (?, ?, 'new')",
-      [ticket_name, customer]
+      `INSERT INTO kds_orders (ticket_name, customer, status, business_id, branch_id)
+       VALUES (?, ?, 'new', ?, ?)`,
+      [ticket_name, customer, req.user.business_id, req.user.branch_id || null]
     );
 
     const kdsOrderId = result.insertId;
@@ -48,10 +68,21 @@ router.post("/", requirePermission("kds"), async (req, res) => {
 });
 
 // update KDS status
-router.patch("/:id/status", requirePermission("kds"), async (req, res) => {
+router.patch("/:id/status", requirePermission("kds"), branchAccessMiddleware, async (req, res) => {
   try {
+    if (!ensureBusinessContext(req, res)) return;
     const { status } = req.body;
-    await query("UPDATE kds_orders SET status = ? WHERE id = ?", [status, req.params.id]);
+    const where = ["id = ?"];
+    const params = [status, req.params.id];
+    if (!isAdmin(req.user)) {
+      where.push("business_id = ?");
+      params.push(req.user.business_id);
+      if (req.user.branch_id) {
+        where.push("branch_id = ?");
+        params.push(req.user.branch_id);
+      }
+    }
+    await query(`UPDATE kds_orders SET status = ? WHERE ${where.join(" AND ")}`, params);
     res.json({ success: true, message: "KDS status updated" });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });

@@ -1,47 +1,8 @@
-const jwt = require("jsonwebtoken");
+const authMiddleware = require("./authMiddleware");
 const { query } = require("../config/db");
 
 async function authenticateToken(req, res, next) {
-  try {
-    const authHeader = req.headers.authorization;
-
-    if (!authHeader || !authHeader.startsWith("Bearer ")) {
-      return res.status(401).json({
-        success: false,
-        message: "No token provided"
-      });
-    }
-
-    const token = authHeader.split(" ")[1];
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-
-    const users = await query(
-      "SELECT id, name, email, avatar, role, is_active FROM users WHERE id = ? LIMIT 1",
-      [decoded.id]
-    );
-
-    if (!users.length) {
-      return res.status(401).json({
-        success: false,
-        message: "Invalid token user"
-      });
-    }
-
-    if (!users[0].is_active) {
-      return res.status(403).json({
-        success: false,
-        message: "User account disabled"
-      });
-    }
-
-    req.user = users[0];
-    next();
-  } catch (error) {
-    return res.status(401).json({
-      success: false,
-      message: "Invalid or expired token"
-    });
-  }
+  return authMiddleware(req, res, next);
 }
 
 function requireRole(...roles) {

@@ -16,7 +16,7 @@ export const emptyPermissions = {
 };
 
 export function isAdmin(user) {
-  return user?.role === "admin";
+  return user?.role === "admin" || user?.role === "owner";
 }
 
 export function normalizePermissions(user, permissions) {

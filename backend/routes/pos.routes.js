@@ -2,18 +2,14 @@ const express = require("express");
 const moment = require("moment");
 const { pool } = require("../config/db");
 const { authenticateToken, requirePermission } = require("../middleware/auth");
+const { ensureBusinessContext, isAdmin } = require("../utils/tenant");
+const branchAccessMiddleware = require("../middleware/branchAccessMiddleware");
 
 const router = express.Router();
 
 router.use(authenticateToken);
 
-const isAdminUser = (user) => {
-  return (
-    user?.role === "admin" ||
-    user?.is_admin === 1 ||
-    user?.is_admin === true
-  );
-};
+const isAdminUser = (user) => isAdmin(user);
 const toMySQLDateTime = (value) => {
   if (!value) return null;
 
@@ -35,7 +31,7 @@ const normalizeItemType = (value) => {
 };
 
 // pos/split-price / quote a unit price split across multiple payers
-router.post("/split-price", requirePermission("pos"), async (req, res) => {
+router.post("/split-price", requirePermission("pos"), branchAccessMiddleware, async (req, res) => {
   try {
     const { unit_price, split_count = 2 } = req.body;
 
@@ -77,10 +73,11 @@ router.post("/split-price", requirePermission("pos"), async (req, res) => {
 });
 
 // pos/pending / create new pending cart
-router.post("/pending", requirePermission("pos"), async (req, res) => {
+router.post("/pending", requirePermission("pos"), branchAccessMiddleware, async (req, res) => {
   const conn = await pool.getConnection();
 
   try {
+    if (!ensureBusinessContext(req, res)) return;
     const {
       customer = "Walk-in",
       shift_id = null,
@@ -108,8 +105,8 @@ router.post("/pending", requirePermission("pos"), async (req, res) => {
 
     const [cartResult] = await conn.execute(
       `INSERT INTO pending_carts
-      (cart_code, customer, cashier_id, shift_id, subtotal, discount, loyalty_discount, giftcard_discount, tax, total, currency, note)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      (cart_code, customer, cashier_id, shift_id, subtotal, discount, loyalty_discount, giftcard_discount, tax, total, currency, note, business_id, branch_id)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         cartCode,
         customer,
@@ -122,7 +119,9 @@ router.post("/pending", requirePermission("pos"), async (req, res) => {
         tax,
         total,
         currency,
-        note
+        note,
+        req.user.business_id,
+        req.user.branch_id || null
       ]
     );
 
@@ -172,8 +171,9 @@ router.post("/pending", requirePermission("pos"), async (req, res) => {
 });
 
 // pos/pending / get all pending carts
-router.get("/pending", requirePermission("pos"), async (req, res) => {
+router.get("/pending", requirePermission("pos"), branchAccessMiddleware, async (req, res) => {
   try {
+    if (!ensureBusinessContext(req, res)) return;
     const isAdmin =
       req.user.role === "admin" ||
       req.user.is_admin === 1 ||
@@ -199,8 +199,12 @@ router.get("/pending", requirePermission("pos"), async (req, res) => {
     const params = [];
 
     if (!isAdmin) {
-      sql += ` AND pc.cashier_id = ?`;
-      params.push(req.user.id);
+      sql += ` AND pc.business_id = ?`;
+      params.push(req.user.business_id);
+      if (req.user.branch_id) {
+        sql += ` AND pc.branch_id = ?`;
+        params.push(req.user.branch_id);
+      }
     }
 
     sql += ` ORDER BY pc.created_at DESC`;
@@ -220,8 +224,9 @@ router.get("/pending", requirePermission("pos"), async (req, res) => {
 });
 
 // pos/pending/:id / get single pending cart
-router.get("/pending/:id", requirePermission("pos"), async (req, res) => {
+router.get("/pending/:id", requirePermission("pos"), branchAccessMiddleware, async (req, res) => {
   try {
+    if (!ensureBusinessContext(req, res)) return;
     const { id } = req.params;
     const isAdmin = isAdminUser(req.user);
 
@@ -232,8 +237,12 @@ router.get("/pending/:id", requirePermission("pos"), async (req, res) => {
     const params = [id];
 
     if (!isAdmin) {
-      sql += ` AND cashier_id = ?`;
-      params.push(req.user.id);
+      sql += ` AND business_id = ?`;
+      params.push(req.user.business_id);
+      if (req.user.branch_id) {
+        sql += ` AND branch_id = ?`;
+        params.push(req.user.branch_id);
+      }
     }
 
     sql += ` LIMIT 1`;
@@ -265,10 +274,11 @@ router.get("/pending/:id", requirePermission("pos"), async (req, res) => {
 });
 
 // pos/pending/:id / update pending cart
-router.put("/pending/:id", requirePermission("pos"), async (req, res) => {
+router.put("/pending/:id", requirePermission("pos"), branchAccessMiddleware, async (req, res) => {
   const conn = await pool.getConnection();
 
   try {
+    if (!ensureBusinessContext(req, res)) return;
     const { id } = req.params;
     const isAdmin = isAdminUser(req.user);
 
@@ -294,8 +304,12 @@ router.put("/pending/:id", requirePermission("pos"), async (req, res) => {
     const params = [id];
 
     if (!isAdmin) {
-      sql += ` AND cashier_id = ?`;
-      params.push(req.user.id);
+      sql += ` AND business_id = ?`;
+      params.push(req.user.business_id);
+      if (req.user.branch_id) {
+        sql += ` AND branch_id = ?`;
+        params.push(req.user.branch_id);
+      }
     }
 
     sql += ` LIMIT 1`;
@@ -386,8 +400,9 @@ router.put("/pending/:id", requirePermission("pos"), async (req, res) => {
 });
 
 // pos/pending/:id / cancel pending cart
-router.delete("/pending/:id", requirePermission("pos"), async (req, res) => {
+router.delete("/pending/:id", requirePermission("pos"), branchAccessMiddleware, async (req, res) => {
   try {
+    if (!ensureBusinessContext(req, res)) return;
     const { id } = req.params;
     const isAdmin = isAdminUser(req.user);
 
@@ -399,8 +414,12 @@ router.delete("/pending/:id", requirePermission("pos"), async (req, res) => {
     const params = [id];
 
     if (!isAdmin) {
-      sql += ` AND cashier_id = ?`;
-      params.push(req.user.id);
+      sql += ` AND business_id = ?`;
+      params.push(req.user.business_id);
+      if (req.user.branch_id) {
+        sql += ` AND branch_id = ?`;
+        params.push(req.user.branch_id);
+      }
     }
 
     const [result] = await pool.execute(sql, params);
@@ -422,10 +441,11 @@ router.delete("/pending/:id", requirePermission("pos"), async (req, res) => {
 });
 
 // pos/pending/:id/checkout / checkout pending cart
-router.post("/pending/:id/checkout", requirePermission("pos"), async (req, res) => {
+router.post("/pending/:id/checkout", requirePermission("pos"), branchAccessMiddleware, async (req, res) => {
   const conn = await pool.getConnection();
 
   try {
+    if (!ensureBusinessContext(req, res)) return;
     const { id } = req.params;
     const { payment_method } = req.body;
     const isAdmin = isAdminUser(req.user);
@@ -447,8 +467,12 @@ router.post("/pending/:id/checkout", requirePermission("pos"), async (req, res) 
     const params = [id];
 
     if (!isAdmin) {
-      sql += ` AND cashier_id = ?`;
-      params.push(req.user.id);
+      sql += ` AND business_id = ?`;
+      params.push(req.user.business_id);
+      if (req.user.branch_id) {
+        sql += ` AND branch_id = ?`;
+        params.push(req.user.branch_id);
+      }
     }
 
     sql += ` LIMIT 1`;
@@ -482,8 +506,8 @@ router.post("/pending/:id/checkout", requirePermission("pos"), async (req, res) 
 
     const [saleResult] = await conn.execute(
       `INSERT INTO sales
-      (sale_code, customer, cashier_id, shift_id, subtotal, discount, loyalty_discount, giftcard_discount, tax, total, payment_method, currency)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      (sale_code, customer, cashier_id, shift_id, subtotal, discount, loyalty_discount, giftcard_discount, tax, total, payment_method, currency, business_id, branch_id)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         saleCode,
         cart.customer,
@@ -496,7 +520,9 @@ router.post("/pending/:id/checkout", requirePermission("pos"), async (req, res) 
         cart.tax,
         cart.total,
         payment_method,
-        cart.currency
+        cart.currency,
+        cart.business_id || req.user.business_id,
+        cart.branch_id || req.user.branch_id || null
       ]
     );
 
@@ -558,15 +584,17 @@ router.post("/pending/:id/checkout", requirePermission("pos"), async (req, res) 
 
         await conn.execute(
           `INSERT INTO stock_history
-          (product_id, before_qty, after_qty, change_qty, reason, by_user_id)
-          VALUES (?, ?, ?, ?, ?, ?)`,
+          (product_id, before_qty, after_qty, change_qty, reason, by_user_id, business_id, branch_id)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
           [
             item.product_id,
             beforeQty,
             afterQty,
             -item.qty,
             `Sale #${saleId}`,
-            req.user.id
+            req.user.id,
+            cart.business_id || req.user.business_id,
+            cart.branch_id || req.user.branch_id || null
           ]
         );
       }
@@ -597,10 +625,11 @@ router.post("/pending/:id/checkout", requirePermission("pos"), async (req, res) 
 });
 
 // pos/checkout / create sale
-router.post("/checkout", requirePermission("pos"), async (req, res) => {
+router.post("/checkout", requirePermission("pos"), branchAccessMiddleware, async (req, res) => {
   const conn = await pool.getConnection();
 
   try {
+    if (!ensureBusinessContext(req, res)) return;
     const {
       customer = "Walk-in",
       shift_id = null,
@@ -628,8 +657,8 @@ router.post("/checkout", requirePermission("pos"), async (req, res) => {
 
     const [saleResult] = await conn.execute(
       `INSERT INTO sales
-      (sale_code, customer, cashier_id, shift_id, subtotal, discount, loyalty_discount, giftcard_discount, tax, total, payment_method, currency)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      (sale_code, customer, cashier_id, shift_id, subtotal, discount, loyalty_discount, giftcard_discount, tax, total, payment_method, currency, business_id, branch_id)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         saleCode,
         customer,
@@ -642,7 +671,9 @@ router.post("/checkout", requirePermission("pos"), async (req, res) => {
         tax,
         total,
         payment_method,
-        currency
+        currency,
+        req.user.business_id,
+        req.user.branch_id || null
       ]
     );
 
@@ -703,15 +734,17 @@ router.post("/checkout", requirePermission("pos"), async (req, res) => {
 
         await conn.execute(
           `INSERT INTO stock_history
-          (product_id, before_qty, after_qty, change_qty, reason, by_user_id)
-          VALUES (?, ?, ?, ?, ?, ?)`,
+          (product_id, before_qty, after_qty, change_qty, reason, by_user_id, business_id, branch_id)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
           [
             item.product_id,
             beforeQty,
             afterQty,
             -item.qty,
             `Sale #${saleId}`,
-            req.user.id
+            req.user.id,
+            req.user.business_id,
+            req.user.branch_id || null
           ]
         );
       }

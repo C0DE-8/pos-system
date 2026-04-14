@@ -10,6 +10,7 @@ import {
   FiBox,
   FiSettings,
   FiTrendingUp,
+  FiBarChart2,
   FiGrid,
   FiBell,
   FiAlertTriangle,
@@ -31,6 +32,7 @@ import CourtsManagement from "../../components/courts-management/CourtsManagemen
 import SalesManagement from "../../components/sales-management/SalesManagement";
 import MembersManagement from "../../components/members-management/MembersManagement";
 import SettingsManagement from "../../components/settings-management/SettingsManagement";
+import ReportsManagement from "../../components/reports-management/ReportsManagement";
 import MobileSidebarHead from "../../components/mobile-sidebar-head/MobileSidebarHead";
 
 import useDashboard from "../../hooks/useDashboard";
@@ -60,6 +62,7 @@ const MENU_ITEMS = [
   { label: "Inventory", permission: "inventory", icon: <FiBox /> },
   { label: "Warehouse", permission: "inventory", icon: <FiBox /> },
   { label: "Sales", permission: "sales", icon: <FiTrendingUp /> },
+  { label: "Reports", permission: "analytics", icon: <FiBarChart2 /> },
   { label: "Members", permission: "members", icon: <FiUsers /> },
   { label: "Users", permission: "users", icon: <FiUsers /> },
   { label: "Settings", permission: "settings", icon: <FiSettings /> }
@@ -283,6 +286,7 @@ export default function Dashboard() {
     if (hasPermission(currentUser, currentPermissions, "inventory")) actions.push("Open Warehouse");
     if (hasPermission(currentUser, currentPermissions, "members")) actions.push("Find Member");
     if (hasPermission(currentUser, currentPermissions, "sales")) actions.push("View Sales");
+    if (hasPermission(currentUser, currentPermissions, "analytics")) actions.push("Open Reports");
     if (hasPermission(currentUser, currentPermissions, "users")) actions.push("Manage Users");
     if (hasPermission(currentUser, currentPermissions, "settings")) actions.push("System Settings");
 
@@ -489,6 +493,14 @@ export default function Dashboard() {
       return (
         <section className={styles.fullSection}>
           <SalesManagement />
+        </section>
+      );
+    }
+
+    if (activeMenu === "Reports" && hasPermission(currentUser, currentPermissions, "analytics")) {
+      return (
+        <section className={styles.fullSection}>
+          <ReportsManagement />
         </section>
       );
     }

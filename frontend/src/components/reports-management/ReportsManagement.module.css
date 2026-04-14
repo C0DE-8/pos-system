@@ -1,0 +1,209 @@
+.wrap {
+  display: grid;
+  gap: 20px;
+  padding: 20px;
+  color: #e5eef8;
+}
+
+.head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding: 18px 20px;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  border-radius: 16px;
+  background: linear-gradient(180deg, rgba(15, 23, 42, 0.92), rgba(17, 24, 39, 0.88));
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.22);
+}
+
+.head h2 {
+  margin: 0;
+  font-size: 26px;
+  font-weight: 800;
+  color: #f8fafc;
+  line-height: 1.2;
+}
+
+.head p {
+  margin: 6px 0 0;
+  color: #cbd5e1;
+  font-size: 14px;
+  line-height: 1.6;
+  max-width: 680px;
+}
+
+.select {
+  min-width: 170px;
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  border-radius: 12px;
+  padding: 10px 14px;
+  background: rgba(15, 23, 42, 0.95);
+  color: #f8fafc;
+  font-size: 14px;
+  font-weight: 600;
+  outline: none;
+  box-shadow: 0 0 0 0 transparent;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+}
+
+.select:focus {
+  border-color: rgba(96, 165, 250, 0.9);
+  box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.18);
+}
+
+.error {
+  background: rgba(127, 29, 29, 0.22);
+  color: #fecaca;
+  border: 1px solid rgba(248, 113, 113, 0.35);
+  padding: 12px 14px;
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 14px;
+}
+
+.card {
+  background: linear-gradient(180deg, rgba(15, 23, 42, 0.94), rgba(30, 41, 59, 0.9));
+  border: 1px solid rgba(148, 163, 184, 0.14);
+  border-radius: 16px;
+  padding: 16px;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.18);
+}
+
+.card h4 {
+  margin: 0;
+  color: #94a3b8;
+  font-size: 13px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.card p {
+  margin: 10px 0 0;
+  font-size: 28px;
+  font-weight: 800;
+  color: #f8fafc;
+  line-height: 1.2;
+  word-break: break-word;
+}
+
+.tables {
+  display: grid;
+  gap: 14px;
+}
+
+.tableCard {
+  background: linear-gradient(180deg, rgba(15, 23, 42, 0.94), rgba(17, 24, 39, 0.92));
+  border: 1px solid rgba(148, 163, 184, 0.14);
+  border-radius: 16px;
+  padding: 16px;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.18);
+  overflow: hidden;
+}
+
+.tableCard h3 {
+  margin: 0 0 14px;
+  color: #f8fafc;
+  font-size: 18px;
+  font-weight: 800;
+}
+
+.tableCard p {
+  margin: 8px 0 0;
+  color: #dbe7f3;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.tableCard table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 560px;
+}
+
+.tableCard thead {
+  background: rgba(51, 65, 85, 0.45);
+}
+
+.tableCard th,
+.tableCard td {
+  text-align: left;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.12);
+  padding: 10px 8px;
+  font-size: 13px;
+}
+
+.tableCard th {
+  color: #cbd5e1;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.tableCard td {
+  color: #f8fafc;
+  font-weight: 500;
+}
+
+.tableCard tbody tr:hover {
+  background: rgba(51, 65, 85, 0.22);
+}
+
+@media (max-width: 768px) {
+  .wrap {
+    gap: 16px;
+    padding: 14px;
+  }
+
+  .head {
+    padding: 16px;
+  }
+
+  .head h2 {
+    font-size: 22px;
+  }
+
+  .head p {
+    font-size: 13px;
+  }
+
+  .select {
+    width: 100%;
+  }
+
+  .card p {
+    font-size: 24px;
+  }
+
+  .tableCard {
+    padding: 14px;
+    overflow-x: auto;
+  }
+
+  .tableCard table {
+    min-width: 520px;
+  }
+}
+
+@media (max-width: 480px) {
+  .grid {
+    grid-template-columns: 1fr;
+  }
+
+  .card,
+  .tableCard,
+  .head {
+    border-radius: 14px;
+  }
+
+  .card p {
+    font-size: 22px;
+  }
+}

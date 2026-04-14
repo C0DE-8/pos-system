@@ -1,30 +1,47 @@
 const express = require("express");
 const { query, pool } = require("../config/db");
 const { authenticateToken, requirePermission } = require("../middleware/auth");
+const { ensureBusinessContext, isAdmin } = require("../utils/tenant");
+const branchAccessMiddleware = require("../middleware/branchAccessMiddleware");
 
 const router = express.Router();
 
 router.use(authenticateToken);
 
 // sales/ all sales
-router.get("/", requirePermission("sales"), async (req, res) => {
+router.get("/", requirePermission("sales"), branchAccessMiddleware, async (req, res) => {
   try {
+    if (!ensureBusinessContext(req, res)) return;
+
+    const branchId = req.query.branch_id;
+    const where = ["s.business_id = ?"];
+    const params = [req.user.business_id];
+    if (!isAdmin(req.user)) {
+      where.push("s.branch_id = ?");
+      params.push(req.user.branch_id);
+    } else if (branchId) {
+      where.push("s.branch_id = ?");
+      params.push(branchId);
+    }
+
     const rows = await query(`
       SELECT s.*, u.name AS cashier_name
       FROM sales s
       JOIN users u ON u.id = s.cashier_id
+      ${where.length ? `WHERE ${where.join(" AND ")}` : ""}
       ORDER BY s.id DESC
       LIMIT 200
-    `);
+    `, params);
     res.json({ success: true, data: rows });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
 });
 // sales/payment-types?type=card&split_with=cash filter sales by payment type and split breakdown
-router.get("/payment-types", requirePermission("sales"), async (req, res) => {
+router.get("/payment-types", requirePermission("sales"), branchAccessMiddleware, async (req, res) => {
   try {
-    const { type, split_with } = req.query;
+    if (!ensureBusinessContext(req, res)) return;
+    const { type, split_with, branch_id } = req.query;
 
     let sql = `
       SELECT 
@@ -36,6 +53,16 @@ router.get("/payment-types", requirePermission("sales"), async (req, res) => {
 
     const where = [];
     const params = [];
+
+    where.push("s.business_id = ?");
+    params.push(req.user.business_id);
+    if (!isAdmin(req.user)) {
+      where.push("s.branch_id = ?");
+      params.push(req.user.branch_id);
+    } else if (branch_id) {
+      where.push("s.branch_id = ?");
+      params.push(branch_id);
+    }
 
     // filter by main payment type
     if (type) {
@@ -96,9 +123,20 @@ router.get("/payment-types", requirePermission("sales"), async (req, res) => {
   }
 });
 // sales/:id sale details
-router.get("/:id", requirePermission("sales"), async (req, res) => {
+router.get("/:id", requirePermission("sales"), branchAccessMiddleware, async (req, res) => {
   try {
-    const sales = await query("SELECT * FROM sales WHERE id = ? LIMIT 1", [req.params.id]);
+    if (!ensureBusinessContext(req, res)) return;
+    const branchId = req.query.branch_id || req.body.branch_id;
+    const where = ["id = ?", "business_id = ?"];
+    const params = [req.params.id, req.user.business_id];
+    if (!isAdmin(req.user)) {
+      where.push("branch_id = ?");
+      params.push(req.user.branch_id);
+    } else if (branchId) {
+      where.push("branch_id = ?");
+      params.push(branchId);
+    }
+    const sales = await query(`SELECT * FROM sales WHERE ${where.join(" AND ")} LIMIT 1`, params);
     if (!sales.length) return res.status(404).json({ success: false, message: "Sale not found" });
 
     const items = await query("SELECT * FROM sale_items WHERE sale_id = ?", [req.params.id]);
@@ -109,13 +147,25 @@ router.get("/:id", requirePermission("sales"), async (req, res) => {
   }
 });
 // sales/:id/refund refund sale
-router.post("/:id/refund", requirePermission("refunds"), async (req, res) => {
+router.post("/:id/refund", requirePermission("refunds"), branchAccessMiddleware, async (req, res) => {
   const conn = await pool.getConnection();
   try {
+    if (!ensureBusinessContext(req, res)) return;
     const { reason } = req.body;
     await conn.beginTransaction();
 
-    const [sales] = await conn.execute("SELECT * FROM sales WHERE id = ? LIMIT 1", [req.params.id]);
+    const branchId = req.query.branch_id || req.body.branch_id;
+    let saleSql = "SELECT * FROM sales WHERE id = ? AND business_id = ?";
+    const saleParams = [req.params.id, req.user.business_id];
+    if (!isAdmin(req.user)) {
+      saleSql += " AND branch_id = ?";
+      saleParams.push(req.user.branch_id);
+    } else if (branchId) {
+      saleSql += " AND branch_id = ?";
+      saleParams.push(branchId);
+    }
+    saleSql += " LIMIT 1";
+    const [sales] = await conn.execute(saleSql, saleParams);
     if (!sales.length) {
       await conn.rollback();
       return res.status(404).json({ success: false, message: "Sale not found" });
@@ -147,15 +197,17 @@ router.post("/:id/refund", requirePermission("refunds"), async (req, res) => {
 
           await conn.execute("UPDATE products SET stock = ? WHERE id = ?", [afterQty, item.product_id]);
           await conn.execute(
-            `INSERT INTO stock_history (product_id, before_qty, after_qty, change_qty, reason, by_user_id)
-             VALUES (?, ?, ?, ?, ?, ?)`,
+            `INSERT INTO stock_history (product_id, before_qty, after_qty, change_qty, reason, by_user_id, business_id, branch_id)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
             [
               item.product_id,
               beforeQty,
               afterQty,
               changeQty,
               `Refund sale #${req.params.id}: ${reason || "Refunded"}`,
-              req.user.id
+              req.user.id,
+              sale.business_id || req.user.business_id || null,
+              sale.branch_id || req.user.branch_id || null
             ]
           );
         }

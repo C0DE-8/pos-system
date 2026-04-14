@@ -4,11 +4,10 @@ import { loginUser } from "../../../api/authApi";
 import styles from "./Login.module.css";
 import { Link } from "react-router-dom";
 
-const keypadNumbers = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "0"];
-
 const clearAuthStorage = () => {
   localStorage.removeItem("token");
   localStorage.removeItem("user");
+  localStorage.removeItem("branch_slug");
 };
 
 const isTokenValid = (token) => {
@@ -33,8 +32,9 @@ export default function Login() {
 
   const [checkingAuth, setCheckingAuth] = useState(true);
   const [form, setForm] = useState({
-    name: "",
-    pin: ""
+    email: "",
+    password: "",
+    branch_slug: localStorage.getItem("branch_slug") || ""
   });
 
   const [loading, setLoading] = useState(false);
@@ -55,43 +55,9 @@ export default function Login() {
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-
-    if (name === "pin") {
-      const onlyNumbers = value.replace(/\D/g, "").slice(0, 6);
-      setForm((prev) => ({
-        ...prev,
-        pin: onlyNumbers
-      }));
-      return;
-    }
-
     setForm((prev) => ({
       ...prev,
       [name]: value
-    }));
-  };
-
-  const handleKeypadPress = (digit) => {
-    setForm((prev) => {
-      if (prev.pin.length >= 6) return prev;
-      return {
-        ...prev,
-        pin: prev.pin + digit
-      };
-    });
-  };
-
-  const handleBackspace = () => {
-    setForm((prev) => ({
-      ...prev,
-      pin: prev.pin.slice(0, -1)
-    }));
-  };
-
-  const handleClearPin = () => {
-    setForm((prev) => ({
-      ...prev,
-      pin: ""
     }));
   };
 
@@ -102,8 +68,9 @@ export default function Login() {
 
     try {
       const payload = {
-        name: form.name.trim(),
-        pin: form.pin.trim()
+        email: form.email.trim(),
+        password: form.password,
+        branch_slug: form.branch_slug.trim()
       };
 
       const data = await loginUser(payload);
@@ -116,6 +83,7 @@ export default function Login() {
 
       localStorage.setItem("token", data.token);
       localStorage.setItem("user", JSON.stringify(data.user));
+      localStorage.setItem("branch_slug", payload.branch_slug);
 
       navigate("/dashboard", { replace: true });
     } catch (err) {
@@ -154,93 +122,55 @@ export default function Login() {
           <div className={styles.brand}>
             <div className={styles.logoCircle}>🎮</div>
             <h1>Arena Pro</h1>
-            <p>Login with your staff name and PIN</p>
+            <p>Login with your email, password and branch</p>
           </div>
 
         <form onSubmit={handleLogin} className={styles.form}>
           <div className={styles.formGroup}>
-            <label htmlFor="name">Staff Name</label>
+            <label htmlFor="email">Staff Email</label>
             <div className={styles.inputWrap}>
               <span className={styles.inputIcon}>👤</span>
               <input
-                id="name"
-                type="text"
-                name="name"
-                value={form.name}
+                id="email"
+                type="email"
+                name="email"
+                value={form.email}
                 onChange={handleChange}
-                placeholder="Enter your name or email"
+                placeholder="Enter your email"
                 autoComplete="username"
               />
             </div>
           </div>
 
           <div className={styles.formGroup}>
-            <label htmlFor="pin">PIN</label>
-
-            <div className={styles.pinMachine}>
-              <div className={styles.pinScreenTop}>
-                <span>Secure PIN Entry</span>
-                <small>{form.pin.length}/6</small>
-              </div>
-
-              <div className={styles.pinSlots}>
-                {[0, 1, 2, 3, 4, 5].map((slot) => (
-                  <div key={slot} className={styles.pinSlot}>
-                    {form.pin[slot] ? <span className={styles.pinDot}></span> : null}
-                  </div>
-                ))}
-              </div>
-
+            <label htmlFor="password">Password</label>
+            <div className={styles.inputWrap}>
+              <span className={styles.inputIcon}>🔒</span>
               <input
-                id="pin"
+                id="password"
                 type="password"
-                name="pin"
-                value={form.pin}
+                name="password"
+                value={form.password}
                 onChange={handleChange}
-                placeholder="Type PIN or use keypad"
+                placeholder="Enter your password"
                 autoComplete="current-password"
-                inputMode="numeric"
-                className={styles.hiddenPinInput}
               />
             </div>
           </div>
 
-          <div className={styles.keypadCard}>
-            <div className={styles.keypadGrid}>
-              {keypadNumbers.slice(0, 9).map((digit) => (
-                <button
-                  key={digit}
-                  type="button"
-                  className={styles.keypadBtn}
-                  onClick={() => handleKeypadPress(digit)}
-                >
-                  {digit}
-                </button>
-              ))}
-
-              <button
-                type="button"
-                className={`${styles.keypadBtn} ${styles.keypadAction}`}
-                onClick={handleClearPin}
-              >
-                Clear
-              </button>
-
-              <button
-                type="button"
-                className={`${styles.keypadBtn} ${styles.keypadZero}`}
-                onClick={() => handleKeypadPress("0")}
-              >
-                0
-              </button>
-
-              <button
-                type="button"
-                className={`${styles.keypadBtn} ${styles.keypadAction}`}
-                onClick={handleBackspace}
-              >
-                ⌫
-              </button>
+          <div className={styles.formGroup}>
+            <label htmlFor="branch_slug">Branch Slug</label>
+            <div className={styles.inputWrap}>
+              <span className={styles.inputIcon}>🏬</span>
+              <input
+                id="branch_slug"
+                type="text"
+                name="branch_slug"
+                value={form.branch_slug}
+                onChange={handleChange}
+                placeholder="main-branch"
+                autoComplete="off"
+              />
             </div>
           </div>
 

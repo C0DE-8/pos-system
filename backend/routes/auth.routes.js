@@ -2,28 +2,29 @@ const express = require("express");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const { query } = require("../config/db");
-const { authenticateToken } = require("../middleware/auth");
+const authMiddleware = require("../middleware/authMiddleware");
 
 const router = express.Router();
 
-// /api/auth/login - login with name or email + PIN
+// /api/auth/login - login with email + password + branch_slug
 router.post("/login", async (req, res) => {
   try {
-    const { name, pin } = req.body;
+    const { email, password, branch_slug } = req.body;
 
-    if (!name || !pin) {
+    if (!email || !password || !branch_slug) {
       return res.status(400).json({
         success: false,
-        message: "Name or Email and PIN are required"
+        message: "email, password and branch_slug are required"
       });
     }
 
     const users = await query(
-      `SELECT * FROM users 
-       WHERE (name = ? OR email = ?) 
+      `SELECT *
+       FROM users
+       WHERE email = ?
        AND is_active = 1 
        LIMIT 1`,
-      [name, name]
+      [email]
     );
 
     if (!users.length) {
@@ -35,17 +36,56 @@ router.post("/login", async (req, res) => {
 
     const user = users[0];
 
-    const isMatch = await bcrypt.compare(pin, user.pin_hash);
+    const passwordHash = user.password_hash || user.pin_hash;
+    const isMatch = await bcrypt.compare(password, passwordHash);
 
     if (!isMatch) {
       return res.status(401).json({
         success: false,
-        message: "Invalid PIN"
+        message: "Invalid credentials"
       });
     }
 
+    const branches = await query(
+      `SELECT id, business_id, is_active
+       FROM business_branches
+       WHERE slug = ?
+       LIMIT 1`,
+      [branch_slug]
+    );
+
+    if (!branches.length || !Number(branches[0].is_active)) {
+      return res.status(404).json({
+        success: false,
+        message: "Branch not found or inactive"
+      });
+    }
+
+    const branch = branches[0];
+
+    if (Number(user.business_id) !== Number(branch.business_id)) {
+      return res.status(403).json({
+        success: false,
+        message: "You are not authorized to access this branch"
+      });
+    }
+
+    if (!["admin", "owner"].includes(String(user.role).toLowerCase())) {
+      if (Number(user.branch_id) !== Number(branch.id)) {
+        return res.status(403).json({
+          success: false,
+          message: "You are not authorized to access this branch"
+        });
+      }
+    }
+
     const token = jwt.sign(
-      { id: user.id, role: user.role },
+      {
+        id: user.id,
+        role: user.role,
+        business_id: user.business_id || null,
+        branch_id: branch.id
+      },
       process.env.JWT_SECRET,
       { expiresIn: process.env.JWT_EXPIRES_IN || "15h" }
     );
@@ -64,7 +104,9 @@ router.post("/login", async (req, res) => {
         name: user.name,
         email: user.email,
         avatar: user.avatar,
-        role: user.role
+        role: user.role,
+        business_id: user.business_id || null,
+        branch_id: branch.id
       }
     });
 
@@ -77,7 +119,7 @@ router.post("/login", async (req, res) => {
 });
 
 // logout
-router.post("/logout", authenticateToken, async (req, res) => {
+router.post("/logout", authMiddleware, async (req, res) => {
   try {
     await query(
       "INSERT INTO clock_events (user_id, event_type) VALUES (?, 'out')",
@@ -91,7 +133,7 @@ router.post("/logout", authenticateToken, async (req, res) => {
 });
 
 // auth/me
-router.get("/me", authenticateToken, async (req, res) => {
+router.get("/me", authMiddleware, async (req, res) => {
   try {
     const permissions = await query(
       "SELECT * FROM user_permissions WHERE user_id = ? LIMIT 1",

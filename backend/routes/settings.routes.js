@@ -2,6 +2,7 @@ const express = require("express");
 const { query } = require("../config/db");
 const moment = require("moment");
 const { authenticateToken, requirePermission } = require("../middleware/auth");
+const { ensureBusinessContext } = require("../utils/tenant");
 
 const router = express.Router();
 
@@ -10,6 +11,7 @@ router.use(authenticateToken);
 // settings/ get settings
 router.get("/", async (req, res) => {
   try {
+    if (!ensureBusinessContext(req, res)) return;
     const rows = await query("SELECT * FROM settings LIMIT 1");
     res.json({ success: true, data: rows[0] || null });
   } catch (error) {
@@ -56,6 +58,7 @@ router.put("/", requirePermission("settings"), async (req, res) => {
 // settings/expiry-alerts GET expiry alerts
 router.get("/expiry-alerts",async (req, res) => {
   try {
+    if (!ensureBusinessContext(req, res)) return;
     const settingsRows = await query("SELECT * FROM settings WHERE id = 1 LIMIT 1");
     const settings = settingsRows[0];
 
@@ -89,11 +92,12 @@ router.get("/expiry-alerts",async (req, res) => {
       FROM products p
       LEFT JOIN categories c ON c.id = p.category_id
       WHERE p.is_active = 1
+        AND p.business_id = ?
         AND p.has_expiry = 1
         AND p.expiry_date IS NOT NULL
       ORDER BY p.expiry_date ASC
       `
-    );
+    , [req.user.business_id]);
 
     const today = moment();
 
@@ -132,6 +136,7 @@ router.get("/expiry-alerts",async (req, res) => {
 // settings/products / get all active products
 router.get("/products", async (req, res) => {
   try {
+    if (!ensureBusinessContext(req, res)) return;
     const rows = await query(
       `
       SELECT 
@@ -157,9 +162,10 @@ router.get("/products", async (req, res) => {
       FROM products p
       LEFT JOIN categories c ON c.id = p.category_id
       WHERE p.is_active = 1
+        AND p.business_id = ?
       ORDER BY p.id DESC
       `
-    );
+    , [req.user.business_id]);
 
     res.json({
       success: true,

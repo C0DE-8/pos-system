@@ -2,6 +2,7 @@ const express = require("express");
 const bcrypt = require("bcryptjs");
 const { query } = require("../config/db");
 const { authenticateToken, requirePermission } = require("../middleware/auth");
+const { ensureBusinessContext, isAdmin } = require("../utils/tenant");
 
 const router = express.Router();
 
@@ -9,12 +10,20 @@ router.use(authenticateToken);
 
 router.get("/", requirePermission("users"), async (req, res) => {
   try {
+    if (!ensureBusinessContext(req, res)) return;
+    const where = [];
+    const params = [];
+    if (!isAdmin(req.user)) {
+      where.push("u.business_id = ?");
+      params.push(req.user.business_id);
+    }
     const rows = await query(`
       SELECT u.id, u.name, u.email, u.avatar, u.role, u.total_hours, u.is_active, u.created_at, p.*
       FROM users u
       LEFT JOIN user_permissions p ON p.user_id = u.id
+      ${where.length ? `WHERE ${where.join(" AND ")}` : ""}
       ORDER BY u.id DESC
-    `);
+    `, params);
 
     res.json({ success: true, data: rows });
   } catch (error) {
@@ -24,12 +33,16 @@ router.get("/", requirePermission("users"), async (req, res) => {
 
 router.put("/:id", requirePermission("users"), async (req, res) => {
   try {
+    if (!ensureBusinessContext(req, res)) return;
     const { name, email, avatar, role, pin, permissions } = req.body;
     const userId = req.params.id;
 
     await query(
-      "UPDATE users SET name = ?, email = ?, avatar = ?, role = ? WHERE id = ?",
-      [name, email, avatar || "👤", role, userId]
+      `UPDATE users SET name = ?, email = ?, avatar = ?, role = ?
+       WHERE id = ? ${isAdmin(req.user) ? "" : "AND business_id = ?"}`,
+      isAdmin(req.user)
+        ? [name, email, avatar || "👤", role, userId]
+        : [name, email, avatar || "👤", role, userId, req.user.business_id]
     );
 
     if (pin) {
@@ -70,13 +83,15 @@ router.put("/:id", requirePermission("users"), async (req, res) => {
 
 router.get("/clock/history", requirePermission("users"), async (req, res) => {
   try {
+    if (!ensureBusinessContext(req, res)) return;
     const rows = await query(`
       SELECT c.id, u.name, c.event_type, c.event_time
       FROM clock_events c
       JOIN users u ON u.id = c.user_id
+      WHERE u.business_id = ?
       ORDER BY c.event_time DESC
       LIMIT 100
-    `);
+    `, [req.user.business_id]);
 
     res.json({ success: true, data: rows });
   } catch (error) {

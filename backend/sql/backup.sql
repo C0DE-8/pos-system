@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: localhost
--- Generation Time: Apr 14, 2026 at 11:47 AM
+-- Generation Time: Apr 14, 2026 at 10:07 AM
 -- Server version: 10.4.28-MariaDB
 -- PHP Version: 8.2.4
 
@@ -24,61 +24,6 @@ SET time_zone = "+00:00";
 -- --------------------------------------------------------
 
 --
--- Table structure for table `businesses`
---
-
-CREATE TABLE `businesses` (
-  `id` int(11) NOT NULL,
-  `name` varchar(150) NOT NULL,
-  `slug` varchar(160) NOT NULL,
-  `logo_url` varchar(255) DEFAULT NULL,
-  `phone` varchar(50) DEFAULT NULL,
-  `email` varchar(150) DEFAULT NULL,
-  `address` varchar(255) DEFAULT NULL,
-  `currency` varchar(10) NOT NULL DEFAULT 'NGN',
-  `tax_rate` decimal(10,2) NOT NULL DEFAULT 0.00,
-  `is_active` tinyint(1) NOT NULL DEFAULT 1,
-  `created_at` datetime DEFAULT current_timestamp(),
-  `updated_at` datetime DEFAULT current_timestamp() ON UPDATE current_timestamp()
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
-
---
--- Dumping data for table `businesses`
---
-
-INSERT INTO `businesses` (`id`, `name`, `slug`, `logo_url`, `phone`, `email`, `address`, `currency`, `tax_rate`, `is_active`, `created_at`, `updated_at`) VALUES
-(1, 'Default Business', 'default-business', NULL, NULL, NULL, NULL, 'NGN', 0.00, 1, '2026-04-14 02:05:24', '2026-04-14 02:05:24');
-
--- --------------------------------------------------------
-
---
--- Table structure for table `business_branches`
---
-
-CREATE TABLE `business_branches` (
-  `id` int(11) NOT NULL,
-  `business_id` int(11) NOT NULL,
-  `name` varchar(150) NOT NULL,
-  `slug` varchar(160) NOT NULL,
-  `phone` varchar(50) DEFAULT NULL,
-  `email` varchar(150) DEFAULT NULL,
-  `address` varchar(255) DEFAULT NULL,
-  `is_main` tinyint(1) NOT NULL DEFAULT 0,
-  `is_active` tinyint(1) NOT NULL DEFAULT 1,
-  `created_at` datetime DEFAULT current_timestamp(),
-  `updated_at` datetime DEFAULT current_timestamp() ON UPDATE current_timestamp()
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
-
---
--- Dumping data for table `business_branches`
---
-
-INSERT INTO `business_branches` (`id`, `business_id`, `name`, `slug`, `phone`, `email`, `address`, `is_main`, `is_active`, `created_at`, `updated_at`) VALUES
-(1, 1, 'Main Branch', 'main-branch', NULL, NULL, NULL, 1, 1, '2026-04-14 02:05:24', '2026-04-14 02:05:24');
-
--- --------------------------------------------------------
-
---
 -- Table structure for table `categories`
 --
 
@@ -87,20 +32,19 @@ CREATE TABLE `categories` (
   `name` varchar(100) NOT NULL,
   `type` enum('sporty','consumable','service','other') NOT NULL DEFAULT 'other',
   `created_at` datetime DEFAULT current_timestamp(),
-  `updated_at` datetime DEFAULT current_timestamp() ON UPDATE current_timestamp(),
-  `business_id` int(11) DEFAULT NULL
+  `updated_at` datetime DEFAULT current_timestamp() ON UPDATE current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
 -- Dumping data for table `categories`
 --
 
-INSERT INTO `categories` (`id`, `name`, `type`, `created_at`, `updated_at`, `business_id`) VALUES
-(1, 'Snooker', 'other', '2026-03-16 08:33:37', '2026-04-14 02:05:25', 1),
-(2, 'Paintball', 'other', '2026-03-16 08:33:37', '2026-04-14 02:05:25', 1),
-(3, 'Ball', 'sporty', '2026-03-16 08:34:59', '2026-04-14 02:05:25', 1),
-(4, 'wine', 'consumable', '2026-03-16 08:35:11', '2026-04-14 02:05:25', 1),
-(5, 'rice', 'consumable', '2026-03-16 08:35:16', '2026-04-14 02:05:25', 1);
+INSERT INTO `categories` (`id`, `name`, `type`, `created_at`, `updated_at`) VALUES
+(1, 'Snooker', 'other', '2026-03-16 08:33:37', '2026-03-16 08:33:37'),
+(2, 'Paintball', 'other', '2026-03-16 08:33:37', '2026-03-16 08:33:37'),
+(3, 'Ball', 'sporty', '2026-03-16 08:34:59', '2026-03-16 08:34:59'),
+(4, 'wine', 'consumable', '2026-03-16 08:35:11', '2026-03-16 08:35:11'),
+(5, 'rice', 'consumable', '2026-03-16 08:35:16', '2026-03-16 08:35:16');
 
 -- --------------------------------------------------------
 
@@ -144,9 +88,7 @@ INSERT INTO `clock_events` (`id`, `user_id`, `event_type`, `event_time`, `create
 (21, 2, 'in', '2026-03-19 18:23:05', '2026-03-19 18:23:05'),
 (22, 2, 'in', '2026-04-04 02:15:51', '2026-04-04 02:15:51'),
 (23, 2, 'in', '2026-04-06 03:31:43', '2026-04-06 03:31:43'),
-(24, 2, 'in', '2026-04-10 07:06:52', '2026-04-10 07:06:52'),
-(25, 2, 'in', '2026-04-14 02:25:50', '2026-04-14 02:25:50'),
-(26, 2, 'in', '2026-04-14 02:44:47', '2026-04-14 02:44:47');
+(24, 2, 'in', '2026-04-10 07:06:52', '2026-04-10 07:06:52');
 
 -- --------------------------------------------------------
 
@@ -171,71 +113,6 @@ CREATE TABLE `courts` (
 -- --------------------------------------------------------
 
 --
--- Table structure for table `customer_orders`
---
-
-CREATE TABLE `customer_orders` (
-  `id` int(11) NOT NULL,
-  `business_id` int(11) NOT NULL,
-  `branch_id` int(11) DEFAULT NULL,
-  `order_code` varchar(80) NOT NULL,
-  `customer_name` varchar(150) DEFAULT NULL,
-  `customer_phone` varchar(50) DEFAULT NULL,
-  `customer_email` varchar(150) DEFAULT NULL,
-  `order_type` enum('dine_in','pickup','delivery') NOT NULL DEFAULT 'pickup',
-  `table_number` varchar(50) DEFAULT NULL,
-  `delivery_address` varchar(255) DEFAULT NULL,
-  `notes` text DEFAULT NULL,
-  `subtotal` decimal(12,2) NOT NULL DEFAULT 0.00,
-  `discount` decimal(12,2) NOT NULL DEFAULT 0.00,
-  `tax` decimal(12,2) NOT NULL DEFAULT 0.00,
-  `total` decimal(12,2) NOT NULL DEFAULT 0.00,
-  `currency` varchar(10) NOT NULL DEFAULT 'NGN',
-  `payment_status` enum('pending','paid','failed','refunded') NOT NULL DEFAULT 'pending',
-  `fulfillment_status` enum('pending','confirmed','preparing','ready','completed','cancelled') NOT NULL DEFAULT 'pending',
-  `source` enum('digital_menu') NOT NULL DEFAULT 'digital_menu',
-  `created_at` datetime DEFAULT current_timestamp(),
-  `updated_at` datetime DEFAULT current_timestamp() ON UPDATE current_timestamp()
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
-
--- --------------------------------------------------------
-
---
--- Table structure for table `customer_order_items`
---
-
-CREATE TABLE `customer_order_items` (
-  `id` int(11) NOT NULL,
-  `customer_order_id` int(11) NOT NULL,
-  `product_id` int(11) DEFAULT NULL,
-  `item_name` varchar(150) NOT NULL,
-  `icon` varchar(20) DEFAULT NULL,
-  `qty` int(11) NOT NULL DEFAULT 1,
-  `unit_price` decimal(12,2) NOT NULL DEFAULT 0.00,
-  `item_discount_pct` decimal(10,2) NOT NULL DEFAULT 0.00,
-  `final_price` decimal(12,2) NOT NULL DEFAULT 0.00,
-  `mods` text DEFAULT NULL,
-  `notes` text DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
-
--- --------------------------------------------------------
-
---
--- Table structure for table `customer_order_status_logs`
---
-
-CREATE TABLE `customer_order_status_logs` (
-  `id` int(11) NOT NULL,
-  `customer_order_id` int(11) NOT NULL,
-  `old_status` varchar(50) DEFAULT NULL,
-  `new_status` varchar(50) NOT NULL,
-  `changed_by` int(11) DEFAULT NULL,
-  `created_at` datetime DEFAULT current_timestamp()
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
-
--- --------------------------------------------------------
-
---
 -- Table structure for table `gift_cards`
 --
 
@@ -245,8 +122,7 @@ CREATE TABLE `gift_cards` (
   `customer` varchar(150) DEFAULT NULL,
   `balance` decimal(12,2) DEFAULT 0.00,
   `active` tinyint(1) DEFAULT 1,
-  `issued_at` datetime DEFAULT current_timestamp(),
-  `business_id` int(11) DEFAULT NULL
+  `issued_at` datetime DEFAULT current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
@@ -260,9 +136,7 @@ CREATE TABLE `kds_orders` (
   `ticket_name` varchar(120) DEFAULT NULL,
   `customer` varchar(150) DEFAULT NULL,
   `status` enum('new','in-progress','ready','done') DEFAULT 'new',
-  `created_at` datetime DEFAULT current_timestamp(),
-  `business_id` int(11) DEFAULT NULL,
-  `branch_id` int(11) DEFAULT NULL
+  `created_at` datetime DEFAULT current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
@@ -296,64 +170,7 @@ CREATE TABLE `members` (
   `points` int(11) DEFAULT 0,
   `visits` int(11) DEFAULT 0,
   `total_spent` decimal(12,2) DEFAULT 0.00,
-  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
-  `business_id` int(11) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
-
--- --------------------------------------------------------
-
---
--- Table structure for table `menu_categories`
---
-
-CREATE TABLE `menu_categories` (
-  `id` int(11) NOT NULL,
-  `business_id` int(11) NOT NULL,
-  `collection_id` int(11) NOT NULL,
-  `name` varchar(150) NOT NULL,
-  `description` text DEFAULT NULL,
-  `sort_order` int(11) NOT NULL DEFAULT 0,
-  `is_active` tinyint(1) NOT NULL DEFAULT 1
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
-
--- --------------------------------------------------------
-
---
--- Table structure for table `menu_collections`
---
-
-CREATE TABLE `menu_collections` (
-  `id` int(11) NOT NULL,
-  `business_id` int(11) NOT NULL,
-  `branch_id` int(11) DEFAULT NULL,
-  `name` varchar(150) NOT NULL,
-  `slug` varchar(160) NOT NULL,
-  `description` text DEFAULT NULL,
-  `is_active` tinyint(1) NOT NULL DEFAULT 1,
-  `created_at` datetime DEFAULT current_timestamp(),
-  `updated_at` datetime DEFAULT current_timestamp() ON UPDATE current_timestamp()
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
-
--- --------------------------------------------------------
-
---
--- Table structure for table `menu_products`
---
-
-CREATE TABLE `menu_products` (
-  `id` int(11) NOT NULL,
-  `business_id` int(11) NOT NULL,
-  `branch_id` int(11) DEFAULT NULL,
-  `collection_id` int(11) NOT NULL,
-  `category_id` int(11) DEFAULT NULL,
-  `product_id` int(11) NOT NULL,
-  `display_name` varchar(150) DEFAULT NULL,
-  `description` text DEFAULT NULL,
-  `image_url` varchar(255) DEFAULT NULL,
-  `price_override` decimal(12,2) DEFAULT NULL,
-  `is_featured` tinyint(1) NOT NULL DEFAULT 0,
-  `sort_order` int(11) NOT NULL DEFAULT 0,
-  `is_active` tinyint(1) NOT NULL DEFAULT 1
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
@@ -366,8 +183,7 @@ CREATE TABLE `modifier_groups` (
   `id` int(11) NOT NULL,
   `name` varchar(120) NOT NULL,
   `type` enum('single','multi') DEFAULT 'multi',
-  `required_field` tinyint(1) DEFAULT 0,
-  `business_id` int(11) DEFAULT NULL
+  `required_field` tinyint(1) DEFAULT 0
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
@@ -405,20 +221,18 @@ CREATE TABLE `pending_carts` (
   `status` enum('pending','checked_out','cancelled') DEFAULT 'pending',
   `note` text DEFAULT NULL,
   `created_at` datetime DEFAULT current_timestamp(),
-  `updated_at` datetime DEFAULT current_timestamp() ON UPDATE current_timestamp(),
-  `business_id` int(11) DEFAULT NULL,
-  `branch_id` int(11) DEFAULT NULL
+  `updated_at` datetime DEFAULT current_timestamp() ON UPDATE current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
 -- Dumping data for table `pending_carts`
 --
 
-INSERT INTO `pending_carts` (`id`, `cart_code`, `customer`, `cashier_id`, `shift_id`, `subtotal`, `discount`, `loyalty_discount`, `giftcard_discount`, `tax`, `total`, `currency`, `status`, `note`, `created_at`, `updated_at`, `business_id`, `branch_id`) VALUES
-(2, 'PEND-1773246746989', 'Walk-in', 2, NULL, 2000.00, 0.00, 0.00, 0.00, 200.00, 2200.00, 'NGN', 'checked_out', 'mr sam ', '2026-03-11 09:32:27', '2026-04-14 02:05:25', 1, 1),
-(3, 'PEND-1773964375406', 'Walk-in', 2, NULL, 100.00, 0.00, 0.00, 0.00, 10.00, 110.00, 'NGN', 'checked_out', NULL, '2026-03-19 16:52:55', '2026-04-14 02:05:25', 1, 1),
-(4, 'PEND-1773968002056', 'Walk-in', 2, NULL, 100.00, 0.00, 0.00, 0.00, 10.00, 110.00, 'NGN', 'checked_out', NULL, '2026-03-19 17:53:22', '2026-04-14 02:05:25', 1, 1),
-(7, 'PEND-1775831157224', 'Walk-in', 2, NULL, 300.00, 0.00, 0.00, 0.00, 30.00, 330.00, 'NGN', 'checked_out', NULL, '2026-04-10 07:25:57', '2026-04-14 02:05:25', 1, 1);
+INSERT INTO `pending_carts` (`id`, `cart_code`, `customer`, `cashier_id`, `shift_id`, `subtotal`, `discount`, `loyalty_discount`, `giftcard_discount`, `tax`, `total`, `currency`, `status`, `note`, `created_at`, `updated_at`) VALUES
+(2, 'PEND-1773246746989', 'Walk-in', 2, NULL, 2000.00, 0.00, 0.00, 0.00, 200.00, 2200.00, 'NGN', 'checked_out', 'mr sam ', '2026-03-11 09:32:27', '2026-03-11 09:33:35'),
+(3, 'PEND-1773964375406', 'Walk-in', 2, NULL, 100.00, 0.00, 0.00, 0.00, 10.00, 110.00, 'NGN', 'checked_out', NULL, '2026-03-19 16:52:55', '2026-03-19 16:57:30'),
+(4, 'PEND-1773968002056', 'Walk-in', 2, NULL, 100.00, 0.00, 0.00, 0.00, 10.00, 110.00, 'NGN', 'checked_out', NULL, '2026-03-19 17:53:22', '2026-03-19 17:54:55'),
+(7, 'PEND-1775831157224', 'Walk-in', 2, NULL, 300.00, 0.00, 0.00, 0.00, 30.00, 330.00, 'NGN', 'checked_out', NULL, '2026-04-10 07:25:57', '2026-04-10 07:26:10');
 
 -- --------------------------------------------------------
 
@@ -484,19 +298,17 @@ CREATE TABLE `products` (
   `consumable_type` enum('food','drink','other') DEFAULT NULL,
   `has_expiry` tinyint(1) NOT NULL DEFAULT 0,
   `expiry_date` date DEFAULT NULL,
-  `shelf_life_days` int(11) DEFAULT NULL,
-  `business_id` int(11) DEFAULT NULL,
-  `branch_id` int(11) DEFAULT NULL
+  `shelf_life_days` int(11) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
 -- Dumping data for table `products`
 --
 
-INSERT INTO `products` (`id`, `name`, `icon`, `category_id`, `type`, `hourly_rate`, `price`, `cost`, `stock`, `low_stock`, `modifier_group_id`, `is_active`, `created_at`, `is_unlimited`, `consumable_type`, `has_expiry`, `expiry_date`, `shelf_life_days`, `business_id`, `branch_id`) VALUES
-(1, ' Snooker Table', '🎱', 1, 'timed', 1000.00, 0.00, 0.00, NULL, 0, NULL, 1, '2026-03-10 12:21:19', 1, NULL, 0, NULL, NULL, 1, 1),
-(2, 'rice', '📦', 5, 'fixed', 0.00, 100.00, 2000.00, 0, 5, NULL, 1, '2026-03-16 15:36:26', 0, 'food', 1, '2026-04-07', 4, 1, 1),
-(3, 'meat', '📦', 5, 'food', 0.00, 100.00, 2000.00, 0, 5, NULL, 1, '2026-03-16 15:36:26', 0, 'food', 1, '2026-04-07', 4, 1, 1);
+INSERT INTO `products` (`id`, `name`, `icon`, `category_id`, `type`, `hourly_rate`, `price`, `cost`, `stock`, `low_stock`, `modifier_group_id`, `is_active`, `created_at`, `is_unlimited`, `consumable_type`, `has_expiry`, `expiry_date`, `shelf_life_days`) VALUES
+(1, ' Snooker Table', '🎱', 1, 'timed', 1000.00, 0.00, 0.00, NULL, 0, NULL, 1, '2026-03-10 12:21:19', 1, NULL, 0, NULL, NULL),
+(2, 'rice', '📦', 5, 'fixed', 0.00, 100.00, 2000.00, 0, 5, NULL, 1, '2026-03-16 15:36:26', 0, 'food', 1, '2026-04-07', 4),
+(3, 'meat', '📦', 5, 'food', 0.00, 100.00, 2000.00, 0, 5, NULL, 1, '2026-03-16 15:36:26', 0, 'food', 1, '2026-04-07', 4);
 
 -- --------------------------------------------------------
 
@@ -513,9 +325,7 @@ CREATE TABLE `purchase_orders` (
   `created_by` int(11) NOT NULL,
   `received_by` int(11) DEFAULT NULL,
   `created_at` datetime DEFAULT current_timestamp(),
-  `received_at` datetime DEFAULT NULL,
-  `business_id` int(11) DEFAULT NULL,
-  `branch_id` int(11) DEFAULT NULL
+  `received_at` datetime DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
@@ -554,21 +364,19 @@ CREATE TABLE `sales` (
   `currency` varchar(10) DEFAULT 'NGN',
   `status` enum('completed','refunded') DEFAULT 'completed',
   `refund_reason` text DEFAULT NULL,
-  `sale_date` datetime DEFAULT current_timestamp(),
-  `business_id` int(11) DEFAULT NULL,
-  `branch_id` int(11) DEFAULT NULL
+  `sale_date` datetime DEFAULT current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
 -- Dumping data for table `sales`
 --
 
-INSERT INTO `sales` (`id`, `sale_code`, `customer`, `cashier_id`, `shift_id`, `subtotal`, `discount`, `loyalty_discount`, `giftcard_discount`, `tax`, `total`, `payment_method`, `currency`, `status`, `refund_reason`, `sale_date`, `business_id`, `branch_id`) VALUES
-(1, 'SALE-1773246815739', 'Walk-in', 2, NULL, 2000.00, 0.00, 0.00, 0.00, 200.00, 2200.00, 'card', 'NGN', 'completed', NULL, '2026-03-11 09:33:35', 1, 1),
-(2, 'SALE-1773964650505', 'Walk-in', 2, NULL, 100.00, 0.00, 0.00, 0.00, 10.00, 110.00, 'card', 'NGN', 'completed', NULL, '2026-03-19 16:57:30', 1, 1),
-(3, 'SALE-1773968095077', 'Walk-in', 2, NULL, 100.00, 0.00, 0.00, 0.00, 10.00, 110.00, 'transfer', 'NGN', 'refunded', 'test', '2026-03-19 17:54:55', 1, 1),
-(4, 'SALE-1775831111681', 'Walk-in', 2, NULL, 200.00, 0.00, 0.00, 0.00, 20.00, 220.00, 'card', 'NGN', 'completed', NULL, '2026-04-10 07:25:11', 1, 1),
-(5, 'SALE-1775831170911', 'Walk-in', 2, NULL, 300.00, 0.00, 0.00, 0.00, 30.00, 330.00, 'card', 'NGN', 'completed', NULL, '2026-04-10 07:26:10', 1, 1);
+INSERT INTO `sales` (`id`, `sale_code`, `customer`, `cashier_id`, `shift_id`, `subtotal`, `discount`, `loyalty_discount`, `giftcard_discount`, `tax`, `total`, `payment_method`, `currency`, `status`, `refund_reason`, `sale_date`) VALUES
+(1, 'SALE-1773246815739', 'Walk-in', 2, NULL, 2000.00, 0.00, 0.00, 0.00, 200.00, 2200.00, 'card', 'NGN', 'completed', NULL, '2026-03-11 09:33:35'),
+(2, 'SALE-1773964650505', 'Walk-in', 2, NULL, 100.00, 0.00, 0.00, 0.00, 10.00, 110.00, 'card', 'NGN', 'completed', NULL, '2026-03-19 16:57:30'),
+(3, 'SALE-1773968095077', 'Walk-in', 2, NULL, 100.00, 0.00, 0.00, 0.00, 10.00, 110.00, 'transfer', 'NGN', 'refunded', 'test', '2026-03-19 17:54:55'),
+(4, 'SALE-1775831111681', 'Walk-in', 2, NULL, 200.00, 0.00, 0.00, 0.00, 20.00, 220.00, 'card', 'NGN', 'completed', NULL, '2026-04-10 07:25:11'),
+(5, 'SALE-1775831170911', 'Walk-in', 2, NULL, 300.00, 0.00, 0.00, 0.00, 30.00, 330.00, 'card', 'NGN', 'completed', NULL, '2026-04-10 07:26:10');
 
 -- --------------------------------------------------------
 
@@ -655,9 +463,7 @@ CREATE TABLE `shifts` (
   `closed_time` datetime DEFAULT NULL,
   `closing_cash` decimal(12,2) DEFAULT 0.00,
   `closing_note` text DEFAULT NULL,
-  `status` enum('open','closed') DEFAULT 'open',
-  `business_id` int(11) DEFAULT NULL,
-  `branch_id` int(11) DEFAULT NULL
+  `status` enum('open','closed') DEFAULT 'open'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
@@ -674,26 +480,24 @@ CREATE TABLE `stock_history` (
   `change_qty` int(11) NOT NULL,
   `reason` varchar(255) DEFAULT NULL,
   `by_user_id` int(11) NOT NULL,
-  `created_at` datetime DEFAULT current_timestamp(),
-  `business_id` int(11) DEFAULT NULL,
-  `branch_id` int(11) DEFAULT NULL
+  `created_at` datetime DEFAULT current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
 -- Dumping data for table `stock_history`
 --
 
-INSERT INTO `stock_history` (`id`, `product_id`, `before_qty`, `after_qty`, `change_qty`, `reason`, `by_user_id`, `created_at`, `business_id`, `branch_id`) VALUES
-(1, 2, 0, 1, 1, 'new items', 2, '2026-03-19 04:05:30', 1, 1),
-(2, 2, 10, 9, -1, 'Sale #2', 2, '2026-03-19 16:57:30', 1, 1),
-(3, 2, 9, 8, -1, 'Sale #3', 2, '2026-03-19 17:54:55', 1, 1),
-(4, 2, 8, 6, -2, 'Moved stock from store to warehouse', 2, '2026-03-21 03:05:37', 1, 1),
-(5, 2, 6, 7, 1, 'low on stock', 2, '2026-03-21 03:26:23', 1, 1),
-(6, 2, 2, 3, 1, 'Refund sale #3: test', 2, '2026-04-10 04:01:00', 1, 1),
-(7, 2, 3, 2, -1, 'Sale #4', 2, '2026-04-10 07:25:11', 1, 1),
-(8, 3, 2, 1, -1, 'Sale #4', 2, '2026-04-10 07:25:11', 1, 1),
-(9, 2, 2, 0, -2, 'Sale #5', 2, '2026-04-10 07:26:10', 1, 1),
-(10, 3, 1, 0, -1, 'Sale #5', 2, '2026-04-10 07:26:10', 1, 1);
+INSERT INTO `stock_history` (`id`, `product_id`, `before_qty`, `after_qty`, `change_qty`, `reason`, `by_user_id`, `created_at`) VALUES
+(1, 2, 0, 1, 1, 'new items', 2, '2026-03-19 04:05:30'),
+(2, 2, 10, 9, -1, 'Sale #2', 2, '2026-03-19 16:57:30'),
+(3, 2, 9, 8, -1, 'Sale #3', 2, '2026-03-19 17:54:55'),
+(4, 2, 8, 6, -2, 'Moved stock from store to warehouse', 2, '2026-03-21 03:05:37'),
+(5, 2, 6, 7, 1, 'low on stock', 2, '2026-03-21 03:26:23'),
+(6, 2, 2, 3, 1, 'Refund sale #3: test', 2, '2026-04-10 04:01:00'),
+(7, 2, 3, 2, -1, 'Sale #4', 2, '2026-04-10 07:25:11'),
+(8, 3, 2, 1, -1, 'Sale #4', 2, '2026-04-10 07:25:11'),
+(9, 2, 2, 0, -2, 'Sale #5', 2, '2026-04-10 07:26:10'),
+(10, 3, 1, 0, -1, 'Sale #5', 2, '2026-04-10 07:26:10');
 
 -- --------------------------------------------------------
 
@@ -706,26 +510,24 @@ CREATE TABLE `users` (
   `name` varchar(120) NOT NULL,
   `email` varchar(150) DEFAULT NULL,
   `avatar` varchar(20) DEFAULT '?',
-  `role` varchar(50) NOT NULL DEFAULT 'cashier',
+  `role` enum('admin','manager','cashier','viewer') NOT NULL DEFAULT 'cashier',
   `pin_hash` varchar(255) NOT NULL,
   `total_hours` decimal(10,2) DEFAULT 0.00,
   `is_active` tinyint(1) DEFAULT 1,
   `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
-  `updated_at` datetime DEFAULT current_timestamp() ON UPDATE current_timestamp(),
-  `business_id` int(11) DEFAULT NULL,
-  `branch_id` int(11) DEFAULT NULL
+  `updated_at` datetime DEFAULT current_timestamp() ON UPDATE current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
 -- Dumping data for table `users`
 --
 
-INSERT INTO `users` (`id`, `name`, `email`, `avatar`, `role`, `pin_hash`, `total_hours`, `is_active`, `created_at`, `updated_at`, `business_id`, `branch_id`) VALUES
-(2, 'Admin', 'admin@admin.com', '👤', 'admin', '$2b$10$w2Jm51Z5KwAJGV9CEaunu.NaZaHLrkDvCEE5ZGcM90wQn814zrMsm', 0.00, 1, '2026-03-10 00:55:13', '2026-04-14 02:05:24', 1, 1),
-(3, 'manager', 'md@gmail.com', '👤', 'manager', '$2b$10$w2Jm51Z5KwAJGV9CEaunu.NaZaHLrkDvCEE5ZGcM90wQn814zrMsm', 0.00, 1, '2026-03-10 00:55:13', '2026-04-14 02:05:24', 1, 1),
-(4, 'cashier', 'cash@gmail.com', '👤', 'cashier', '$2b$10$w2Jm51Z5KwAJGV9CEaunu.NaZaHLrkDvCEE5ZGcM90wQn814zrMsm', 0.00, 1, '2026-03-10 00:55:13', '2026-04-14 02:05:24', 1, 1),
-(5, 'viewer', 'viewer@gmail.com', '👤', 'viewer', '$2b$10$w2Jm51Z5KwAJGV9CEaunu.NaZaHLrkDvCEE5ZGcM90wQn814zrMsm', 0.00, 1, '2026-03-10 00:55:13', '2026-04-14 02:05:24', 1, 1),
-(6, 'user', NULL, '👤', 'cashier', '$2b$10$vInvPx3MuugwBnQEzkhjsuOP6hgi6ciDzoPF8CS7y88Sf7s4/dkHy', 0.00, 1, '2026-03-10 11:11:07', '2026-04-14 02:05:24', 1, 1);
+INSERT INTO `users` (`id`, `name`, `email`, `avatar`, `role`, `pin_hash`, `total_hours`, `is_active`, `created_at`, `updated_at`) VALUES
+(2, 'Admin', 'admin@admin.com', '👤', 'admin', '$2b$10$w2Jm51Z5KwAJGV9CEaunu.NaZaHLrkDvCEE5ZGcM90wQn814zrMsm', 0.00, 1, '2026-03-10 00:55:13', '2026-03-09 20:02:17'),
+(3, 'manager', 'md@gmail.com', '👤', 'manager', '$2b$10$w2Jm51Z5KwAJGV9CEaunu.NaZaHLrkDvCEE5ZGcM90wQn814zrMsm', 0.00, 1, '2026-03-10 00:55:13', '2026-03-09 20:02:17'),
+(4, 'cashier', 'cash@gmail.com', '👤', 'cashier', '$2b$10$w2Jm51Z5KwAJGV9CEaunu.NaZaHLrkDvCEE5ZGcM90wQn814zrMsm', 0.00, 1, '2026-03-10 00:55:13', '2026-03-09 20:02:17'),
+(5, 'viewer', 'viewer@gmail.com', '👤', 'viewer', '$2b$10$w2Jm51Z5KwAJGV9CEaunu.NaZaHLrkDvCEE5ZGcM90wQn814zrMsm', 0.00, 1, '2026-03-10 00:55:13', '2026-03-21 03:33:48'),
+(6, 'user', NULL, '👤', 'cashier', '$2b$10$vInvPx3MuugwBnQEzkhjsuOP6hgi6ciDzoPF8CS7y88Sf7s4/dkHy', 0.00, 1, '2026-03-10 11:11:07', '2026-03-10 04:11:07');
 
 -- --------------------------------------------------------
 
@@ -817,27 +619,11 @@ INSERT INTO `warehouse_stock` (`id`, `product_id`, `qty`, `created_at`, `updated
 --
 
 --
--- Indexes for table `businesses`
---
-ALTER TABLE `businesses`
-  ADD PRIMARY KEY (`id`),
-  ADD UNIQUE KEY `uq_business_slug` (`slug`);
-
---
--- Indexes for table `business_branches`
---
-ALTER TABLE `business_branches`
-  ADD PRIMARY KEY (`id`),
-  ADD UNIQUE KEY `uq_branch_slug_per_business` (`business_id`,`slug`),
-  ADD KEY `idx_business_branches_business_id` (`business_id`);
-
---
 -- Indexes for table `categories`
 --
 ALTER TABLE `categories`
   ADD PRIMARY KEY (`id`),
-  ADD UNIQUE KEY `name` (`name`),
-  ADD KEY `idx_categories_business_id` (`business_id`);
+  ADD UNIQUE KEY `name` (`name`);
 
 --
 -- Indexes for table `clock_events`
@@ -854,46 +640,17 @@ ALTER TABLE `courts`
   ADD KEY `linked_product_id` (`linked_product_id`);
 
 --
--- Indexes for table `customer_orders`
---
-ALTER TABLE `customer_orders`
-  ADD PRIMARY KEY (`id`),
-  ADD UNIQUE KEY `uq_customer_orders_order_code` (`order_code`),
-  ADD KEY `idx_customer_orders_business_id` (`business_id`),
-  ADD KEY `idx_customer_orders_branch_id` (`branch_id`),
-  ADD KEY `idx_customer_orders_status` (`fulfillment_status`),
-  ADD KEY `idx_customer_orders_created_at` (`created_at`);
-
---
--- Indexes for table `customer_order_items`
---
-ALTER TABLE `customer_order_items`
-  ADD PRIMARY KEY (`id`),
-  ADD KEY `idx_customer_order_items_order_id` (`customer_order_id`);
-
---
--- Indexes for table `customer_order_status_logs`
---
-ALTER TABLE `customer_order_status_logs`
-  ADD PRIMARY KEY (`id`),
-  ADD KEY `idx_customer_order_status_logs_order_id` (`customer_order_id`);
-
---
 -- Indexes for table `gift_cards`
 --
 ALTER TABLE `gift_cards`
   ADD PRIMARY KEY (`id`),
-  ADD UNIQUE KEY `code` (`code`),
-  ADD KEY `idx_gift_cards_business_id` (`business_id`);
+  ADD UNIQUE KEY `code` (`code`);
 
 --
 -- Indexes for table `kds_orders`
 --
 ALTER TABLE `kds_orders`
-  ADD PRIMARY KEY (`id`),
-  ADD KEY `idx_kds_orders_business_id` (`business_id`),
-  ADD KEY `idx_kds_orders_branch_id` (`branch_id`),
-  ADD KEY `idx_kds_orders_status` (`status`);
+  ADD PRIMARY KEY (`id`);
 
 --
 -- Indexes for table `kds_order_items`
@@ -907,42 +664,13 @@ ALTER TABLE `kds_order_items`
 --
 ALTER TABLE `members`
   ADD PRIMARY KEY (`id`),
-  ADD UNIQUE KEY `member_code` (`member_code`),
-  ADD KEY `idx_members_business_id` (`business_id`);
-
---
--- Indexes for table `menu_categories`
---
-ALTER TABLE `menu_categories`
-  ADD PRIMARY KEY (`id`),
-  ADD KEY `idx_menu_categories_business_id` (`business_id`),
-  ADD KEY `idx_menu_categories_collection_id` (`collection_id`);
-
---
--- Indexes for table `menu_collections`
---
-ALTER TABLE `menu_collections`
-  ADD PRIMARY KEY (`id`),
-  ADD KEY `idx_menu_collections_business_id` (`business_id`),
-  ADD KEY `idx_menu_collections_branch_id` (`branch_id`),
-  ADD KEY `idx_menu_collections_slug` (`slug`);
-
---
--- Indexes for table `menu_products`
---
-ALTER TABLE `menu_products`
-  ADD PRIMARY KEY (`id`),
-  ADD KEY `idx_menu_products_business_id` (`business_id`),
-  ADD KEY `idx_menu_products_branch_id` (`branch_id`),
-  ADD KEY `idx_menu_products_product_id` (`product_id`),
-  ADD KEY `idx_menu_products_collection_id` (`collection_id`);
+  ADD UNIQUE KEY `member_code` (`member_code`);
 
 --
 -- Indexes for table `modifier_groups`
 --
 ALTER TABLE `modifier_groups`
-  ADD PRIMARY KEY (`id`),
-  ADD KEY `idx_modifier_groups_business_id` (`business_id`);
+  ADD PRIMARY KEY (`id`);
 
 --
 -- Indexes for table `modifier_options`
@@ -958,9 +686,7 @@ ALTER TABLE `pending_carts`
   ADD PRIMARY KEY (`id`),
   ADD UNIQUE KEY `cart_code` (`cart_code`),
   ADD KEY `cashier_id` (`cashier_id`),
-  ADD KEY `shift_id` (`shift_id`),
-  ADD KEY `idx_pending_carts_business_id` (`business_id`),
-  ADD KEY `idx_pending_carts_branch_id` (`branch_id`);
+  ADD KEY `shift_id` (`shift_id`);
 
 --
 -- Indexes for table `pending_cart_items`
@@ -975,9 +701,7 @@ ALTER TABLE `pending_cart_items`
 --
 ALTER TABLE `products`
   ADD PRIMARY KEY (`id`),
-  ADD KEY `category_id` (`category_id`),
-  ADD KEY `idx_products_business_id` (`business_id`),
-  ADD KEY `idx_products_branch_id` (`branch_id`);
+  ADD KEY `category_id` (`category_id`);
 
 --
 -- Indexes for table `purchase_orders`
@@ -986,10 +710,7 @@ ALTER TABLE `purchase_orders`
   ADD PRIMARY KEY (`id`),
   ADD UNIQUE KEY `po_code` (`po_code`),
   ADD KEY `created_by` (`created_by`),
-  ADD KEY `received_by` (`received_by`),
-  ADD KEY `idx_purchase_orders_business_id` (`business_id`),
-  ADD KEY `idx_purchase_orders_branch_id` (`branch_id`),
-  ADD KEY `idx_purchase_orders_status` (`status`);
+  ADD KEY `received_by` (`received_by`);
 
 --
 -- Indexes for table `purchase_order_items`
@@ -1006,10 +727,7 @@ ALTER TABLE `sales`
   ADD PRIMARY KEY (`id`),
   ADD UNIQUE KEY `sale_code` (`sale_code`),
   ADD KEY `cashier_id` (`cashier_id`),
-  ADD KEY `shift_id` (`shift_id`),
-  ADD KEY `idx_sales_business_id` (`business_id`),
-  ADD KEY `idx_sales_branch_id` (`branch_id`),
-  ADD KEY `idx_sales_sale_date` (`sale_date`);
+  ADD KEY `shift_id` (`shift_id`);
 
 --
 -- Indexes for table `sale_items`
@@ -1032,9 +750,7 @@ ALTER TABLE `shifts`
   ADD PRIMARY KEY (`id`),
   ADD UNIQUE KEY `shift_code` (`shift_code`),
   ADD KEY `opened_by` (`opened_by`),
-  ADD KEY `closed_by` (`closed_by`),
-  ADD KEY `idx_shifts_business_id` (`business_id`),
-  ADD KEY `idx_shifts_branch_id` (`branch_id`);
+  ADD KEY `closed_by` (`closed_by`);
 
 --
 -- Indexes for table `stock_history`
@@ -1042,19 +758,14 @@ ALTER TABLE `shifts`
 ALTER TABLE `stock_history`
   ADD PRIMARY KEY (`id`),
   ADD KEY `product_id` (`product_id`),
-  ADD KEY `by_user_id` (`by_user_id`),
-  ADD KEY `idx_stock_history_business_id` (`business_id`),
-  ADD KEY `idx_stock_history_branch_id` (`branch_id`),
-  ADD KEY `idx_stock_history_created_at` (`created_at`);
+  ADD KEY `by_user_id` (`by_user_id`);
 
 --
 -- Indexes for table `users`
 --
 ALTER TABLE `users`
   ADD PRIMARY KEY (`id`),
-  ADD UNIQUE KEY `email` (`email`),
-  ADD KEY `idx_users_business_id` (`business_id`),
-  ADD KEY `idx_users_branch_id` (`branch_id`);
+  ADD UNIQUE KEY `email` (`email`);
 
 --
 -- Indexes for table `user_permissions`
@@ -1083,18 +794,6 @@ ALTER TABLE `warehouse_stock`
 --
 
 --
--- AUTO_INCREMENT for table `businesses`
---
-ALTER TABLE `businesses`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
-
---
--- AUTO_INCREMENT for table `business_branches`
---
-ALTER TABLE `business_branches`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
-
---
 -- AUTO_INCREMENT for table `categories`
 --
 ALTER TABLE `categories`
@@ -1104,30 +803,12 @@ ALTER TABLE `categories`
 -- AUTO_INCREMENT for table `clock_events`
 --
 ALTER TABLE `clock_events`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=27;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=25;
 
 --
 -- AUTO_INCREMENT for table `courts`
 --
 ALTER TABLE `courts`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
-
---
--- AUTO_INCREMENT for table `customer_orders`
---
-ALTER TABLE `customer_orders`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
-
---
--- AUTO_INCREMENT for table `customer_order_items`
---
-ALTER TABLE `customer_order_items`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
-
---
--- AUTO_INCREMENT for table `customer_order_status_logs`
---
-ALTER TABLE `customer_order_status_logs`
   MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
 
 --
@@ -1152,24 +833,6 @@ ALTER TABLE `kds_order_items`
 -- AUTO_INCREMENT for table `members`
 --
 ALTER TABLE `members`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
-
---
--- AUTO_INCREMENT for table `menu_categories`
---
-ALTER TABLE `menu_categories`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
-
---
--- AUTO_INCREMENT for table `menu_collections`
---
-ALTER TABLE `menu_collections`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
-
---
--- AUTO_INCREMENT for table `menu_products`
---
-ALTER TABLE `menu_products`
   MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
 
 --
@@ -1273,12 +936,6 @@ ALTER TABLE `warehouse_stock`
 --
 
 --
--- Constraints for table `business_branches`
---
-ALTER TABLE `business_branches`
-  ADD CONSTRAINT `fk_business_branches_business_id` FOREIGN KEY (`business_id`) REFERENCES `businesses` (`id`) ON DELETE CASCADE;
-
---
 -- Constraints for table `clock_events`
 --
 ALTER TABLE `clock_events`
@@ -1365,13 +1022,6 @@ ALTER TABLE `stock_history`
   ADD CONSTRAINT `stock_history_ibfk_2` FOREIGN KEY (`by_user_id`) REFERENCES `users` (`id`);
 
 --
--- Constraints for table `users`
---
-ALTER TABLE `users`
-  ADD CONSTRAINT `fk_users_branch_id` FOREIGN KEY (`branch_id`) REFERENCES `business_branches` (`id`) ON DELETE SET NULL,
-  ADD CONSTRAINT `fk_users_business_id` FOREIGN KEY (`business_id`) REFERENCES `businesses` (`id`) ON DELETE SET NULL;
-
---
 -- Constraints for table `user_permissions`
 --
 ALTER TABLE `user_permissions`
@@ -1394,3 +1044,268 @@ COMMIT;
 /*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
 /*!40101 SET CHARACTER_SET_RESULTS=@OLD_CHARACTER_SET_RESULTS */;
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
+
+-- --------------------------------------------------------
+-- MULTI-BUSINESS + DIGITAL MENU + REPORTING MIGRATION BLOCK
+-- --------------------------------------------------------
+
+CREATE TABLE IF NOT EXISTS `businesses` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `name` varchar(150) NOT NULL,
+  `slug` varchar(160) NOT NULL,
+  `logo_url` varchar(255) DEFAULT NULL,
+  `phone` varchar(50) DEFAULT NULL,
+  `email` varchar(150) DEFAULT NULL,
+  `address` varchar(255) DEFAULT NULL,
+  `currency` varchar(10) NOT NULL DEFAULT 'NGN',
+  `tax_rate` decimal(10,2) NOT NULL DEFAULT 0.00,
+  `is_active` tinyint(1) NOT NULL DEFAULT 1,
+  `created_at` datetime DEFAULT current_timestamp(),
+  `updated_at` datetime DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_business_slug` (`slug`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+CREATE TABLE IF NOT EXISTS `business_branches` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `business_id` int(11) NOT NULL,
+  `name` varchar(150) NOT NULL,
+  `slug` varchar(160) NOT NULL,
+  `phone` varchar(50) DEFAULT NULL,
+  `email` varchar(150) DEFAULT NULL,
+  `address` varchar(255) DEFAULT NULL,
+  `is_main` tinyint(1) NOT NULL DEFAULT 0,
+  `is_active` tinyint(1) NOT NULL DEFAULT 1,
+  `created_at` datetime DEFAULT current_timestamp(),
+  `updated_at` datetime DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_branch_slug_per_business` (`business_id`,`slug`),
+  KEY `idx_business_branches_business_id` (`business_id`),
+  CONSTRAINT `fk_business_branches_business_id` FOREIGN KEY (`business_id`) REFERENCES `businesses` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+ALTER TABLE `users`
+  ADD COLUMN IF NOT EXISTS `business_id` int(11) DEFAULT NULL,
+  ADD COLUMN IF NOT EXISTS `branch_id` int(11) DEFAULT NULL,
+  ADD KEY `idx_users_business_id` (`business_id`),
+  ADD KEY `idx_users_branch_id` (`branch_id`);
+
+ALTER TABLE `products`
+  ADD COLUMN IF NOT EXISTS `business_id` int(11) DEFAULT NULL,
+  ADD COLUMN IF NOT EXISTS `branch_id` int(11) DEFAULT NULL,
+  ADD KEY `idx_products_business_id` (`business_id`),
+  ADD KEY `idx_products_branch_id` (`branch_id`);
+
+ALTER TABLE `categories`
+  ADD COLUMN IF NOT EXISTS `business_id` int(11) DEFAULT NULL,
+  ADD KEY `idx_categories_business_id` (`business_id`);
+
+ALTER TABLE `modifier_groups`
+  ADD COLUMN IF NOT EXISTS `business_id` int(11) DEFAULT NULL,
+  ADD KEY `idx_modifier_groups_business_id` (`business_id`);
+
+ALTER TABLE `sales`
+  ADD COLUMN IF NOT EXISTS `business_id` int(11) DEFAULT NULL,
+  ADD COLUMN IF NOT EXISTS `branch_id` int(11) DEFAULT NULL,
+  ADD KEY `idx_sales_business_id` (`business_id`),
+  ADD KEY `idx_sales_branch_id` (`branch_id`),
+  ADD KEY `idx_sales_sale_date` (`sale_date`);
+
+ALTER TABLE `pending_carts`
+  ADD COLUMN IF NOT EXISTS `business_id` int(11) DEFAULT NULL,
+  ADD COLUMN IF NOT EXISTS `branch_id` int(11) DEFAULT NULL,
+  ADD KEY `idx_pending_carts_business_id` (`business_id`),
+  ADD KEY `idx_pending_carts_branch_id` (`branch_id`);
+
+ALTER TABLE `purchase_orders`
+  ADD COLUMN IF NOT EXISTS `business_id` int(11) DEFAULT NULL,
+  ADD COLUMN IF NOT EXISTS `branch_id` int(11) DEFAULT NULL,
+  ADD KEY `idx_purchase_orders_business_id` (`business_id`),
+  ADD KEY `idx_purchase_orders_branch_id` (`branch_id`),
+  ADD KEY `idx_purchase_orders_status` (`status`);
+
+ALTER TABLE `kds_orders`
+  ADD COLUMN IF NOT EXISTS `business_id` int(11) DEFAULT NULL,
+  ADD COLUMN IF NOT EXISTS `branch_id` int(11) DEFAULT NULL,
+  ADD KEY `idx_kds_orders_business_id` (`business_id`),
+  ADD KEY `idx_kds_orders_branch_id` (`branch_id`),
+  ADD KEY `idx_kds_orders_status` (`status`);
+
+ALTER TABLE `members`
+  ADD COLUMN IF NOT EXISTS `business_id` int(11) DEFAULT NULL,
+  ADD KEY `idx_members_business_id` (`business_id`);
+
+ALTER TABLE `gift_cards`
+  ADD COLUMN IF NOT EXISTS `business_id` int(11) DEFAULT NULL,
+  ADD KEY `idx_gift_cards_business_id` (`business_id`);
+
+ALTER TABLE `shifts`
+  ADD COLUMN IF NOT EXISTS `business_id` int(11) DEFAULT NULL,
+  ADD COLUMN IF NOT EXISTS `branch_id` int(11) DEFAULT NULL,
+  ADD KEY `idx_shifts_business_id` (`business_id`),
+  ADD KEY `idx_shifts_branch_id` (`branch_id`);
+
+ALTER TABLE `stock_history`
+  ADD COLUMN IF NOT EXISTS `business_id` int(11) DEFAULT NULL,
+  ADD COLUMN IF NOT EXISTS `branch_id` int(11) DEFAULT NULL,
+  ADD KEY `idx_stock_history_business_id` (`business_id`),
+  ADD KEY `idx_stock_history_branch_id` (`branch_id`),
+  ADD KEY `idx_stock_history_created_at` (`created_at`);
+
+INSERT INTO `businesses` (`name`,`slug`,`currency`,`tax_rate`,`is_active`)
+SELECT 'Default Business', 'default-business', 'NGN', 0, 1
+WHERE NOT EXISTS (SELECT 1 FROM `businesses` WHERE `slug` = 'default-business');
+
+INSERT INTO `business_branches` (`business_id`,`name`,`slug`,`is_main`,`is_active`)
+SELECT b.id, 'Main Branch', 'main-branch', 1, 1
+FROM businesses b
+WHERE b.slug = 'default-business'
+  AND NOT EXISTS (
+    SELECT 1 FROM business_branches bb WHERE bb.business_id = b.id AND bb.slug = 'main-branch'
+  );
+
+SET @default_business_id := (SELECT id FROM businesses WHERE slug = 'default-business' LIMIT 1);
+SET @default_branch_id := (SELECT id FROM business_branches WHERE business_id = @default_business_id AND slug = 'main-branch' LIMIT 1);
+
+UPDATE users SET business_id = COALESCE(business_id, @default_business_id), branch_id = COALESCE(branch_id, @default_branch_id);
+UPDATE categories SET business_id = COALESCE(business_id, @default_business_id);
+UPDATE modifier_groups SET business_id = COALESCE(business_id, @default_business_id);
+UPDATE products SET business_id = COALESCE(business_id, @default_business_id), branch_id = COALESCE(branch_id, @default_branch_id);
+UPDATE sales SET business_id = COALESCE(business_id, @default_business_id), branch_id = COALESCE(branch_id, @default_branch_id);
+UPDATE pending_carts SET business_id = COALESCE(business_id, @default_business_id), branch_id = COALESCE(branch_id, @default_branch_id);
+UPDATE purchase_orders SET business_id = COALESCE(business_id, @default_business_id), branch_id = COALESCE(branch_id, @default_branch_id);
+UPDATE kds_orders SET business_id = COALESCE(business_id, @default_business_id), branch_id = COALESCE(branch_id, @default_branch_id);
+UPDATE members SET business_id = COALESCE(business_id, @default_business_id);
+UPDATE gift_cards SET business_id = COALESCE(business_id, @default_business_id);
+UPDATE shifts SET business_id = COALESCE(business_id, @default_business_id), branch_id = COALESCE(branch_id, @default_branch_id);
+UPDATE stock_history SET business_id = COALESCE(business_id, @default_business_id), branch_id = COALESCE(branch_id, @default_branch_id);
+
+CREATE TABLE IF NOT EXISTS `menu_collections` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `business_id` int(11) NOT NULL,
+  `branch_id` int(11) DEFAULT NULL,
+  `name` varchar(150) NOT NULL,
+  `slug` varchar(160) NOT NULL,
+  `description` text DEFAULT NULL,
+  `is_active` tinyint(1) NOT NULL DEFAULT 1,
+  `created_at` datetime DEFAULT current_timestamp(),
+  `updated_at` datetime DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  PRIMARY KEY (`id`),
+  KEY `idx_menu_collections_business_id` (`business_id`),
+  KEY `idx_menu_collections_branch_id` (`branch_id`),
+  KEY `idx_menu_collections_slug` (`slug`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+CREATE TABLE IF NOT EXISTS `menu_categories` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `business_id` int(11) NOT NULL,
+  `collection_id` int(11) NOT NULL,
+  `name` varchar(150) NOT NULL,
+  `description` text DEFAULT NULL,
+  `sort_order` int(11) NOT NULL DEFAULT 0,
+  `is_active` tinyint(1) NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id`),
+  KEY `idx_menu_categories_business_id` (`business_id`),
+  KEY `idx_menu_categories_collection_id` (`collection_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+CREATE TABLE IF NOT EXISTS `menu_products` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `business_id` int(11) NOT NULL,
+  `branch_id` int(11) DEFAULT NULL,
+  `collection_id` int(11) NOT NULL,
+  `category_id` int(11) DEFAULT NULL,
+  `product_id` int(11) NOT NULL,
+  `display_name` varchar(150) DEFAULT NULL,
+  `description` text DEFAULT NULL,
+  `image_url` varchar(255) DEFAULT NULL,
+  `price_override` decimal(12,2) DEFAULT NULL,
+  `is_featured` tinyint(1) NOT NULL DEFAULT 0,
+  `sort_order` int(11) NOT NULL DEFAULT 0,
+  `is_active` tinyint(1) NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id`),
+  KEY `idx_menu_products_business_id` (`business_id`),
+  KEY `idx_menu_products_branch_id` (`branch_id`),
+  KEY `idx_menu_products_product_id` (`product_id`),
+  KEY `idx_menu_products_collection_id` (`collection_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+CREATE TABLE IF NOT EXISTS `customer_orders` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `business_id` int(11) NOT NULL,
+  `branch_id` int(11) DEFAULT NULL,
+  `order_code` varchar(80) NOT NULL,
+  `customer_name` varchar(150) DEFAULT NULL,
+  `customer_phone` varchar(50) DEFAULT NULL,
+  `customer_email` varchar(150) DEFAULT NULL,
+  `order_type` enum('dine_in','pickup','delivery') NOT NULL DEFAULT 'pickup',
+  `table_number` varchar(50) DEFAULT NULL,
+  `delivery_address` varchar(255) DEFAULT NULL,
+  `notes` text DEFAULT NULL,
+  `subtotal` decimal(12,2) NOT NULL DEFAULT 0.00,
+  `discount` decimal(12,2) NOT NULL DEFAULT 0.00,
+  `tax` decimal(12,2) NOT NULL DEFAULT 0.00,
+  `total` decimal(12,2) NOT NULL DEFAULT 0.00,
+  `currency` varchar(10) NOT NULL DEFAULT 'NGN',
+  `payment_status` enum('pending','paid','failed','refunded') NOT NULL DEFAULT 'pending',
+  `fulfillment_status` enum('pending','confirmed','preparing','ready','completed','cancelled') NOT NULL DEFAULT 'pending',
+  `source` enum('digital_menu') NOT NULL DEFAULT 'digital_menu',
+  `created_at` datetime DEFAULT current_timestamp(),
+  `updated_at` datetime DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_customer_orders_order_code` (`order_code`),
+  KEY `idx_customer_orders_business_id` (`business_id`),
+  KEY `idx_customer_orders_branch_id` (`branch_id`),
+  KEY `idx_customer_orders_status` (`fulfillment_status`),
+  KEY `idx_customer_orders_created_at` (`created_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+CREATE TABLE IF NOT EXISTS `customer_order_items` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `customer_order_id` int(11) NOT NULL,
+  `product_id` int(11) DEFAULT NULL,
+  `item_name` varchar(150) NOT NULL,
+  `icon` varchar(20) DEFAULT NULL,
+  `qty` int(11) NOT NULL DEFAULT 1,
+  `unit_price` decimal(12,2) NOT NULL DEFAULT 0.00,
+  `item_discount_pct` decimal(10,2) NOT NULL DEFAULT 0.00,
+  `final_price` decimal(12,2) NOT NULL DEFAULT 0.00,
+  `mods` text DEFAULT NULL,
+  `notes` text DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `idx_customer_order_items_order_id` (`customer_order_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+CREATE TABLE IF NOT EXISTS `customer_order_status_logs` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `customer_order_id` int(11) NOT NULL,
+  `old_status` varchar(50) DEFAULT NULL,
+  `new_status` varchar(50) NOT NULL,
+  `changed_by` int(11) DEFAULT NULL,
+  `created_at` datetime DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`),
+  KEY `idx_customer_order_status_logs_order_id` (`customer_order_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+ALTER TABLE `users`
+  ADD CONSTRAINT `fk_users_business_id` FOREIGN KEY (`business_id`) REFERENCES `businesses` (`id`) ON DELETE SET NULL,
+  ADD CONSTRAINT `fk_users_branch_id` FOREIGN KEY (`branch_id`) REFERENCES `business_branches` (`id`) ON DELETE SET NULL;
+
+-- --------------------------------------------------------
+-- BRANCH-RESTRICTED AUTH UPDATE BLOCK
+-- --------------------------------------------------------
+
+CREATE TABLE IF NOT EXISTS `business_branches` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `business_id` int(11) NOT NULL,
+  `name` varchar(150) NOT NULL,
+  `slug` varchar(160) NOT NULL,
+  `is_active` tinyint(1) NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id`),
+  KEY `idx_business_branches_business_id_v2` (`business_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+ALTER TABLE `users`
+  ADD COLUMN IF NOT EXISTS `business_id` INT(11) NOT NULL DEFAULT 1,
+  ADD COLUMN IF NOT EXISTS `branch_id` INT(11) NULL,
+  MODIFY COLUMN `role` VARCHAR(50) NOT NULL DEFAULT 'cashier';

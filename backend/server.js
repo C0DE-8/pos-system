@@ -32,6 +32,9 @@ const shiftsRoutes = loadRoute("./routes/shifts.routes", "shiftsRoutes");
 const settingsRoutes = loadRoute("./routes/settings.routes", "settingsRoutes");
 const kdsRoutes = loadRoute("./routes/kds.routes", "kdsRoutes");
 const posRoutes = loadRoute("./routes/pos.routes", "posRoutes");
+const businessesRoutes = loadRoute("./routes/businesses.routes", "businessesRoutes");
+const menuRoutes = loadRoute("./routes/menu.routes", "menuRoutes");
+const reportsRoutes = loadRoute("./routes/reports.routes", "reportsRoutes");
 
 app.get("/", (req, res) => {
   res.json({ success: true, message: "Arena Pro POS API running" });
@@ -51,6 +54,9 @@ app.use("/api/shifts", shiftsRoutes);
 app.use("/api/settings", settingsRoutes);
 app.use("/api/kds", kdsRoutes);
 app.use("/api/pos", posRoutes);
+app.use("/api/businesses", businessesRoutes);
+app.use("/api/menu", menuRoutes);
+app.use("/api/reports", reportsRoutes);
 
 app.use((err, req, res, next) => {
   console.error(err);
