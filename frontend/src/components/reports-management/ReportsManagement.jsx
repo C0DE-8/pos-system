@@ -10,6 +10,24 @@ import {
 } from "../../api/reportsApi";
 import styles from "./ReportsManagement.module.css";
 
+function formatDateInput(date) {
+  return date.toISOString().slice(0, 10);
+}
+
+function addDays(date, days) {
+  const next = new Date(date);
+  next.setDate(next.getDate() + days);
+  return next;
+}
+
+function getDefaultDateRange(range) {
+  const now = new Date();
+  const end = formatDateInput(now);
+  if (range === "today") return { start: end, end };
+  if (range === "30d") return { start: formatDateInput(addDays(now, -29)), end };
+  return { start: formatDateInput(addDays(now, -6)), end };
+}
+
 function BarChartCard({ title, subtitle, data, valueKey, labelKey, formatter }) {
   const max = Math.max(...data.map((item) => Number(item?.[valueKey] || 0)), 0);
 
@@ -77,6 +95,9 @@ function ReportsLoader() {
 
 export default function ReportsManagement() {
   const [range, setRange] = useState("7d");
+  const defaultRange = getDefaultDateRange("7d");
+  const [startDate, setStartDate] = useState(defaultRange.start);
+  const [endDate, setEndDate] = useState(defaultRange.end);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [dashboard, setDashboard] = useState(null);
@@ -91,7 +112,9 @@ export default function ReportsManagement() {
     try {
       setLoading(true);
       setError("");
-      const params = { range };
+      const params = range === "custom"
+        ? { start: startDate, end: endDate }
+        : { range, start: startDate, end: endDate };
       const [d, t, p, c, i, o, b] = await Promise.all([
         getDashboardReport(params),
         getSalesTrendsReport({ ...params, group_by: "day" }),
@@ -116,8 +139,17 @@ export default function ReportsManagement() {
   };
 
   useEffect(() => {
-    loadReports();
+    if (range !== "custom") {
+      const defaults = getDefaultDateRange(range);
+      setStartDate(defaults.start);
+      setEndDate(defaults.end);
+    }
   }, [range]);
+
+  useEffect(() => {
+    if (range === "custom" && (!startDate || !endDate)) return;
+    loadReports();
+  }, [range, startDate, endDate]);
 
   const money = (value) =>
     `₦${Number(value || 0).toLocaleString("en-NG", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -137,7 +169,28 @@ export default function ReportsManagement() {
           <option value="today">Today</option>
           <option value="7d">Last 7 Days</option>
           <option value="30d">Last 30 Days</option>
+          <option value="custom">Custom Range</option>
         </select>
+        <div className={styles.dateInputs}>
+          <label className={styles.dateField}>
+            <span>Start Date</span>
+            <input
+              type="date"
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
+              className={styles.dateInput}
+            />
+          </label>
+          <label className={styles.dateField}>
+            <span>End Date</span>
+            <input
+              type="date"
+              value={endDate}
+              onChange={(e) => setEndDate(e.target.value)}
+              className={styles.dateInput}
+            />
+          </label>
+        </div>
       </div>
 
       {error ? <div className={styles.error}>{error}</div> : null}

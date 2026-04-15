@@ -8,22 +8,45 @@ router.use(authenticateToken);
 
 function dateRangeFromQuery(q = {}) {
   const now = new Date();
+  const dateOnlyRegex = /^\d{4}-\d{2}-\d{2}$/;
+  const today = now.toISOString().slice(0, 10);
+
+  const parseDateInput = (value) => {
+    if (!value || typeof value !== "string") return null;
+    const trimmed = value.trim();
+    return dateOnlyRegex.test(trimmed) ? trimmed : null;
+  };
+
+  const startFromQuery = parseDateInput(q.start);
+  const endFromQuery = parseDateInput(q.end);
+
+  // Prefer explicit calendar date inputs when both are provided.
+  if (startFromQuery && endFromQuery) {
+    const [startDate, endDate] = startFromQuery <= endFromQuery
+      ? [startFromQuery, endFromQuery]
+      : [endFromQuery, startFromQuery];
+    return { start: `${startDate} 00:00:00`, end: `${endDate} 23:59:59` };
+  }
+
   if (q.range === "today") {
-    const d = now.toISOString().slice(0, 10);
-    return { start: `${d} 00:00:00`, end: `${d} 23:59:59` };
+    return { start: `${today} 00:00:00`, end: `${today} 23:59:59` };
   }
   if (q.range === "7d") {
     const start = new Date(now.getTime() - 6 * 24 * 3600 * 1000).toISOString().slice(0, 10);
-    return { start: `${start} 00:00:00`, end: `${now.toISOString().slice(0, 10)} 23:59:59` };
+    return { start: `${start} 00:00:00`, end: `${today} 23:59:59` };
   }
   if (q.range === "30d") {
     const start = new Date(now.getTime() - 29 * 24 * 3600 * 1000).toISOString().slice(0, 10);
-    return { start: `${start} 00:00:00`, end: `${now.toISOString().slice(0, 10)} 23:59:59` };
+    return { start: `${start} 00:00:00`, end: `${today} 23:59:59` };
   }
-  return {
-    start: `${q.start || now.toISOString().slice(0, 10)} 00:00:00`,
-    end: `${q.end || now.toISOString().slice(0, 10)} 23:59:59`
-  };
+
+  const fallbackStart = startFromQuery || endFromQuery || today;
+  const fallbackEnd = endFromQuery || startFromQuery || today;
+  const [startDate, endDate] = fallbackStart <= fallbackEnd
+    ? [fallbackStart, fallbackEnd]
+    : [fallbackEnd, fallbackStart];
+
+  return { start: `${startDate} 00:00:00`, end: `${endDate} 23:59:59` };
 }
 
 function branchFilterSql(branchId) {

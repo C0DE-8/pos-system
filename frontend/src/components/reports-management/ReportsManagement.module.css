@@ -53,6 +53,41 @@
   box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.18);
 }
 
+.dateInputs {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.dateField {
+  display: grid;
+  gap: 6px;
+}
+
+.dateField span {
+  font-size: 12px;
+  color: #cbd5e1;
+  font-weight: 600;
+}
+
+.dateInput {
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  border-radius: 12px;
+  padding: 10px 12px;
+  background: rgba(15, 23, 42, 0.95);
+  color: #f8fafc;
+  font-size: 14px;
+  font-weight: 600;
+  outline: none;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.dateInput:focus {
+  border-color: rgba(96, 165, 250, 0.9);
+  box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.18);
+}
+
 .error {
   background: rgba(127, 29, 29, 0.22);
   color: #fecaca;
@@ -294,6 +329,19 @@
   }
 
   .select {
+    width: 100%;
+  }
+
+  .dateInputs {
+    width: 100%;
+    gap: 8px;
+  }
+
+  .dateField {
+    width: 100%;
+  }
+
+  .dateInput {
     width: 100%;
   }
 
