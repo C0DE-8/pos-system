@@ -214,6 +214,13 @@
   font-size: 13px;
 }
 
+.sectionError {
+  margin: 6px 0 0;
+  color: #fecaca;
+  font-size: 13px;
+  font-weight: 700;
+}
+
 .tableCard table {
   width: 100%;
   border-collapse: collapse;
