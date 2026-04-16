@@ -10,6 +10,17 @@ import SalesTrends from "./reports/SalesTrends";
 import TopProducts from "./reports/TopProducts";
 import styles from "./ReportsManagement.module.css";
 
+const reportTabs = [
+  { id: "sales-trend-chart", label: "Sales Trend Chart", render: (params) => <SalesTrendChart params={params} /> },
+  { id: "branch-sales-chart", label: "Branch Sales Chart", render: (params) => <BranchSalesChart params={params} /> },
+  { id: "sales-trends", label: "Sales Trends", render: (params) => <SalesTrends params={params} /> },
+  { id: "top-products", label: "Top Products", render: (params) => <TopProducts params={params} /> },
+  { id: "cashier-performance", label: "Cashier Performance", render: (params) => <CashierPerformance params={params} /> },
+  { id: "branch-comparison", label: "Branch Comparison", render: (params) => <BranchComparison params={params} /> },
+  { id: "inventory-snapshot", label: "Inventory Snapshot", render: () => <InventorySnapshot /> },
+  { id: "digital-customer-orders", label: "Digital Customer Orders", render: (params) => <DigitalCustomerOrders params={params} /> }
+];
+
 function formatDateInput(date) {
   return date.toISOString().slice(0, 10);
 }
@@ -33,6 +44,7 @@ export default function ReportsManagement() {
   const defaultRange = getDefaultDateRange("7d");
   const [startDate, setStartDate] = useState(defaultRange.start);
   const [endDate, setEndDate] = useState(defaultRange.end);
+  const [activeReportId, setActiveReportId] = useState(reportTabs[0].id);
 
   const handleRangeChange = (nextRange) => {
     setRange(nextRange);
@@ -47,6 +59,7 @@ export default function ReportsManagement() {
     if (range === "custom") return { start: startDate, end: endDate };
     return { range, start: startDate, end: endDate };
   }, [range, startDate, endDate]);
+  const activeReport = reportTabs.find((tab) => tab.id === activeReportId) || reportTabs[0];
 
   return (
     <div className={styles.wrap}>
@@ -85,15 +98,35 @@ export default function ReportsManagement() {
 
       <DashboardSummary params={reportParams} />
 
-      <div className={styles.tables}>
-        <SalesTrendChart params={reportParams} />
-        <BranchSalesChart params={reportParams} />
-        <SalesTrends params={reportParams} />
-        <TopProducts params={reportParams} />
-        <CashierPerformance params={reportParams} />
-        <BranchComparison params={reportParams} />
-        <InventorySnapshot />
-        <DigitalCustomerOrders params={reportParams} />
+      <div className={styles.reportTabsShell}>
+        <div className={styles.reportTabs} role="tablist" aria-label="Report sections">
+          {reportTabs.map((tab) => {
+            const isActive = tab.id === activeReport.id;
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                role="tab"
+                aria-selected={isActive}
+                aria-controls={`${tab.id}-panel`}
+                id={`${tab.id}-tab`}
+                className={`${styles.reportTab} ${isActive ? styles.reportTabActive : ""}`}
+                onClick={() => setActiveReportId(tab.id)}
+              >
+                {tab.label}
+              </button>
+            );
+          })}
+        </div>
+
+        <div
+          id={`${activeReport.id}-panel`}
+          role="tabpanel"
+          aria-labelledby={`${activeReport.id}-tab`}
+          className={styles.reportPanel}
+        >
+          {activeReport.render(reportParams)}
+        </div>
       </div>
     </div>
   );

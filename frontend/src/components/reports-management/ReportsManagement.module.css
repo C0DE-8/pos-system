@@ -135,6 +135,59 @@
   gap: 14px;
 }
 
+.reportTabsShell {
+  display: grid;
+  gap: 14px;
+}
+
+.reportTabs {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+  padding: 8px;
+  border: 1px solid rgba(148, 163, 184, 0.14);
+  border-radius: 16px;
+  background: rgba(15, 23, 42, 0.72);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.14);
+}
+
+.reportTab {
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  border-radius: 12px;
+  padding: 10px 12px;
+  background: rgba(30, 41, 59, 0.72);
+  color: #cbd5e1;
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1.2;
+  cursor: pointer;
+  outline: none;
+  transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.reportTab:hover {
+  border-color: rgba(96, 165, 250, 0.55);
+  color: #f8fafc;
+  background: rgba(51, 65, 85, 0.86);
+}
+
+.reportTab:focus-visible {
+  border-color: rgba(96, 165, 250, 0.9);
+  box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.18);
+}
+
+.reportTabActive {
+  border-color: rgba(34, 211, 238, 0.55);
+  background: rgba(14, 116, 144, 0.35);
+  color: #f8fafc;
+}
+
+.reportPanel {
+  display: grid;
+  gap: 14px;
+}
+
 .tableCard {
   background: linear-gradient(180deg, rgba(15, 23, 42, 0.94), rgba(17, 24, 39, 0.92));
   border: 1px solid rgba(148, 163, 184, 0.14);
@@ -149,6 +202,55 @@
   color: #f8fafc;
   font-size: 18px;
   font-weight: 800;
+}
+
+.reportSectionHead {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+
+.reportSectionHead h3 {
+  margin-bottom: 6px;
+}
+
+.searchField {
+  display: grid;
+  gap: 6px;
+  min-width: 240px;
+}
+
+.searchField span {
+  font-size: 12px;
+  color: #cbd5e1;
+  font-weight: 700;
+}
+
+.searchInput {
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  border-radius: 12px;
+  padding: 10px 12px;
+  background: rgba(15, 23, 42, 0.95);
+  color: #f8fafc;
+  font-size: 14px;
+  font-weight: 600;
+  outline: none;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.searchInput:focus {
+  border-color: rgba(96, 165, 250, 0.9);
+  box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.18);
+}
+
+.reportMeta {
+  margin: -2px 0 10px;
+  color: #9fb4ca;
+  font-size: 12px;
+  font-weight: 700;
 }
 
 .tableCard p {
@@ -352,6 +454,17 @@
     width: 100%;
   }
 
+  .reportTabs {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    padding: 8px;
+  }
+
+  .reportTab {
+    flex: 0 0 auto;
+    white-space: nowrap;
+  }
+
   .card p {
     font-size: 24px;
   }
@@ -363,6 +476,10 @@
 
   .tableCard table {
     min-width: 520px;
+  }
+
+  .searchField {
+    width: 100%;
   }
 }
 

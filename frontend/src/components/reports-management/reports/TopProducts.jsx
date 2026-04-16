@@ -6,8 +6,19 @@ import styles from "../ReportsManagement.module.css";
 
 export default function TopProducts({ params }) {
   const [products, setProducts] = useState([]);
+  const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [totalCount, setTotalCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      setDebouncedSearch(search.trim());
+    }, 300);
+
+    return () => clearTimeout(timeout);
+  }, [search]);
 
   useEffect(() => {
     let active = true;
@@ -16,8 +27,16 @@ export default function TopProducts({ params }) {
       try {
         setLoading(true);
         setError("");
-        const response = await getProductsReport(params);
-        if (active) setProducts(response?.data?.top_products || []);
+        const response = await getProductsReport({
+          ...params,
+          q: debouncedSearch,
+          limit: 20
+        });
+        if (active) {
+          const nextProducts = response?.data?.products || response?.data?.top_products || [];
+          setProducts(nextProducts);
+          setTotalCount(response?.data?.total_count || nextProducts.length);
+        }
       } catch (err) {
         if (active) setError(getReportErrorMessage(err));
       } finally {
@@ -29,28 +48,64 @@ export default function TopProducts({ params }) {
     return () => {
       active = false;
     };
-  }, [params]);
+  }, [params, debouncedSearch]);
 
   return (
     <section className={styles.tableCard}>
-      <h3>Top Products</h3>
+      <div className={styles.reportSectionHead}>
+        <div>
+          <h3>Top Products</h3>
+          <p className={styles.chartSubtitle}>
+            Ranked product performance by revenue for the selected period.
+          </p>
+        </div>
+        <label className={styles.searchField}>
+          <span>Search product</span>
+          <input
+            type="search"
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            placeholder="Find a product"
+            className={styles.searchInput}
+          />
+        </label>
+      </div>
       {loading || error || !products.length ? (
         <SectionStatus styles={styles} loading={loading} error={error} empty={!products.length} />
       ) : (
-        <table>
-          <thead>
-            <tr><th>Item</th><th>Qty</th><th>Revenue</th></tr>
-          </thead>
-          <tbody>
-            {products.slice(0, 10).map((row, idx) => (
-              <tr key={`${row.item_name}-${idx}`}>
-                <td>{row.item_name}</td>
-                <td>{row.qty}</td>
-                <td>{formatMoney(row.revenue)}</td>
+        <>
+          <div className={styles.reportMeta}>
+            Showing {products.length} of {totalCount} products
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th>Rank</th>
+                <th>Item</th>
+                <th>Category</th>
+                <th>Qty</th>
+                <th>Orders</th>
+                <th>Revenue</th>
+                <th>Avg Cost</th>
+                <th>Stock</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {products.map((row) => (
+                <tr key={row.product_id}>
+                  <td>#{row.rank}</td>
+                  <td>{row.item_name}</td>
+                  <td>{row.category_name || "Uncategorized"}</td>
+                  <td>{Number(row.qty || 0)}</td>
+                  <td>{Number(row.order_count || 0)}</td>
+                  <td>{formatMoney(row.revenue)}</td>
+                  <td>{formatMoney(row.avg_cost)}</td>
+                  <td>{Number(row.is_unlimited) === 1 ? "Unlimited" : Number(row.stock || 0)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </>
       )}
     </section>
   );

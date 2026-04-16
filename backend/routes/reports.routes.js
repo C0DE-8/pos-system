@@ -164,19 +164,80 @@ router.get("/products", requirePermission("analytics"), async (req, res) => {
   try {
     if (!ensureBusinessContext(req, res)) return;
     const { start, end } = dateRangeFromQuery(req.query);
-    const limit = Number(req.query.limit || 20);
-    const b = branchFilterSql(req.query.branch_id || req.user.branch_id);
-    const top = await query(
-      `SELECT si.product_id, si.item_name, SUM(si.qty) AS qty, SUM(si.final_price) AS revenue, AVG(si.cost) AS avg_cost
-       FROM sale_items si
-       JOIN sales s ON s.id = si.sale_id
-       WHERE s.business_id = ? AND s.sale_date BETWEEN ? AND ? ${b.sql.replace(/branch_id/g, "s.branch_id")}
-       GROUP BY si.product_id, si.item_name
-       ORDER BY revenue DESC
-       LIMIT ?`,
-      [req.user.business_id, start, end, ...b.params, limit]
+    const requestedLimit = Number(req.query.limit || 20);
+    const limit = Number.isFinite(requestedLimit) && requestedLimit > 0
+      ? Math.min(Math.floor(requestedLimit), 500)
+      : 20;
+    const branchId = req.query.branch_id || req.user.branch_id;
+    const search = typeof req.query.q === "string" ? req.query.q.trim() : "";
+    const productBranchSql = branchId ? "AND p.branch_id = ?" : "";
+    const salesBranchSql = branchId ? "AND s.branch_id = ?" : "";
+
+    const products = await query(
+      `SELECT
+         p.id AS product_id,
+         p.name AS item_name,
+         p.price,
+         p.cost,
+         p.stock,
+         p.low_stock,
+         p.is_unlimited,
+         c.name AS category_name,
+         COALESCE(sold.qty, 0) AS qty,
+         COALESCE(sold.revenue, 0) AS revenue,
+         COALESCE(sold.avg_cost, p.cost, 0) AS avg_cost,
+         COALESCE(sold.order_count, 0) AS order_count,
+         sold.last_sold_at
+       FROM products p
+       LEFT JOIN categories c ON c.id = p.category_id
+       LEFT JOIN (
+         SELECT
+           si.product_id,
+           SUM(si.qty) AS qty,
+           SUM(si.final_price) AS revenue,
+           AVG(si.cost) AS avg_cost,
+           COUNT(DISTINCT s.id) AS order_count,
+           MAX(s.sale_date) AS last_sold_at
+         FROM sale_items si
+         JOIN sales s ON s.id = si.sale_id
+         WHERE s.business_id = ? AND s.sale_date BETWEEN ? AND ? ${salesBranchSql}
+         GROUP BY si.product_id
+       ) sold ON sold.product_id = p.id
+       WHERE p.business_id = ? AND p.is_active = 1 ${productBranchSql}
+       ORDER BY revenue DESC, qty DESC, p.name ASC`,
+      [
+        req.user.business_id,
+        start,
+        end,
+        ...(branchId ? [branchId] : []),
+        req.user.business_id,
+        ...(branchId ? [branchId] : [])
+      ]
     );
-    res.json({ success: true, data: { top_products: top } });
+
+    const rankedProducts = products.map((product, index) => ({
+      ...product,
+      rank: index + 1
+    }));
+    const normalizedSearch = search.toLowerCase();
+    const filteredProducts = normalizedSearch
+      ? rankedProducts.filter((product) => {
+          const name = String(product.item_name || "").toLowerCase();
+          const category = String(product.category_name || "").toLowerCase();
+          return name.includes(normalizedSearch) || category.includes(normalizedSearch);
+        })
+      : rankedProducts;
+
+    res.json({
+      success: true,
+      data: {
+        top_products: filteredProducts.slice(0, limit),
+        products: filteredProducts,
+        total_count: filteredProducts.length,
+        total_products_count: rankedProducts.length,
+        query: search
+      }
+    });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
