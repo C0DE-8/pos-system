@@ -45,6 +45,7 @@ export default function ReportsManagement() {
   const [startDate, setStartDate] = useState(defaultRange.start);
   const [endDate, setEndDate] = useState(defaultRange.end);
   const [activeReportId, setActiveReportId] = useState(reportTabs[0].id);
+  const [isReportsModalOpen, setIsReportsModalOpen] = useState(false);
 
   const handleRangeChange = (nextRange) => {
     setRange(nextRange);
@@ -63,71 +64,100 @@ export default function ReportsManagement() {
 
   return (
     <div className={styles.wrap}>
+      <div className={styles.reportTabs} role="tablist" aria-label="Report sections">
+        {reportTabs.map((tab) => {
+          const isActive = tab.id === activeReport.id;
+          return (
+            <button
+              key={tab.id}
+              type="button"
+              role="tab"
+              aria-selected={isActive}
+              aria-controls={`${tab.id}-panel`}
+              id={`${tab.id}-tab`}
+              className={`${styles.reportTab} ${isActive ? styles.reportTabActive : ""}`}
+              onClick={() => setActiveReportId(tab.id)}
+            >
+              {tab.label}
+            </button>
+          );
+        })}
+      </div>
+
       <div className={styles.head}>
-        <div>
-          <h2>Analytics Reports</h2>
-          <p>Business and branch scoped analytics from the backend reports API.</p>
+        <button
+          type="button"
+          className={styles.titleButton}
+          onClick={() => setIsReportsModalOpen(true)}
+        >
+          Analytics Reports
+        </button>
+        <span className={styles.activeRange}>
+          {startDate} to {endDate}
+        </span>
+      </div>
+
+      {isReportsModalOpen ? (
+        <div className={styles.modalOverlay} role="presentation" onClick={() => setIsReportsModalOpen(false)}>
+          <div
+            className={styles.modal}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="reports-settings-title"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className={styles.modalHead}>
+              <h2 id="reports-settings-title">Analytics Reports</h2>
+              <button
+                type="button"
+                className={styles.modalClose}
+                onClick={() => setIsReportsModalOpen(false)}
+              >
+                Close
+              </button>
+            </div>
+            <div className={styles.modalBody}>
+              <select value={range} onChange={(e) => handleRangeChange(e.target.value)} className={styles.select}>
+                <option value="today">Today</option>
+                <option value="7d">Last 7 Days</option>
+                <option value="30d">Last 30 Days</option>
+                <option value="custom">Custom Range</option>
+              </select>
+              <div className={styles.dateInputs}>
+                <label className={styles.dateField}>
+                  <span>Start Date</span>
+                  <input
+                    type="date"
+                    value={startDate}
+                    onChange={(e) => setStartDate(e.target.value)}
+                    className={styles.dateInput}
+                  />
+                </label>
+                <label className={styles.dateField}>
+                  <span>End Date</span>
+                  <input
+                    type="date"
+                    value={endDate}
+                    onChange={(e) => setEndDate(e.target.value)}
+                    className={styles.dateInput}
+                  />
+                </label>
+              </div>
+            </div>
+          </div>
         </div>
-        <select value={range} onChange={(e) => handleRangeChange(e.target.value)} className={styles.select}>
-          <option value="today">Today</option>
-          <option value="7d">Last 7 Days</option>
-          <option value="30d">Last 30 Days</option>
-          <option value="custom">Custom Range</option>
-        </select>
-        <div className={styles.dateInputs}>
-          <label className={styles.dateField}>
-            <span>Start Date</span>
-            <input
-              type="date"
-              value={startDate}
-              onChange={(e) => setStartDate(e.target.value)}
-              className={styles.dateInput}
-            />
-          </label>
-          <label className={styles.dateField}>
-            <span>End Date</span>
-            <input
-              type="date"
-              value={endDate}
-              onChange={(e) => setEndDate(e.target.value)}
-              className={styles.dateInput}
-            />
-          </label>
-        </div>
+      ) : null}
+
+      <div
+        id={`${activeReport.id}-panel`}
+        role="tabpanel"
+        aria-labelledby={`${activeReport.id}-tab`}
+        className={styles.reportPanel}
+      >
+        {activeReport.render(reportParams)}
       </div>
 
       <DashboardSummary params={reportParams} />
-
-      <div className={styles.reportTabsShell}>
-        <div className={styles.reportTabs} role="tablist" aria-label="Report sections">
-          {reportTabs.map((tab) => {
-            const isActive = tab.id === activeReport.id;
-            return (
-              <button
-                key={tab.id}
-                type="button"
-                role="tab"
-                aria-selected={isActive}
-                aria-controls={`${tab.id}-panel`}
-                id={`${tab.id}-tab`}
-                className={`${styles.reportTab} ${isActive ? styles.reportTabActive : ""}`}
-                onClick={() => setActiveReportId(tab.id)}
-              >
-                {tab.label}
-              </button>
-            );
-          })}
-        </div>
-
-        <div
-          id={`${activeReport.id}-panel`}
-          role="tabpanel"
-          aria-labelledby={`${activeReport.id}-tab`}
-          className={styles.reportPanel}
-        >
-          {activeReport.render(reportParams)}
-        </div>
-      </div>
     </div>
   );
 }
