@@ -8,7 +8,10 @@ import {
   enableUser,
   disableUser,
   deleteUser,
-  updateUserPermissions
+  updateUserPermissions,
+  getBranchesWithUsers,
+  updateUserBranch,
+  resetUserPin
 } from "../../api/usersApi";
 import styles from "./UsersManagement.module.css";
 
@@ -133,7 +136,8 @@ function CreateUserModal({
   submitting,
   onClose,
   onSubmit,
-  handlePermissionChange
+  handlePermissionChange,
+  branches
 }) {
   if (!open) return null;
 
@@ -211,6 +215,23 @@ function CreateUserModal({
                 ))}
               </select>
             </div>
+
+            <div className={styles.formGroup}>
+              <label>Branch</label>
+              <select
+                value={form.branch_id}
+                onChange={(e) =>
+                  setForm((prev) => ({ ...prev, branch_id: e.target.value }))
+                }
+              >
+                <option value="">Unassigned</option>
+                {branches.map((branch) => (
+                  <option key={branch.id} value={branch.id}>
+                    {branch.name}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
 
           <div className={styles.permissionsBox}>
@@ -269,6 +290,15 @@ function UserDetailsModal({
   handleSelectedUserPermissionChange,
   handleSavePermissions,
   savingPermissions,
+  branches,
+  branchForm,
+  setBranchForm,
+  handleSaveBranch,
+  savingBranch,
+  pinForm,
+  setPinForm,
+  handleResetPin,
+  resettingPin,
   clockHistory,
   formatDateTime,
   onClose
@@ -320,6 +350,16 @@ function UserDetailsModal({
             >
               Clock History
             </button>
+
+            <button
+              type="button"
+              className={`${styles.tabBtn} ${
+                activeTab === "security" ? styles.activeTabBtn : ""
+              }`}
+              onClick={() => setActiveTab("security")}
+            >
+              Branch & PIN
+            </button>
           </div>
 
           {detailsLoading ? (
@@ -342,6 +382,10 @@ function UserDetailsModal({
                   <p>{selectedUser.email || "No email available"}</p>
                   <p>
                     <strong>Role:</strong> {selectedUser.role}
+                  </p>
+                  <p>
+                    <strong>Branch:</strong>{" "}
+                    {selectedUser.branch?.name || "Unassigned"}
                   </p>
                   <p>
                     <strong>Status:</strong>{" "}
@@ -419,6 +463,90 @@ function UserDetailsModal({
                 </div>
               </div>
             </div>
+          ) : activeTab === "security" ? (
+            <div className={styles.detailsBox}>
+              <div className={styles.permissionsBox}>
+                <h3>Branch Assignment</h3>
+                <p className={styles.permissionsHint}>
+                  Assign this user to the branch they should use when logging in.
+                </p>
+                <div className={styles.formGrid}>
+                  <div className={styles.formGroup}>
+                    <label>Branch</label>
+                    <select
+                      value={branchForm.branch_id}
+                      onChange={(e) =>
+                        setBranchForm((prev) => ({
+                          ...prev,
+                          branch_id: e.target.value
+                        }))
+                      }
+                    >
+                      <option value="">Unassigned</option>
+                      {branches.map((branch) => (
+                        <option key={branch.id} value={branch.id}>
+                          {branch.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+                <div className={styles.permissionActionBar}>
+                  <button
+                    type="button"
+                    className={styles.primaryBtn}
+                    onClick={handleSaveBranch}
+                    disabled={savingBranch}
+                  >
+                    {savingBranch ? "Saving..." : "Save Branch"}
+                  </button>
+                </div>
+              </div>
+
+              <div className={styles.permissionsBox}>
+                <h3>Reset PIN</h3>
+                <p className={styles.permissionsHint}>
+                  Override the user&apos;s current PIN/password hash with a new value.
+                </p>
+                <div className={styles.formGrid}>
+                  <div className={styles.formGroup}>
+                    <label>New PIN</label>
+                    <input
+                      type="password"
+                      value={pinForm.pin}
+                      onChange={(e) =>
+                        setPinForm((prev) => ({ ...prev, pin: e.target.value }))
+                      }
+                      placeholder="Enter new PIN"
+                    />
+                  </div>
+                  <div className={styles.formGroup}>
+                    <label>Confirm PIN</label>
+                    <input
+                      type="password"
+                      value={pinForm.confirmPin}
+                      onChange={(e) =>
+                        setPinForm((prev) => ({
+                          ...prev,
+                          confirmPin: e.target.value
+                        }))
+                      }
+                      placeholder="Confirm new PIN"
+                    />
+                  </div>
+                </div>
+                <div className={styles.permissionActionBar}>
+                  <button
+                    type="button"
+                    className={styles.warnBtn}
+                    onClick={handleResetPin}
+                    disabled={resettingPin}
+                  >
+                    {resettingPin ? "Updating..." : "Reset PIN"}
+                  </button>
+                </div>
+              </div>
+            </div>
           ) : clockHistory.length === 0 ? (
             <div className={styles.infoBox}>No clock history found.</div>
           ) : (
@@ -470,6 +598,8 @@ export default function UsersManagement() {
   const [detailsLoading, setDetailsLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [savingPermissions, setSavingPermissions] = useState(false);
+  const [savingBranch, setSavingBranch] = useState(false);
+  const [resettingPin, setResettingPin] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
 
   const [message, setMessage] = useState("");
@@ -482,16 +612,20 @@ export default function UsersManagement() {
   const [deleteTarget, setDeleteTarget] = useState(null);
 
   const [toasts, setToasts] = useState([]);
+  const [branches, setBranches] = useState([]);
 
   const [form, setForm] = useState({
     name: "",
     pin: "",
     avatar: "👤",
     role: "cashier",
+    branch_id: "",
     permissions: { ...emptyPermissions }
   });
 
   const [permissionForm, setPermissionForm] = useState({ ...emptyPermissions });
+  const [branchForm, setBranchForm] = useState({ branch_id: "" });
+  const [pinForm, setPinForm] = useState({ pin: "", confirmPin: "" });
 
   const addToast = (type, title, message = "") => {
     const id = Date.now() + Math.random();
@@ -513,6 +647,7 @@ export default function UsersManagement() {
       pin: "",
       avatar: "👤",
       role: "cashier",
+      branch_id: "",
       permissions: { ...emptyPermissions }
     });
   };
@@ -542,6 +677,16 @@ export default function UsersManagement() {
     }
   };
 
+  const loadBranches = async () => {
+    try {
+      const res = await getBranchesWithUsers();
+      setBranches(res?.data?.branches || []);
+    } catch (err) {
+      const msg = err?.response?.data?.message || "Failed to load branches";
+      addToast("error", "Branches failed", msg);
+    }
+  };
+
   const loadUserDetails = async (id) => {
     try {
       setDetailsLoading(true);
@@ -561,6 +706,8 @@ export default function UsersManagement() {
         ...emptyPermissions,
         ...(userData?.permissions || {})
       });
+      setBranchForm({ branch_id: userData?.branch_id ? String(userData.branch_id) : "" });
+      setPinForm({ pin: "", confirmPin: "" });
     } catch (err) {
       const msg = err?.response?.data?.message || "Failed to load user details";
       setError(msg);
@@ -572,6 +719,7 @@ export default function UsersManagement() {
 
   useEffect(() => {
     loadUsers();
+    loadBranches();
   }, []);
 
   const filteredUsers = useMemo(() => {
@@ -586,7 +734,8 @@ export default function UsersManagement() {
       return (
         user.name?.toLowerCase().includes(term) ||
         user.email?.toLowerCase().includes(term) ||
-        user.role?.toLowerCase().includes(term)
+        user.role?.toLowerCase().includes(term) ||
+        user.branch?.name?.toLowerCase().includes(term)
       );
     });
   }, [users, search]);
@@ -645,6 +794,68 @@ export default function UsersManagement() {
       addToast("error", "Create failed", msg);
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handleSaveBranch = async () => {
+    if (!selectedUserId) return;
+
+    try {
+      setSavingBranch(true);
+      setMessage("");
+      setError("");
+
+      const payload = {
+        branch_id: branchForm.branch_id ? Number(branchForm.branch_id) : null,
+        business_id: selectedUser?.business_id || branches[0]?.business_id || null
+      };
+      const res = await updateUserBranch(selectedUserId, payload);
+      const successMsg = res?.message || "User branch updated";
+      setMessage(successMsg);
+      addToast("success", "Branch updated", successMsg);
+
+      await loadBranches();
+      await loadUsers();
+      await loadUserDetails(selectedUserId);
+      setActiveTab("security");
+    } catch (err) {
+      const msg = err?.response?.data?.message || "Failed to update branch";
+      setError(msg);
+      addToast("error", "Branch update failed", msg);
+    } finally {
+      setSavingBranch(false);
+    }
+  };
+
+  const handleResetPin = async () => {
+    if (!selectedUserId) return;
+
+    if (!pinForm.pin || pinForm.pin.length < 4) {
+      addToast("error", "Invalid PIN", "PIN must be at least 4 characters.");
+      return;
+    }
+
+    if (pinForm.pin !== pinForm.confirmPin) {
+      addToast("error", "PIN mismatch", "Both PIN fields must match.");
+      return;
+    }
+
+    try {
+      setResettingPin(true);
+      setMessage("");
+      setError("");
+
+      const res = await resetUserPin(selectedUserId, { pin: pinForm.pin });
+      const successMsg = res?.message || "User PIN/password updated";
+      setMessage(successMsg);
+      addToast("success", "PIN reset", successMsg);
+      setPinForm({ pin: "", confirmPin: "" });
+    } catch (err) {
+      const msg = err?.response?.data?.message || "Failed to reset PIN";
+      setError(msg);
+      addToast("error", "PIN reset failed", msg);
+    } finally {
+      setResettingPin(false);
     }
   };
 
@@ -791,6 +1002,7 @@ export default function UsersManagement() {
         }}
         onSubmit={handleCreateUser}
         handlePermissionChange={handlePermissionChange}
+        branches={branches}
       />
 
       <UserDetailsModal
@@ -803,6 +1015,15 @@ export default function UsersManagement() {
         handleSelectedUserPermissionChange={handleSelectedUserPermissionChange}
         handleSavePermissions={handleSavePermissions}
         savingPermissions={savingPermissions}
+        branches={branches}
+        branchForm={branchForm}
+        setBranchForm={setBranchForm}
+        handleSaveBranch={handleSaveBranch}
+        savingBranch={savingBranch}
+        pinForm={pinForm}
+        setPinForm={setPinForm}
+        handleResetPin={handleResetPin}
+        resettingPin={resettingPin}
         clockHistory={clockHistory}
         formatDateTime={formatDateTime}
         onClose={() => setShowUserModal(false)}
@@ -835,7 +1056,7 @@ export default function UsersManagement() {
           <input
             className={styles.searchInput}
             type="text"
-            placeholder="Search by name, email, or role..."
+            placeholder="Search by name, email, role, or branch..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
@@ -901,6 +1122,7 @@ export default function UsersManagement() {
                     <tr>
                       <th>User</th>
                       <th>Role</th>
+                      <th>Branch</th>
                       <th>Status</th>
                       <th>Clock</th>
                       <th>Last Activity</th>
@@ -933,6 +1155,12 @@ export default function UsersManagement() {
 
                         <td>
                           <span className={styles.roleBadge}>{user.role}</span>
+                        </td>
+
+                        <td>
+                          <span className={styles.branchBadge}>
+                            {user.branch?.name || "Unassigned"}
+                          </span>
                         </td>
 
                         <td>
@@ -1065,6 +1293,11 @@ export default function UsersManagement() {
                             ? "Clocked In"
                             : "Clocked Out"}
                         </strong>
+                      </div>
+
+                      <div>
+                        <span>Branch</span>
+                        <strong>{user.branch?.name || "Unassigned"}</strong>
                       </div>
 
                       <div className={styles.mobileFullWidth}>

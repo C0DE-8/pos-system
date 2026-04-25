@@ -26,6 +26,22 @@ const allTruePermissions = () => permissionColumns.map(() => 1);
 // helper: build all 0s
 const allFalsePermissions = () => permissionColumns.map(() => 0);
 
+function getScopedBusinessId(req) {
+  return req.body?.business_id || req.query?.business_id || req.user?.business_id || null;
+}
+
+function formatBranch(row) {
+  if (!row.branch_id) return null;
+  return {
+    id: row.branch_id,
+    business_id: row.branch_business_id,
+    name: row.branch_name,
+    slug: row.branch_slug,
+    is_main: !!row.branch_is_main,
+    is_active: !!row.branch_is_active
+  };
+}
+
 
 router.use(authenticateToken);
 router.use(requireRole("admin", "manager", "viewer", "cashier"));
@@ -70,6 +86,13 @@ router.get("/users", async (req, res) => {
         u.role,
         u.is_active,
         u.created_at,
+        u.business_id,
+        u.branch_id,
+        bb.business_id AS branch_business_id,
+        bb.name AS branch_name,
+        bb.slug AS branch_slug,
+        bb.is_main AS branch_is_main,
+        bb.is_active AS branch_is_active,
 
         up.pos,
         up.courts,
@@ -93,6 +116,9 @@ router.get("/users", async (req, res) => {
 
       LEFT JOIN user_permissions up 
         ON up.user_id = u.id
+
+      LEFT JOIN business_branches bb
+        ON bb.id = u.branch_id
 
       LEFT JOIN (
         SELECT ce1.user_id, ce1.event_type, ce1.created_at
@@ -118,6 +144,9 @@ router.get("/users", async (req, res) => {
       role: user.role,
       is_active: !!user.is_active,
       created_at: user.created_at,
+      business_id: user.business_id,
+      branch_id: user.branch_id,
+      branch: formatBranch(user),
       permissions: {
         pos: !!user.pos,
         courts: !!user.courts,
@@ -167,6 +196,13 @@ router.get("/users/:id", async (req, res) => {
         u.role,
         u.is_active,
         u.created_at,
+        u.business_id,
+        u.branch_id,
+        bb.business_id AS branch_business_id,
+        bb.name AS branch_name,
+        bb.slug AS branch_slug,
+        bb.is_main AS branch_is_main,
+        bb.is_active AS branch_is_active,
         up.pos,
         up.courts,
         up.inventory,
@@ -185,6 +221,7 @@ router.get("/users/:id", async (req, res) => {
         ce.created_at AS last_clock_time
       FROM users u
       LEFT JOIN user_permissions up ON up.user_id = u.id
+      LEFT JOIN business_branches bb ON bb.id = u.branch_id
       LEFT JOIN (
         SELECT c1.user_id, c1.event_type, c1.created_at
         FROM clock_events c1
@@ -215,6 +252,9 @@ router.get("/users/:id", async (req, res) => {
         role: user.role,
         is_active: user.is_active,
         created_at: user.created_at,
+        business_id: user.business_id,
+        branch_id: user.branch_id,
+        branch: formatBranch(user),
         permissions: {
           pos: !!user.pos,
           courts: !!user.courts,
@@ -474,6 +514,8 @@ router.post("/users", async (req, res) => {
       pin,
       avatar = "👤",
       role = "cashier",
+      business_id,
+      branch_id,
       permissions = {}
     } = req.body;
 
@@ -487,10 +529,23 @@ router.post("/users", async (req, res) => {
     }
 
     const hash = await bcrypt.hash(pin, 10);
+    let businessId = business_id || req.user.business_id || null;
+    let branchId = branch_id || null;
+
+    if (branchId) {
+      const branches = await query(
+        "SELECT id, business_id FROM business_branches WHERE id = ? AND is_active = 1 LIMIT 1",
+        [branchId]
+      );
+      if (!branches.length) {
+        return res.status(400).json({ success: false, message: "Branch not found" });
+      }
+      businessId = branches[0].business_id;
+    }
 
     const result = await query(
-      "INSERT INTO users (name, avatar, role, pin_hash) VALUES (?, ?, ?, ?)",
-      [name, avatar, role, hash]
+      "INSERT INTO users (name, avatar, role, pin_hash, business_id, branch_id) VALUES (?, ?, ?, ?, ?, ?)",
+      [name, avatar, role, hash, businessId, branchId]
     );
 
     const userId = result.insertId;
@@ -541,6 +596,232 @@ router.patch("/users/:id/enable", async (req, res) => {
     res.status(500).json({ success: false, message: error.message });
   }
 });
+
+// /admin/branches/users get branches with assigned users
+router.get("/branches/users", requireRole("admin"), async (req, res) => {
+  try {
+    const businessId = getScopedBusinessId(req);
+    if (!businessId) {
+      return res.status(400).json({ success: false, message: "business_id is required" });
+    }
+
+    const branches = await query(
+      `SELECT
+         bb.id,
+         bb.business_id,
+         bb.name,
+         bb.slug,
+         bb.phone,
+         bb.email,
+         bb.address,
+         bb.is_main,
+         bb.is_active,
+         COUNT(u.id) AS users_count
+       FROM business_branches bb
+       LEFT JOIN users u ON u.branch_id = bb.id
+       WHERE bb.business_id = ?
+       GROUP BY bb.id, bb.business_id, bb.name, bb.slug, bb.phone, bb.email, bb.address, bb.is_main, bb.is_active
+       ORDER BY bb.is_main DESC, bb.name ASC`,
+      [businessId]
+    );
+
+    const users = await query(
+      `SELECT id, name, email, avatar, role, is_active, business_id, branch_id
+       FROM users
+       WHERE business_id = ?
+       ORDER BY name ASC`,
+      [businessId]
+    );
+
+    const usersByBranch = users.reduce((acc, user) => {
+      const key = user.branch_id || "unassigned";
+      if (!acc[key]) acc[key] = [];
+      acc[key].push({
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        avatar: user.avatar,
+        role: user.role,
+        is_active: !!user.is_active,
+        business_id: user.business_id,
+        branch_id: user.branch_id
+      });
+      return acc;
+    }, {});
+
+    res.json({
+      success: true,
+      data: {
+        branches: branches.map((branch) => ({
+          ...branch,
+          is_main: !!branch.is_main,
+          is_active: !!branch.is_active,
+          users_count: Number(branch.users_count || 0),
+          users: usersByBranch[branch.id] || []
+        })),
+        unassigned_users: usersByBranch.unassigned || []
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// /admin/users/:id/branch get user's branch and available branches
+router.get("/users/:id/branch", requireRole("admin"), async (req, res) => {
+  try {
+    const users = await query(
+      `SELECT
+         u.id,
+         u.name,
+         u.email,
+         u.role,
+         u.business_id,
+         u.branch_id,
+         bb.business_id AS branch_business_id,
+         bb.name AS branch_name,
+         bb.slug AS branch_slug,
+         bb.is_main AS branch_is_main,
+         bb.is_active AS branch_is_active
+       FROM users u
+       LEFT JOIN business_branches bb ON bb.id = u.branch_id
+       WHERE u.id = ?
+       LIMIT 1`,
+      [req.params.id]
+    );
+
+    if (!users.length) {
+      return res.status(404).json({ success: false, message: "User not found" });
+    }
+
+    const user = users[0];
+    const businessId = req.query.business_id || user.business_id || req.user.business_id;
+    const branches = businessId
+      ? await query(
+          `SELECT id, business_id, name, slug, is_main, is_active
+           FROM business_branches
+           WHERE business_id = ?
+           ORDER BY is_main DESC, name ASC`,
+          [businessId]
+        )
+      : [];
+
+    res.json({
+      success: true,
+      data: {
+        user: {
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          role: user.role,
+          business_id: user.business_id,
+          branch_id: user.branch_id,
+          branch: formatBranch(user)
+        },
+        branches: branches.map((branch) => ({
+          ...branch,
+          is_main: !!branch.is_main,
+          is_active: !!branch.is_active
+        }))
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// /admin/users/:id/branch assign or update user's branch
+router.put("/users/:id/branch", requireRole("admin"), async (req, res) => {
+  try {
+    const { branch_id, business_id } = req.body;
+    const nextBranchId = branch_id === null || branch_id === "" ? null : Number(branch_id);
+
+    if (branch_id !== null && branch_id !== "" && (!Number.isInteger(nextBranchId) || nextBranchId <= 0)) {
+      return res.status(400).json({ success: false, message: "branch_id must be a valid branch id or null" });
+    }
+
+    const users = await query("SELECT id, name, business_id FROM users WHERE id = ? LIMIT 1", [req.params.id]);
+    if (!users.length) {
+      return res.status(404).json({ success: false, message: "User not found" });
+    }
+
+    let nextBusinessId = business_id || users[0].business_id || req.user.business_id || null;
+    let branch = null;
+
+    if (nextBranchId) {
+      const branches = await query(
+        `SELECT id, business_id, name, slug, is_main, is_active
+         FROM business_branches
+         WHERE id = ? AND is_active = 1
+         LIMIT 1`,
+        [nextBranchId]
+      );
+
+      if (!branches.length) {
+        return res.status(400).json({ success: false, message: "Branch not found" });
+      }
+
+      branch = branches[0];
+      nextBusinessId = branch.business_id;
+    }
+
+    await query(
+      "UPDATE users SET business_id = ?, branch_id = ? WHERE id = ?",
+      [nextBusinessId, nextBranchId, req.params.id]
+    );
+
+    res.json({
+      success: true,
+      message: "User branch updated",
+      data: {
+        user_id: Number(req.params.id),
+        business_id: nextBusinessId,
+        branch_id: nextBranchId,
+        branch: branch
+          ? {
+              id: branch.id,
+              business_id: branch.business_id,
+              name: branch.name,
+              slug: branch.slug,
+              is_main: !!branch.is_main,
+              is_active: !!branch.is_active
+            }
+          : null
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// /admin/users/:id/pin override user's PIN/password hash
+router.patch("/users/:id/pin", requireRole("admin"), async (req, res) => {
+  try {
+    const pin = req.body.pin || req.body.password;
+    if (!pin || String(pin).trim().length < 4) {
+      return res.status(400).json({ success: false, message: "New PIN/password must be at least 4 characters" });
+    }
+
+    const users = await query("SELECT id FROM users WHERE id = ? LIMIT 1", [req.params.id]);
+    if (!users.length) {
+      return res.status(404).json({ success: false, message: "User not found" });
+    }
+
+    const pinHash = await bcrypt.hash(String(pin), 10);
+    await query("UPDATE users SET pin_hash = ? WHERE id = ?", [pinHash, req.params.id]);
+
+    res.json({
+      success: true,
+      message: "User PIN/password updated",
+      data: {
+        user_id: Number(req.params.id)
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
 // /admin/users/:id/delete delete user
 router.delete("/users/:id", async (req, res) => {
   try {

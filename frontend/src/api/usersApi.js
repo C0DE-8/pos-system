@@ -11,6 +11,26 @@ export const updateUserPermissions = async (id, permissions) => {
   return data;
 };
 
+export const getBranchesWithUsers = async (params = {}) => {
+  const { data } = await API.get("/admin/branches/users", { params });
+  return data;
+};
+
+export const getUserBranch = async (id, params = {}) => {
+  const { data } = await API.get(`/admin/users/${id}/branch`, { params });
+  return data;
+};
+
+export const updateUserBranch = async (id, payload) => {
+  const { data } = await API.put(`/admin/users/${id}/branch`, payload);
+  return data;
+};
+
+export const resetUserPin = async (id, payload) => {
+  const { data } = await API.patch(`/admin/users/${id}/pin`, payload);
+  return data;
+};
+
 // get user by id
 export const getUserById = async (id) => {
   const { data } = await API.get(`/admin/users/${id}`);

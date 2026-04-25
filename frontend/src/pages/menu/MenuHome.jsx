@@ -225,23 +225,43 @@ export default function MenuHome() {
   if (loading) {
     return (
       <div className={styles.page}>
-        <div className={styles.panel}>Loading menu...</div>
+        <div className={styles.contentShell}>
+          <div className={styles.sectionBox}>Loading menu...</div>
+        </div>
       </div>
     );
   }
 
   return (
     <div className={styles.page}>
-      <div className={styles.head}>
-        <h1>{business?.name || businessSlug}</h1>
-        <p>{branch?.name || branchSlug}</p>
+      <div className={styles.hero}>
+        <div className={styles.head}>
+          <h1>{business?.name || businessSlug}</h1>
+          <p>{branch?.name || branchSlug}</p>
+        </div>
+
+        <div className={styles.heroMeta}>
+          <div className={styles.heroPill}>
+            <span>🛒</span>
+            <strong>{cartCount}</strong>
+            <small>items</small>
+          </div>
+
+          <div className={styles.heroPill}>
+            <span>💳</span>
+            <strong>₦{cartTotal.toLocaleString("en-NG")}</strong>
+            <small>total</small>
+          </div>
+        </div>
       </div>
 
       {error ? <div className={styles.error}>{error}</div> : null}
 
-      <div className={styles.tabs}>
+      <div className={styles.tabs} role="tablist" aria-label="Menu sections">
         <button
           type="button"
+          role="tab"
+          aria-selected={view === "menu"}
           className={view === "menu" ? styles.tabActive : styles.tab}
           onClick={() => setView("menu")}
         >
@@ -250,14 +270,18 @@ export default function MenuHome() {
 
         <button
           type="button"
+          role="tab"
+          aria-selected={view === "cart"}
           className={view === "cart" ? styles.tabActive : styles.tab}
           onClick={() => setView("cart")}
         >
-          Cart ({cartCount})
+          Cart {cartCount > 0 ? `(${cartCount})` : ""}
         </button>
 
         <button
           type="button"
+          role="tab"
+          aria-selected={view === "checkout"}
           className={view === "checkout" ? styles.tabActive : styles.tab}
           onClick={() => setView("checkout")}
         >
@@ -266,283 +290,330 @@ export default function MenuHome() {
 
         <button
           type="button"
+          role="tab"
+          aria-selected={view === "status"}
           className={view === "status" ? styles.tabActive : styles.tab}
           onClick={() => setView("status")}
         >
-          Status
+          Track Order
         </button>
       </div>
 
-      {view === "menu" && (
-        <div className={styles.grid}>
-          {products.length ? (
-            products.map((product) => (
-              <article key={product.id} className={styles.card}>
-                <div className={styles.cardTop}>
-                  <span className={styles.cardIcon}>{product.icon || "🍽️"}</span>
-                  <div>
-                    <strong>{product.name}</strong>
-                    <p className={styles.typeText}>
-                      {product.type || "product"}
+      <div className={styles.contentShell}>
+        {view === "menu" && (
+          <div className={styles.sectionBox}>
+            {products.length ? (
+              <div className={styles.grid}>
+                {products.map((product) => (
+                  <article key={product.id} className={styles.card}>
+                    <div className={styles.cardTop}>
+                      <span className={styles.cardIcon}>{product.icon || "🍽️"}</span>
+                      <div>
+                        <strong>{product.name}</strong>
+                        <p className={styles.typeText}>
+                          {product.type || "product"}
+                        </p>
+                      </div>
+                    </div>
+
+                    <p className={styles.price}>
+                      ₦{Number(product.price || 0).toLocaleString("en-NG")}
                     </p>
-                  </div>
+
+                    <p
+                      className={
+                        Number(product.available) === 1
+                          ? styles.available
+                          : styles.unavailable
+                      }
+                    >
+                      {Number(product.available) === 1
+                        ? "Available"
+                        : "Out of stock"}
+                    </p>
+
+                    <button
+                      type="button"
+                      className={styles.addBtn}
+                      onClick={() => addToCart(product)}
+                      disabled={Number(product.available) !== 1}
+                    >
+                      Add to cart
+                    </button>
+                  </article>
+                ))}
+              </div>
+            ) : (
+              <div className={styles.emptyState}>
+                <h3>No products yet</h3>
+                <p>No products available right now.</p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {view === "cart" && (
+          <div className={styles.sectionBox}>
+            <div className={styles.sectionHeader}>
+              <h2>Your cart</h2>
+              <p>Review your selected items before checkout.</p>
+            </div>
+
+            {!cart.length ? (
+              <div className={styles.emptyState}>
+                <h3>Your cart is empty</h3>
+                <p>Add something from the menu to continue.</p>
+              </div>
+            ) : (
+              <>
+                <div className={styles.stackList}>
+                  {cart.map((item) => (
+                    <div key={item.product_id} className={styles.cartRow}>
+                      <div>
+                        <strong>
+                          {item.icon || "🍽️"} {item.item_name}
+                        </strong>
+                        <p>
+                          ₦{Number(item.unit_price || 0).toLocaleString("en-NG")}
+                        </p>
+                      </div>
+
+                      <div className={styles.rowActions}>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            updateQty(item.product_id, Number(item.qty || 0) - 1)
+                          }
+                        >
+                          -
+                        </button>
+
+                        <span>{item.qty}</span>
+
+                        <button
+                          type="button"
+                          onClick={() =>
+                            updateQty(item.product_id, Number(item.qty || 0) + 1)
+                          }
+                        >
+                          +
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => removeFromCart(item.product_id)}
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    </div>
+                  ))}
                 </div>
 
-                <p className={styles.price}>
-                  ₦{Number(product.price || 0).toLocaleString("en-NG")}
-                </p>
-
-                <p
-                  className={
-                    Number(product.available) === 1
-                      ? styles.available
-                      : styles.unavailable
-                  }
-                >
-                  {Number(product.available) === 1
-                    ? "Available"
-                    : "Out of stock"}
-                </p>
+                <div className={styles.totalRow}>
+                  <strong>Total</strong>
+                  <strong>₦{cartTotal.toLocaleString("en-NG")}</strong>
+                </div>
 
                 <button
                   type="button"
-                  className={styles.addBtn}
-                  onClick={() => addToCart(product)}
-                  disabled={Number(product.available) !== 1}
+                  className={styles.linkBtn}
+                  onClick={() => setView("checkout")}
                 >
-                  Add to cart
+                  Continue to checkout
                 </button>
-              </article>
-            ))
-          ) : (
-            <div className={styles.panel}>
-              <p>No products available right now.</p>
+              </>
+            )}
+          </div>
+        )}
+
+        {view === "checkout" && (
+          <form className={styles.sectionBox} onSubmit={handlePlaceOrder}>
+            <div className={styles.sectionHeader}>
+              <h2>Checkout</h2>
+              <p>Fill in your details to place your order.</p>
             </div>
-          )}
-        </div>
-      )}
 
-      {view === "cart" && (
-        <div className={styles.panel}>
-          {!cart.length ? (
-            <p>Your cart is empty.</p>
-          ) : (
-            <>
-              {cart.map((item) => (
-                <div key={item.product_id} className={styles.cartRow}>
-                  <div>
-                    <strong>
-                      {item.icon || "🍽️"} {item.item_name}
-                    </strong>
-                    <p>
-                      ₦{Number(item.unit_price || 0).toLocaleString("en-NG")}
-                    </p>
-                  </div>
+            <div className={styles.formGrid}>
+              <input
+                placeholder="Customer name"
+                value={checkoutForm.customer_name}
+                onChange={(e) =>
+                  handleChangeCheckout("customer_name", e.target.value)
+                }
+              />
 
-                  <div className={styles.rowActions}>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        updateQty(item.product_id, Number(item.qty || 0) - 1)
-                      }
-                    >
-                      -
-                    </button>
+              <input
+                placeholder="Phone"
+                value={checkoutForm.customer_phone}
+                onChange={(e) =>
+                  handleChangeCheckout("customer_phone", e.target.value)
+                }
+              />
 
-                    <span>{item.qty}</span>
+              <input
+                placeholder="Email (optional)"
+                value={checkoutForm.customer_email}
+                onChange={(e) =>
+                  handleChangeCheckout("customer_email", e.target.value)
+                }
+              />
 
-                    <button
-                      type="button"
-                      onClick={() =>
-                        updateQty(item.product_id, Number(item.qty || 0) + 1)
-                      }
-                    >
-                      +
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => removeFromCart(item.product_id)}
-                    >
-                      Remove
-                    </button>
-                  </div>
-                </div>
-              ))}
-
-              <div className={styles.totalRow}>
-                <strong>Total</strong>
-                <strong>₦{cartTotal.toLocaleString("en-NG")}</strong>
-              </div>
-
-              <button
-                type="button"
-                className={styles.linkBtn}
-                onClick={() => setView("checkout")}
+              <select
+                value={checkoutForm.order_type}
+                onChange={(e) =>
+                  handleChangeCheckout("order_type", e.target.value)
+                }
               >
-                Continue to checkout
-              </button>
-            </>
-          )}
-        </div>
-      )}
+                <option value="pickup">Pickup</option>
+                <option value="dine_in">Dine-in</option>
+                <option value="delivery">Delivery</option>
+              </select>
+            </div>
 
-      {view === "checkout" && (
-        <form className={styles.panel} onSubmit={handlePlaceOrder}>
-          <input
-            placeholder="Customer name"
-            value={checkoutForm.customer_name}
-            onChange={(e) =>
-              handleChangeCheckout("customer_name", e.target.value)
-            }
-          />
+            {checkoutForm.order_type === "dine_in" && (
+              <input
+                placeholder="Table number"
+                value={checkoutForm.table_number}
+                onChange={(e) =>
+                  handleChangeCheckout("table_number", e.target.value)
+                }
+              />
+            )}
 
-          <input
-            placeholder="Phone"
-            value={checkoutForm.customer_phone}
-            onChange={(e) =>
-              handleChangeCheckout("customer_phone", e.target.value)
-            }
-          />
+            {checkoutForm.order_type === "delivery" && (
+              <textarea
+                placeholder="Delivery address"
+                value={checkoutForm.delivery_address}
+                onChange={(e) =>
+                  handleChangeCheckout("delivery_address", e.target.value)
+                }
+              />
+            )}
 
-          <input
-            placeholder="Email (optional)"
-            value={checkoutForm.customer_email}
-            onChange={(e) =>
-              handleChangeCheckout("customer_email", e.target.value)
-            }
-          />
-
-          <select
-            value={checkoutForm.order_type}
-            onChange={(e) => handleChangeCheckout("order_type", e.target.value)}
-          >
-            <option value="pickup">Pickup</option>
-            <option value="dine_in">Dine-in</option>
-            <option value="delivery">Delivery</option>
-          </select>
-
-          {checkoutForm.order_type === "dine_in" && (
-            <input
-              placeholder="Table number"
-              value={checkoutForm.table_number}
-              onChange={(e) =>
-                handleChangeCheckout("table_number", e.target.value)
-              }
-            />
-          )}
-
-          {checkoutForm.order_type === "delivery" && (
             <textarea
-              placeholder="Delivery address"
-              value={checkoutForm.delivery_address}
-              onChange={(e) =>
-                handleChangeCheckout("delivery_address", e.target.value)
-              }
+              placeholder="Notes (optional)"
+              value={checkoutForm.notes}
+              onChange={(e) => handleChangeCheckout("notes", e.target.value)}
             />
-          )}
 
-          <textarea
-            placeholder="Notes (optional)"
-            value={checkoutForm.notes}
-            onChange={(e) => handleChangeCheckout("notes", e.target.value)}
-          />
+            <div className={styles.totalRow}>
+              <strong>Order total</strong>
+              <strong>₦{cartTotal.toLocaleString("en-NG")}</strong>
+            </div>
 
-          <div className={styles.totalRow}>
-            <strong>Order total</strong>
-            <strong>₦{cartTotal.toLocaleString("en-NG")}</strong>
-          </div>
+            <button
+              type="submit"
+              className={styles.linkBtn}
+              disabled={!cart.length || submitting}
+            >
+              {submitting ? "Placing order..." : "Place order"}
+            </button>
+          </form>
+        )}
 
-          <button
-            type="submit"
-            className={styles.linkBtn}
-            disabled={!cart.length || submitting}
-          >
-            {submitting ? "Placing order..." : "Place order"}
-          </button>
-        </form>
-      )}
+        {view === "status" && (
+          <div className={styles.sectionBox}>
+            <div className={styles.sectionHeader}>
+              <h2>Track order</h2>
+              <p>Enter your order code to see live progress.</p>
+            </div>
 
-      {view === "status" && (
-        <div className={styles.panel}>
-          <div className={styles.statusLookup}>
-            <input
-              placeholder="Enter order code"
-              value={activeOrderCode}
-              onChange={(e) => setActiveOrderCode(e.target.value.trim())}
-            />
-          </div>
+            <div className={styles.statusLookup}>
+              <input
+                placeholder="Enter your order code"
+                value={activeOrderCode}
+                onChange={(e) => setActiveOrderCode(e.target.value.trim())}
+              />
+            </div>
 
-          {statusLoading ? <p>Loading order status...</p> : null}
+            {statusLoading ? <p className={styles.helperText}>Loading order status...</p> : null}
 
-          {orderInfo?.order ? (
-            <>
-              <div className={styles.statusHeader}>
-                <p>
-                  <strong>Order:</strong> {orderInfo.order.order_code}
-                </p>
-                <p>
-                  <strong>Status:</strong>{" "}
-                  {orderInfo.order.fulfillment_status || "pending"}
-                </p>
-                <p>
-                  <strong>Payment:</strong>{" "}
-                  {orderInfo.order.payment_status || "pending"}
-                </p>
-                <p>
-                  <strong>Total:</strong> ₦
-                  {Number(orderInfo.order.total || 0).toLocaleString("en-NG")}
-                </p>
-                <p>
-                  <strong>Type:</strong> {orderInfo.order.order_type || "-"}
-                </p>
-                {orderInfo.order.table_number ? (
-                  <p>
-                    <strong>Table:</strong> {orderInfo.order.table_number}
-                  </p>
-                ) : null}
-              </div>
+            {orderInfo?.order ? (
+              <>
+                <div className={styles.infoGrid}>
+                  <div className={styles.infoCard}>
+                    <span>Order</span>
+                    <strong>{orderInfo.order.order_code}</strong>
+                  </div>
 
-              <div className={styles.statusItems}>
-                {orderInfo.items.map((item) => (
-                  <div key={item.id} className={styles.statusItem}>
-                    <span>
-                      {item.icon || "🍽️"} {item.item_name} x{item.qty}
-                    </span>
+                  <div className={styles.infoCard}>
+                    <span>Status</span>
+                    <strong>{orderInfo.order.fulfillment_status || "pending"}</strong>
+                  </div>
+
+                  <div className={styles.infoCard}>
+                    <span>Payment</span>
+                    <strong>{orderInfo.order.payment_status || "pending"}</strong>
+                  </div>
+
+                  <div className={styles.infoCard}>
+                    <span>Total</span>
                     <strong>
-                      ₦{Number(item.final_price || 0).toLocaleString("en-NG")}
+                      ₦{Number(orderInfo.order.total || 0).toLocaleString("en-NG")}
                     </strong>
                   </div>
-                ))}
-              </div>
 
-              <div className={styles.logsBox}>
-                <h3>Status history</h3>
-                {orderInfo.logs.length ? (
-                  orderInfo.logs.map((log, index) => (
-                    <div key={index} className={styles.logItem}>
-                      <span>
-                        {log.old_status || "new"} → {log.new_status || "pending"}
-                      </span>
-                      <small>
-                        {log.created_at
-                          ? new Date(log.created_at).toLocaleString()
-                          : ""}
-                      </small>
+                  <div className={styles.infoCard}>
+                    <span>Type</span>
+                    <strong>{orderInfo.order.order_type || "-"}</strong>
+                  </div>
+
+                  {orderInfo.order.table_number ? (
+                    <div className={styles.infoCard}>
+                      <span>Table</span>
+                      <strong>{orderInfo.order.table_number}</strong>
                     </div>
-                  ))
-                ) : (
-                  <p>No status updates yet.</p>
-                )}
+                  ) : null}
+                </div>
+
+                <div className={styles.stackList}>
+                  {orderInfo.items.map((item) => (
+                    <div key={item.id} className={styles.statusItem}>
+                      <span>
+                        {item.icon || "🍽️"} {item.item_name} x{item.qty}
+                      </span>
+                      <strong>
+                        ₦{Number(item.final_price || 0).toLocaleString("en-NG")}
+                      </strong>
+                    </div>
+                  ))}
+                </div>
+
+                <div className={styles.logsBox}>
+                  <h3>Status history</h3>
+                  {orderInfo.logs.length ? (
+                    orderInfo.logs.map((log, index) => (
+                      <div key={index} className={styles.logItem}>
+                        <span>
+                          {log.old_status || "new"} → {log.new_status || "pending"}
+                        </span>
+                        <small>
+                          {log.created_at
+                            ? new Date(log.created_at).toLocaleString()
+                            : ""}
+                        </small>
+                      </div>
+                    ))
+                  ) : (
+                    <p className={styles.helperText}>No status updates yet.</p>
+                  )}
+                </div>
+              </>
+            ) : !statusLoading && activeOrderCode ? (
+              <div className={styles.emptyState}>
+                <h3>No order loaded yet</h3>
+                <p>Check the code and try again.</p>
               </div>
-            </>
-          ) : !statusLoading && activeOrderCode ? (
-            <p>No order loaded yet.</p>
-          ) : (
-            <p>Enter your order code to check status.</p>
-          )}
-        </div>
-      )}
+            ) : (
+              <div className={styles.emptyState}>
+                <h3>Track your order</h3>
+                <p>Enter your order code to check status.</p>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
