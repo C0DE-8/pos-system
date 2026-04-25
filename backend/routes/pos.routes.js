@@ -29,6 +29,98 @@ const normalizeItemType = (value) => {
   if (v === "timed") return "timed";
   return "fixed";
 };
+const toAmount = (value) => {
+  const amount = Number(value || 0);
+  if (!Number.isFinite(amount)) return 0;
+  return amount;
+};
+const roundMoney = (value) => Number(toAmount(value).toFixed(2));
+
+async function resolveMembershipContext(conn, businessId, memberId, fallbackCustomer, subtotal) {
+  const normalizedSubtotal = roundMoney(subtotal);
+  const fallbackName = String(fallbackCustomer || "Walk-in").trim() || "Walk-in";
+
+  if (!memberId) {
+    return {
+      customerName: fallbackName,
+      memberId: null,
+      membershipTierId: null,
+      membershipTierName: null,
+      membershipDiscountPct: 0,
+      membershipDiscountAmount: 0
+    };
+  }
+
+  const [memberRows] = await conn.execute(
+    `SELECT
+       m.id,
+       m.name,
+       m.membership_tier_id,
+       COALESCE(mt.name, m.tier) AS membership_tier_name,
+       COALESCE(mt.discount_pct, 0) AS membership_discount_pct
+     FROM members m
+     LEFT JOIN membership_tiers mt ON mt.id = m.membership_tier_id
+     WHERE m.id = ? AND m.business_id = ?
+     LIMIT 1`,
+    [memberId, businessId]
+  );
+
+  if (!memberRows.length) {
+    const error = new Error("Selected member was not found");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const member = memberRows[0];
+  const membershipDiscountPct = roundMoney(member.membership_discount_pct || 0);
+  const membershipDiscountAmount = roundMoney(
+    normalizedSubtotal * (membershipDiscountPct / 100)
+  );
+
+  return {
+    customerName: String(member.name || fallbackName).trim() || fallbackName,
+    memberId: member.id,
+    membershipTierId: member.membership_tier_id || null,
+    membershipTierName: member.membership_tier_name || null,
+    membershipDiscountPct,
+    membershipDiscountAmount
+  };
+}
+
+function buildCheckoutTotals({
+  subtotal,
+  discount,
+  loyaltyDiscount,
+  giftcardDiscount,
+  membershipDiscount,
+  tax
+}) {
+  const normalizedSubtotal = roundMoney(subtotal);
+  const normalizedDiscount = roundMoney(discount);
+  const normalizedLoyaltyDiscount = roundMoney(loyaltyDiscount);
+  const normalizedGiftcardDiscount = roundMoney(giftcardDiscount);
+  const normalizedMembershipDiscount = roundMoney(membershipDiscount);
+  const normalizedTax = roundMoney(tax);
+
+  const taxableBase = Math.max(
+    0,
+    normalizedSubtotal -
+      normalizedDiscount -
+      normalizedMembershipDiscount -
+      normalizedLoyaltyDiscount -
+      normalizedGiftcardDiscount
+  );
+
+  return {
+    subtotal: normalizedSubtotal,
+    discount: normalizedDiscount,
+    loyalty_discount: normalizedLoyaltyDiscount,
+    giftcard_discount: normalizedGiftcardDiscount,
+    membership_discount: normalizedMembershipDiscount,
+    tax: normalizedTax,
+    total: roundMoney(taxableBase + normalizedTax)
+  };
+}
 
 // pos/split-price / quote a unit price split across multiple payers
 router.post("/split-price", requirePermission("pos"), branchAccessMiddleware, async (req, res) => {
@@ -80,6 +172,7 @@ router.post("/pending", requirePermission("pos"), branchAccessMiddleware, async 
     if (!ensureBusinessContext(req, res)) return;
     const {
       customer = "Walk-in",
+      member_id = null,
       shift_id = null,
       subtotal = 0,
       discount = 0,
@@ -101,23 +194,44 @@ router.post("/pending", requirePermission("pos"), branchAccessMiddleware, async 
 
     await conn.beginTransaction();
 
+    const membershipContext = await resolveMembershipContext(
+      conn,
+      req.user.business_id,
+      member_id,
+      customer,
+      subtotal
+    );
+    const totals = buildCheckoutTotals({
+      subtotal,
+      discount,
+      loyaltyDiscount: loyalty_discount,
+      giftcardDiscount: giftcard_discount,
+      membershipDiscount: membershipContext.membershipDiscountAmount,
+      tax
+    });
+
     const cartCode = `PEND-${Date.now()}`;
 
     const [cartResult] = await conn.execute(
       `INSERT INTO pending_carts
-      (cart_code, customer, cashier_id, shift_id, subtotal, discount, loyalty_discount, giftcard_discount, tax, total, currency, note, business_id, branch_id)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      (cart_code, customer, member_id, membership_tier_id, membership_tier_name, membership_discount_pct, membership_discount, cashier_id, shift_id, subtotal, discount, loyalty_discount, giftcard_discount, tax, total, currency, note, business_id, branch_id)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         cartCode,
-        customer,
+        membershipContext.customerName,
+        membershipContext.memberId,
+        membershipContext.membershipTierId,
+        membershipContext.membershipTierName,
+        membershipContext.membershipDiscountPct,
+        membershipContext.membershipDiscountAmount,
         req.user.id,
         shift_id,
-        subtotal,
-        discount,
-        loyalty_discount,
-        giftcard_discount,
-        tax,
-        total,
+        totals.subtotal,
+        totals.discount,
+        totals.loyalty_discount,
+        totals.giftcard_discount,
+        totals.tax,
+        totals.total,
         currency,
         note,
         req.user.business_id,
@@ -161,7 +275,7 @@ router.post("/pending", requirePermission("pos"), branchAccessMiddleware, async 
     });
   } catch (error) {
     await conn.rollback();
-    res.status(500).json({
+    res.status(error.statusCode || 500).json({
       success: false,
       message: error.message
     });
@@ -184,15 +298,25 @@ router.get("/pending", requirePermission("pos"), branchAccessMiddleware, async (
         pc.id,
         pc.cart_code,
         pc.customer,
+        pc.member_id,
+        pc.membership_tier_name,
+        pc.membership_discount_pct,
+        pc.membership_discount,
         pc.total,
         pc.currency,
         pc.status,
         pc.note,
         pc.created_at,
         pc.updated_at,
-        u.name AS cashier_name
+        u.name AS cashier_name,
+        COALESCE(pci.items_count, 0) AS items_count
       FROM pending_carts pc
       LEFT JOIN users u ON pc.cashier_id = u.id
+      LEFT JOIN (
+        SELECT pending_cart_id, COUNT(*) AS items_count
+        FROM pending_cart_items
+        GROUP BY pending_cart_id
+      ) pci ON pci.pending_cart_id = pc.id
       WHERE pc.status = 'pending'
     `;
 
@@ -284,6 +408,7 @@ router.put("/pending/:id", requirePermission("pos"), branchAccessMiddleware, asy
 
     const {
       customer = "Walk-in",
+      member_id = null,
       shift_id = null,
       subtotal = 0,
       discount = 0,
@@ -325,9 +450,30 @@ router.put("/pending/:id", requirePermission("pos"), branchAccessMiddleware, asy
 
     await conn.beginTransaction();
 
+    const membershipContext = await resolveMembershipContext(
+      conn,
+      req.user.business_id,
+      member_id,
+      customer,
+      subtotal
+    );
+    const totals = buildCheckoutTotals({
+      subtotal,
+      discount,
+      loyaltyDiscount: loyalty_discount,
+      giftcardDiscount: giftcard_discount,
+      membershipDiscount: membershipContext.membershipDiscountAmount,
+      tax
+    });
+
     await conn.execute(
       `UPDATE pending_carts SET
         customer = ?,
+        member_id = ?,
+        membership_tier_id = ?,
+        membership_tier_name = ?,
+        membership_discount_pct = ?,
+        membership_discount = ?,
         shift_id = ?,
         subtotal = ?,
         discount = ?,
@@ -339,14 +485,19 @@ router.put("/pending/:id", requirePermission("pos"), branchAccessMiddleware, asy
         note = ?
        WHERE id = ?`,
       [
-        customer,
+        membershipContext.customerName,
+        membershipContext.memberId,
+        membershipContext.membershipTierId,
+        membershipContext.membershipTierName,
+        membershipContext.membershipDiscountPct,
+        membershipContext.membershipDiscountAmount,
         shift_id,
-        subtotal,
-        discount,
-        loyalty_discount,
-        giftcard_discount,
-        tax,
-        total,
+        totals.subtotal,
+        totals.discount,
+        totals.loyalty_discount,
+        totals.giftcard_discount,
+        totals.tax,
+        totals.total,
         currency,
         note,
         id
@@ -390,7 +541,7 @@ router.put("/pending/:id", requirePermission("pos"), branchAccessMiddleware, asy
     });
   } catch (error) {
     await conn.rollback();
-    res.status(500).json({
+    res.status(error.statusCode || 500).json({
       success: false,
       message: error.message
     });
@@ -506,11 +657,16 @@ router.post("/pending/:id/checkout", requirePermission("pos"), branchAccessMiddl
 
     const [saleResult] = await conn.execute(
       `INSERT INTO sales
-      (sale_code, customer, cashier_id, shift_id, subtotal, discount, loyalty_discount, giftcard_discount, tax, total, payment_method, currency, business_id, branch_id)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      (sale_code, customer, member_id, membership_tier_id, membership_tier_name, membership_discount_pct, membership_discount, cashier_id, shift_id, subtotal, discount, loyalty_discount, giftcard_discount, tax, total, payment_method, currency, business_id, branch_id)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         saleCode,
         cart.customer,
+        cart.member_id || null,
+        cart.membership_tier_id || null,
+        cart.membership_tier_name || null,
+        cart.membership_discount_pct || 0,
+        cart.membership_discount || 0,
         req.user.id,
         cart.shift_id,
         cart.subtotal,
@@ -615,7 +771,7 @@ router.post("/pending/:id/checkout", requirePermission("pos"), branchAccessMiddl
     });
   } catch (error) {
     await conn.rollback();
-    res.status(500).json({
+    res.status(error.statusCode || 500).json({
       success: false,
       message: error.message
     });
@@ -632,6 +788,7 @@ router.post("/checkout", requirePermission("pos"), branchAccessMiddleware, async
     if (!ensureBusinessContext(req, res)) return;
     const {
       customer = "Walk-in",
+      member_id = null,
       shift_id = null,
       subtotal = 0,
       discount = 0,
@@ -653,23 +810,44 @@ router.post("/checkout", requirePermission("pos"), branchAccessMiddleware, async
 
     await conn.beginTransaction();
 
+    const membershipContext = await resolveMembershipContext(
+      conn,
+      req.user.business_id,
+      member_id,
+      customer,
+      subtotal
+    );
+    const totals = buildCheckoutTotals({
+      subtotal,
+      discount,
+      loyaltyDiscount: loyalty_discount,
+      giftcardDiscount: giftcard_discount,
+      membershipDiscount: membershipContext.membershipDiscountAmount,
+      tax
+    });
+
     const saleCode = `SALE-${Date.now()}`;
 
     const [saleResult] = await conn.execute(
       `INSERT INTO sales
-      (sale_code, customer, cashier_id, shift_id, subtotal, discount, loyalty_discount, giftcard_discount, tax, total, payment_method, currency, business_id, branch_id)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      (sale_code, customer, member_id, membership_tier_id, membership_tier_name, membership_discount_pct, membership_discount, cashier_id, shift_id, subtotal, discount, loyalty_discount, giftcard_discount, tax, total, payment_method, currency, business_id, branch_id)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         saleCode,
-        customer,
+        membershipContext.customerName,
+        membershipContext.memberId,
+        membershipContext.membershipTierId,
+        membershipContext.membershipTierName,
+        membershipContext.membershipDiscountPct,
+        membershipContext.membershipDiscountAmount,
         req.user.id,
         shift_id,
-        subtotal,
-        discount,
-        loyalty_discount,
-        giftcard_discount,
-        tax,
-        total,
+        totals.subtotal,
+        totals.discount,
+        totals.loyalty_discount,
+        totals.giftcard_discount,
+        totals.tax,
+        totals.total,
         payment_method,
         currency,
         req.user.business_id,
@@ -760,7 +938,7 @@ router.post("/checkout", requirePermission("pos"), branchAccessMiddleware, async
     });
   } catch (error) {
     await conn.rollback();
-    res.status(500).json({
+    res.status(error.statusCode || 500).json({
       success: false,
       message: error.message
     });

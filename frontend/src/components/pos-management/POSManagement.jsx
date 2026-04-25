@@ -97,6 +97,7 @@ export default function POSManagement() {
   const [customer, setCustomer] = useState("Walk-in");
   const [memberSearch, setMemberSearch] = useState("");
   const [selectedMember, setSelectedMember] = useState(null);
+  const [memberTierSnapshot, setMemberTierSnapshot] = useState(null);
 
   const [discountPct, setDiscountPct] = useState("");
   const [loyaltyDiscount, setLoyaltyDiscount] = useState("");
@@ -320,6 +321,18 @@ export default function POSManagement() {
     ? selectedMember.full_name || selectedMember.name || "Walk-in"
     : customer?.trim() || "Walk-in";
 
+  const appliedMembershipTierName =
+    memberTierSnapshot?.membership_tier_name ||
+    selectedMember?.membership_tier_name ||
+    selectedMember?.tier ||
+    "";
+
+  const appliedMembershipDiscountPct = Number(
+    memberTierSnapshot?.membership_discount_pct ??
+      selectedMember?.membership_discount_pct ??
+      0
+  );
+
   const customerInputValue = selectedMember
     ? selectedMember.full_name || selectedMember.name || ""
     : memberSearch;
@@ -483,6 +496,7 @@ export default function POSManagement() {
     setSplitTransfer("");
     setCustomer("Walk-in");
     setSelectedMember(null);
+    setMemberTierSnapshot(null);
     setMemberSearch("");
     setPaymentMethod("cash");
     setPendingNote("");
@@ -530,12 +544,19 @@ export default function POSManagement() {
     const pct = Number(discountPct || 0);
     return (subtotal * pct) / 100;
   }, [subtotal, discountPct]);
+  const membershipDiscountAmount = useMemo(() => {
+    return (subtotal * appliedMembershipDiscountPct) / 100;
+  }, [subtotal, appliedMembershipDiscountPct]);
 
   const loyaltyAmount = Number(loyaltyDiscount || 0);
   const giftcardAmount = Number(giftcardDiscount || 0);
   const taxableBase = Math.max(
     0,
-    subtotal - discountAmount - loyaltyAmount - giftcardAmount
+    subtotal -
+      discountAmount -
+      membershipDiscountAmount -
+      loyaltyAmount -
+      giftcardAmount
   );
   const taxRate = Number(settings?.tax_rate ?? 0);
   const tax = taxableBase * (taxRate / 100);
@@ -668,6 +689,7 @@ export default function POSManagement() {
     setCart(mapped);
     setCustomer(activeCustomerOrder.order.customer_name || "Walk-in");
     setSelectedMember(null);
+    setMemberTierSnapshot(null);
     setMemberSearch(activeCustomerOrder.order.customer_name || "");
     setPendingNote(`From customer order ${activeCustomerOrder.order.order_code}`);
     setCheckoutCustomerIds((prev) => Array.from(new Set([...prev, activeCustomerOrder.order.id])));
@@ -692,7 +714,14 @@ export default function POSManagement() {
 
   const buildOrderPayload = () => ({
     customer: displayedCustomerName,
-    member_id: selectedMember?.id || null,
+    member_id: selectedMember?.id || memberTierSnapshot?.member_id || null,
+    membership_tier_id:
+      memberTierSnapshot?.membership_tier_id ||
+      selectedMember?.membership_tier_id ||
+      null,
+    membership_tier_name: appliedMembershipTierName || null,
+    membership_discount_pct: appliedMembershipDiscountPct,
+    membership_discount: membershipDiscountAmount,
     shift_id: shiftId || null,
     subtotal,
     discount: discountAmount,
@@ -783,6 +812,26 @@ export default function POSManagement() {
         : null;
 
       setSelectedMember(foundMember);
+      setMemberTierSnapshot(
+        foundMember
+          ? {
+              member_id: foundMember.id,
+              membership_tier_id: foundMember.membership_tier_id || null,
+              membership_tier_name:
+                foundMember.membership_tier_name || foundMember.tier || null,
+              membership_discount_pct: Number(
+                foundMember.membership_discount_pct || 0
+              )
+            }
+          : data.member_id || data.membership_tier_name
+          ? {
+              member_id: data.member_id || null,
+              membership_tier_id: data.membership_tier_id || null,
+              membership_tier_name: data.membership_tier_name || null,
+              membership_discount_pct: Number(data.membership_discount_pct || 0)
+            }
+          : null
+      );
 
       if (foundMember) {
         const memberName = foundMember.full_name || foundMember.name || "";
@@ -842,6 +891,10 @@ export default function POSManagement() {
     saleId = null,
     saleCode = null,
     customerName,
+    memberId = null,
+    membershipTierName = null,
+    membershipDiscountPct = 0,
+    membershipDiscountAmount = 0,
     cashierName,
     paymentLabel,
     receiptSubtotal,
@@ -859,6 +912,10 @@ export default function POSManagement() {
     saleId,
     saleCode,
     customer: customerName || "Walk-in",
+    memberId,
+    membershipTierName,
+    membershipDiscountPct: Number(membershipDiscountPct || 0),
+    membershipDiscount: Number(membershipDiscountAmount || 0),
     cashier: cashierName || currentUser?.name || "Staff",
     paymentMethod: paymentLabel || "pending",
     subtotal: Number(receiptSubtotal || 0),
@@ -907,6 +964,10 @@ export default function POSManagement() {
           status: "pending",
           receiptId: data.cart_code || `PENDING-${data.id}`,
           customerName: data.customer,
+          memberId: data.member_id,
+          membershipTierName: data.membership_tier_name,
+          membershipDiscountPct: data.membership_discount_pct,
+          membershipDiscountAmount: data.membership_discount,
           cashierName: pendingSummary?.cashier_name,
           paymentLabel: "pending",
           receiptSubtotal: data.subtotal,
@@ -968,6 +1029,10 @@ export default function POSManagement() {
           saleId: res?.saleId,
           saleCode: res?.saleCode,
           customerName: displayedCustomerName,
+          memberId: selectedMember?.id || null,
+          membershipTierName: appliedMembershipTierName,
+          membershipDiscountPct: appliedMembershipDiscountPct,
+          membershipDiscountAmount,
           cashierName: currentUser?.name,
           paymentLabel,
           receiptSubtotal: subtotal,
@@ -1173,6 +1238,11 @@ export default function POSManagement() {
       `Date: ${formatDateTimeLocal(receiptData.createdAt)}`,
       `Customer: ${receiptData.customer}`,
       `Cashier: ${receiptData.cashier}`,
+      receiptData.membershipTierName
+        ? `Membership: ${receiptData.membershipTierName} (${Number(
+            receiptData.membershipDiscountPct || 0
+          )}% off)`
+        : null,
       "",
       ...receiptData.items.map((item) => {
         const discountText = Number(item.item_discount_pct || 0) > 0
@@ -1186,6 +1256,9 @@ export default function POSManagement() {
       "",
       `Subtotal: ${formatMoney(receiptData.subtotal)}`,
       `Discount: -${formatMoney(receiptData.discount)}`,
+      receiptData.membershipDiscount > 0
+        ? `Membership Discount: -${formatMoney(receiptData.membershipDiscount)}`
+        : null,
       `Tax: ${formatMoney(receiptData.tax)}`,
       `Total: ${formatMoney(receiptData.total)}`,
       `Payment: ${String(receiptData.paymentMethod || "pending").toUpperCase()}`,
@@ -1729,6 +1802,7 @@ export default function POSManagement() {
                   if (selectedMember) {
                     setSelectedMember(null);
                   }
+                  setMemberTierSnapshot(null);
 
                   setCustomer(value.trim() || "Walk-in");
                 }}
@@ -1742,6 +1816,7 @@ export default function POSManagement() {
                     className={styles.removeMemberBtn}
                     onClick={() => {
                       setSelectedMember(null);
+                      setMemberTierSnapshot(null);
                       setMemberSearch(customer?.trim() || "");
                     }}
                   >
@@ -1765,6 +1840,15 @@ export default function POSManagement() {
                           className={styles.memberOption}
                           onClick={() => {
                             setSelectedMember(member);
+                            setMemberTierSnapshot({
+                              member_id: member.id,
+                              membership_tier_id: member.membership_tier_id || null,
+                              membership_tier_name:
+                                member.membership_tier_name || member.tier || null,
+                              membership_discount_pct: Number(
+                                member.membership_discount_pct || 0
+                              )
+                            });
                             setCustomer(memberName);
                             setMemberSearch(memberName);
                           }}
@@ -1774,6 +1858,13 @@ export default function POSManagement() {
                           </div>
                           <small>
                             {member.member_code || "No Code"}{" "}
+                            {member.membership_tier_name || member.tier
+                              ? `• ${member.membership_tier_name || member.tier}${
+                                  Number(member.membership_discount_pct || 0) > 0
+                                    ? ` (${Number(member.membership_discount_pct || 0)}% off)`
+                                    : ""
+                                } `
+                              : ""}
                             {member.phone ? `• ${member.phone}` : ""}
                             {member.email ? ` • ${member.email}` : ""}
                           </small>
@@ -1792,6 +1883,12 @@ export default function POSManagement() {
               <small className={styles.cartSub}>
                 Current customer: {displayedCustomerName}
               </small>
+              {appliedMembershipTierName ? (
+                <small className={styles.cartSub}>
+                  Membership tier: {appliedMembershipTierName} •{" "}
+                  {Number(appliedMembershipDiscountPct || 0)}% discount
+                </small>
+              ) : null}
             </div>
 
             <div className={styles.formGroup}>
@@ -1928,6 +2025,16 @@ export default function POSManagement() {
               }`}
             >
               <div className={styles.summary}>
+                {appliedMembershipTierName ? (
+                  <div className={styles.memberDiscountCard}>
+                    <strong>{appliedMembershipTierName}</strong>
+                    <span>
+                      Auto-applied member discount:{" "}
+                      {Number(appliedMembershipDiscountPct || 0)}%
+                    </span>
+                  </div>
+                ) : null}
+
                 <div className={styles.formGroup}>
                   <label>Order Discount %</label>
                   <input
@@ -2068,9 +2175,20 @@ export default function POSManagement() {
                     <strong>{formatMoney(subtotal)}</strong>
                   </div>
                   <div className={styles.totalRow}>
-                    <span>Discount</span>
+                    <span>Order Discount</span>
                     <strong>-{formatMoney(discountAmount)}</strong>
                   </div>
+                  {membershipDiscountAmount > 0 ? (
+                    <div className={styles.totalRow}>
+                      <span>
+                        Membership Discount
+                        {appliedMembershipTierName
+                          ? ` (${appliedMembershipTierName})`
+                          : ""}
+                      </span>
+                      <strong>-{formatMoney(membershipDiscountAmount)}</strong>
+                    </div>
+                  ) : null}
                   <div className={styles.totalRow}>
                     <span>Loyalty</span>
                     <strong>-{formatMoney(loyaltyAmount)}</strong>
@@ -2170,6 +2288,18 @@ export default function POSManagement() {
                 <span>{receipt.customer}</span>
               </div>
 
+              {receipt.membershipTierName ? (
+                <div className={styles.rRow}>
+                  <span>Membership</span>
+                  <span>
+                    {receipt.membershipTierName} ({Number(
+                      receipt.membershipDiscountPct || 0
+                    )}
+                    %)
+                  </span>
+                </div>
+              ) : null}
+
               <div className={styles.rRow}>
                 <span>Cashier</span>
                 <span>{receipt.cashier}</span>
@@ -2252,6 +2382,18 @@ export default function POSManagement() {
                 <div className={`${styles.rRow} ${styles.rRed}`}>
                   <span>Order Discount</span>
                   <span>-{formatMoney(receipt.discount)}</span>
+                </div>
+              ) : null}
+
+              {receipt.membershipDiscount > 0 ? (
+                <div className={`${styles.rRow} ${styles.rPurple}`}>
+                  <span>
+                    Membership Discount
+                    {receipt.membershipTierName
+                      ? ` (${receipt.membershipTierName})`
+                      : ""}
+                  </span>
+                  <span>-{formatMoney(receipt.membershipDiscount)}</span>
                 </div>
               ) : null}
 

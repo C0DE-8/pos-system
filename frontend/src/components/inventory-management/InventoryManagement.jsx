@@ -1161,8 +1161,8 @@ export default function InventoryManagement() {
       <section className={styles.statsGrid}>
         <div className={styles.statCard}>
           <div className={styles.statIcon}>📦</div>
-          <div>
-            <span>Total Products</span>
+          <div className={styles.statCardContent}>
+            <span className={styles.statLabel}>Total Products</span>
             <strong>{totalProducts}</strong>
             <small>Active inventory items</small>
           </div>
@@ -1170,8 +1170,8 @@ export default function InventoryManagement() {
 
         <div className={styles.statCard}>
           <div className={styles.statIcon}>⚠️</div>
-          <div>
-            <span>Low Stock</span>
+          <div className={styles.statCardContent}>
+            <span className={styles.statLabel}>Low Stock</span>
             <strong>{lowStockCount}</strong>
             <small>Needs attention</small>
           </div>
@@ -1179,8 +1179,8 @@ export default function InventoryManagement() {
 
         <div className={styles.statCard}>
           <div className={styles.statIcon}>🥤</div>
-          <div>
-            <span>Consumables</span>
+          <div className={styles.statCardContent}>
+            <span className={styles.statLabel}>Consumables</span>
             <strong>{consumableCount}</strong>
             <small>Food and drinks</small>
           </div>
@@ -1198,8 +1198,8 @@ export default function InventoryManagement() {
           }
         >
           <div className={styles.statIcon}>📅</div>
-          <div>
-            <span>Expiry Tracked</span>
+          <div className={styles.statCardContent}>
+            <span className={styles.statLabel}>Expiry Tracked</span>
             <strong>{expiringCount}</strong>
             <small>With shelf life or date</small>
           </div>
@@ -1207,8 +1207,8 @@ export default function InventoryManagement() {
 
         <div className={styles.statCard}>
           <div className={styles.statIcon}>🗂️</div>
-          <div>
-            <span>Categories</span>
+          <div className={styles.statCardContent}>
+            <span className={styles.statLabel}>Categories</span>
             <strong>{totalCategories}</strong>
             <small>Organized product groups</small>
           </div>
@@ -1234,8 +1234,8 @@ export default function InventoryManagement() {
           }
         >
           <div className={styles.statIcon}>♾️</div>
-          <div>
-            <span>Unlimited / Timed</span>
+          <div className={styles.statCardContent}>
+            <span className={styles.statLabel}>Unlimited / Timed</span>
             <strong>{unlimitedTimedCount}</strong>
             <small>Services and non-stock items</small>
           </div>
@@ -1254,8 +1254,8 @@ export default function InventoryManagement() {
           }
         >
           <div className={styles.statIcon}>🚫</div>
-          <div>
-            <span>Disabled</span>
+          <div className={styles.statCardContent}>
+            <span className={styles.statLabel}>Disabled</span>
             <strong>{disabledCount}</strong>
             <small>Inactive products</small>
           </div>

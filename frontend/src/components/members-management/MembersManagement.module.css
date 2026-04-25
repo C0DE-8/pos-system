@@ -266,6 +266,42 @@
   flex-wrap: wrap;
 }
 
+.tierList {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.tierItem {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  background: #f8fafc;
+}
+
+.tierItem strong {
+  display: block;
+  color: #0f172a;
+  font-size: 14px;
+  margin-bottom: 4px;
+}
+
+.tierItem span {
+  color: #64748b;
+  font-size: 13px;
+}
+
+.inlineActions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
 .tableOuter {
   width: 100%;
   min-width: 0;
@@ -476,6 +512,7 @@
 
   .toolbar,
   .headerActions,
+  .inlineActions,
   .itemsHeader,
   .modalHeader {
     flex-direction: column;
@@ -485,6 +522,8 @@
   .searchWrap,
   .filterSelect,
   .headerActions .secondaryBtn,
+  .inlineActions .primaryBtn,
+  .inlineActions .secondaryBtn,
   .primaryBtn,
   .secondaryBtn {
     width: 100%;

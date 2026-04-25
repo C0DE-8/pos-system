@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: localhost
--- Generation Time: Apr 14, 2026 at 11:47 AM
+-- Generation Time: Apr 26, 2026 at 01:25 AM
 -- Server version: 10.4.28-MariaDB
 -- PHP Version: 8.2.4
 
@@ -47,7 +47,7 @@ CREATE TABLE `businesses` (
 --
 
 INSERT INTO `businesses` (`id`, `name`, `slug`, `logo_url`, `phone`, `email`, `address`, `currency`, `tax_rate`, `is_active`, `created_at`, `updated_at`) VALUES
-(1, 'Default Business', 'default-business', NULL, NULL, NULL, NULL, 'NGN', 0.00, 1, '2026-04-14 02:05:24', '2026-04-14 02:05:24');
+(1, 'Arena Pro', 'default-business', NULL, NULL, NULL, NULL, 'NGN', 0.00, 1, '2026-04-14 02:05:24', '2026-04-14 04:05:22');
 
 -- --------------------------------------------------------
 
@@ -66,15 +66,17 @@ CREATE TABLE `business_branches` (
   `is_main` tinyint(1) NOT NULL DEFAULT 0,
   `is_active` tinyint(1) NOT NULL DEFAULT 1,
   `created_at` datetime DEFAULT current_timestamp(),
-  `updated_at` datetime DEFAULT current_timestamp() ON UPDATE current_timestamp()
+  `updated_at` datetime DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  `image_url` varchar(255) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
 -- Dumping data for table `business_branches`
 --
 
-INSERT INTO `business_branches` (`id`, `business_id`, `name`, `slug`, `phone`, `email`, `address`, `is_main`, `is_active`, `created_at`, `updated_at`) VALUES
-(1, 1, 'Main Branch', 'main-branch', NULL, NULL, NULL, 1, 1, '2026-04-14 02:05:24', '2026-04-14 02:05:24');
+INSERT INTO `business_branches` (`id`, `business_id`, `name`, `slug`, `phone`, `email`, `address`, `is_main`, `is_active`, `created_at`, `updated_at`, `image_url`) VALUES
+(1, 1, 'Main Branch', 'main-branch', NULL, NULL, NULL, 1, 1, '2026-04-14 02:05:24', '2026-04-14 02:05:24', NULL),
+(2, 1, 'new branch', 'new-branch', NULL, NULL, NULL, 0, 1, '2026-04-14 04:06:04', '2026-04-14 04:06:04', NULL);
 
 -- --------------------------------------------------------
 
@@ -146,7 +148,18 @@ INSERT INTO `clock_events` (`id`, `user_id`, `event_type`, `event_time`, `create
 (23, 2, 'in', '2026-04-06 03:31:43', '2026-04-06 03:31:43'),
 (24, 2, 'in', '2026-04-10 07:06:52', '2026-04-10 07:06:52'),
 (25, 2, 'in', '2026-04-14 02:25:50', '2026-04-14 02:25:50'),
-(26, 2, 'in', '2026-04-14 02:44:47', '2026-04-14 02:44:47');
+(26, 2, 'in', '2026-04-14 02:44:47', '2026-04-14 02:44:47'),
+(27, 2, 'in', '2026-04-14 04:03:19', '2026-04-14 04:03:19'),
+(28, 2, 'in', '2026-04-14 23:33:21', '2026-04-14 23:33:21'),
+(29, 2, 'in', '2026-04-14 23:45:30', '2026-04-14 23:45:30'),
+(30, 2, 'in', '2026-04-16 03:50:40', '2026-04-16 03:50:40'),
+(31, 2, 'out', '2026-04-16 04:43:53', '2026-04-16 04:43:53'),
+(32, 3, 'in', '2026-04-16 04:44:04', '2026-04-16 04:44:04'),
+(33, 3, 'out', '2026-04-16 04:44:11', '2026-04-16 04:44:11'),
+(34, 2, 'in', '2026-04-16 04:45:19', '2026-04-16 04:45:19'),
+(35, 2, 'out', '2026-04-16 04:45:20', '2026-04-16 04:45:20'),
+(36, 2, 'in', '2026-04-16 04:45:40', '2026-04-16 04:45:40'),
+(37, 2, 'in', '2026-04-25 16:09:51', '2026-04-25 16:09:51');
 
 -- --------------------------------------------------------
 
@@ -198,6 +211,14 @@ CREATE TABLE `customer_orders` (
   `updated_at` datetime DEFAULT current_timestamp() ON UPDATE current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
+--
+-- Dumping data for table `customer_orders`
+--
+
+INSERT INTO `customer_orders` (`id`, `business_id`, `branch_id`, `order_code`, `customer_name`, `customer_phone`, `customer_email`, `order_type`, `table_number`, `delivery_address`, `notes`, `subtotal`, `discount`, `tax`, `total`, `currency`, `payment_status`, `fulfillment_status`, `source`, `created_at`, `updated_at`) VALUES
+(1, 1, 1, 'DM-1776185905915', 'Samuel Oghenchovwe', '07065785436', '8amlight@gmail.com', 'dine_in', '1', NULL, 'noted to test this note', 100.00, 0.00, 0.00, 100.00, 'NGN', 'paid', 'confirmed', 'digital_menu', '2026-04-14 09:58:25', '2026-04-14 10:01:09'),
+(2, 1, 1, 'DM-1776186125111', 'Samuel Oghenchovwe', '07065785436', '8amlight@gmail.com', 'dine_in', '8', NULL, NULL, 1000.00, 0.00, 0.00, 1000.00, 'NGN', 'pending', 'preparing', 'digital_menu', '2026-04-14 10:02:05', '2026-04-14 10:02:21');
+
 -- --------------------------------------------------------
 
 --
@@ -218,6 +239,14 @@ CREATE TABLE `customer_order_items` (
   `notes` text DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
+--
+-- Dumping data for table `customer_order_items`
+--
+
+INSERT INTO `customer_order_items` (`id`, `customer_order_id`, `product_id`, `item_name`, `icon`, `qty`, `unit_price`, `item_discount_pct`, `final_price`, `mods`, `notes`) VALUES
+(1, 1, 3, 'meat', '📦', 1, 100.00, 0.00, 100.00, '[]', NULL),
+(2, 2, 1, ' Snooker Table', '🎱', 1, 1000.00, 0.00, 1000.00, '[]', NULL);
+
 -- --------------------------------------------------------
 
 --
@@ -232,6 +261,26 @@ CREATE TABLE `customer_order_status_logs` (
   `changed_by` int(11) DEFAULT NULL,
   `created_at` datetime DEFAULT current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Dumping data for table `customer_order_status_logs`
+--
+
+INSERT INTO `customer_order_status_logs` (`id`, `customer_order_id`, `old_status`, `new_status`, `changed_by`, `created_at`) VALUES
+(1, 1, 'pending', 'preparing', 2, '2026-04-14 09:59:11'),
+(2, 1, 'preparing', 'confirmed', 2, '2026-04-14 10:00:48'),
+(3, 1, 'confirmed', 'confirmed', 2, '2026-04-14 10:00:50'),
+(4, 1, 'confirmed', 'confirmed', 2, '2026-04-14 10:00:51'),
+(5, 1, 'confirmed', 'confirmed', 2, '2026-04-14 10:00:52'),
+(6, 1, 'confirmed', 'cancelled', 2, '2026-04-14 10:01:01'),
+(7, 1, 'cancelled', 'confirmed', 2, '2026-04-14 10:01:06'),
+(8, 1, 'confirmed', 'confirmed', 2, '2026-04-14 10:01:07'),
+(9, 1, 'confirmed', 'cancelled', 2, '2026-04-14 10:01:08'),
+(10, 1, 'cancelled', 'confirmed', 2, '2026-04-14 10:01:09'),
+(11, 1, 'confirmed', 'confirmed', 2, '2026-04-14 10:01:20'),
+(12, 1, 'confirmed', 'confirmed', 2, '2026-04-14 10:01:38'),
+(13, 1, 'confirmed', 'confirmed', 2, '2026-04-14 10:01:38'),
+(14, 2, 'pending', 'preparing', 2, '2026-04-14 10:02:21');
 
 -- --------------------------------------------------------
 
@@ -303,62 +352,6 @@ CREATE TABLE `members` (
 -- --------------------------------------------------------
 
 --
--- Table structure for table `menu_categories`
---
-
-CREATE TABLE `menu_categories` (
-  `id` int(11) NOT NULL,
-  `business_id` int(11) NOT NULL,
-  `collection_id` int(11) NOT NULL,
-  `name` varchar(150) NOT NULL,
-  `description` text DEFAULT NULL,
-  `sort_order` int(11) NOT NULL DEFAULT 0,
-  `is_active` tinyint(1) NOT NULL DEFAULT 1
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
-
--- --------------------------------------------------------
-
---
--- Table structure for table `menu_collections`
---
-
-CREATE TABLE `menu_collections` (
-  `id` int(11) NOT NULL,
-  `business_id` int(11) NOT NULL,
-  `branch_id` int(11) DEFAULT NULL,
-  `name` varchar(150) NOT NULL,
-  `slug` varchar(160) NOT NULL,
-  `description` text DEFAULT NULL,
-  `is_active` tinyint(1) NOT NULL DEFAULT 1,
-  `created_at` datetime DEFAULT current_timestamp(),
-  `updated_at` datetime DEFAULT current_timestamp() ON UPDATE current_timestamp()
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
-
--- --------------------------------------------------------
-
---
--- Table structure for table `menu_products`
---
-
-CREATE TABLE `menu_products` (
-  `id` int(11) NOT NULL,
-  `business_id` int(11) NOT NULL,
-  `branch_id` int(11) DEFAULT NULL,
-  `collection_id` int(11) NOT NULL,
-  `category_id` int(11) DEFAULT NULL,
-  `product_id` int(11) NOT NULL,
-  `display_name` varchar(150) DEFAULT NULL,
-  `description` text DEFAULT NULL,
-  `image_url` varchar(255) DEFAULT NULL,
-  `price_override` decimal(12,2) DEFAULT NULL,
-  `is_featured` tinyint(1) NOT NULL DEFAULT 0,
-  `sort_order` int(11) NOT NULL DEFAULT 0,
-  `is_active` tinyint(1) NOT NULL DEFAULT 1
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
-
--- --------------------------------------------------------
-
---
 -- Table structure for table `modifier_groups`
 --
 
@@ -418,7 +411,8 @@ INSERT INTO `pending_carts` (`id`, `cart_code`, `customer`, `cashier_id`, `shift
 (2, 'PEND-1773246746989', 'Walk-in', 2, NULL, 2000.00, 0.00, 0.00, 0.00, 200.00, 2200.00, 'NGN', 'checked_out', 'mr sam ', '2026-03-11 09:32:27', '2026-04-14 02:05:25', 1, 1),
 (3, 'PEND-1773964375406', 'Walk-in', 2, NULL, 100.00, 0.00, 0.00, 0.00, 10.00, 110.00, 'NGN', 'checked_out', NULL, '2026-03-19 16:52:55', '2026-04-14 02:05:25', 1, 1),
 (4, 'PEND-1773968002056', 'Walk-in', 2, NULL, 100.00, 0.00, 0.00, 0.00, 10.00, 110.00, 'NGN', 'checked_out', NULL, '2026-03-19 17:53:22', '2026-04-14 02:05:25', 1, 1),
-(7, 'PEND-1775831157224', 'Walk-in', 2, NULL, 300.00, 0.00, 0.00, 0.00, 30.00, 330.00, 'NGN', 'checked_out', NULL, '2026-04-10 07:25:57', '2026-04-14 02:05:25', 1, 1);
+(7, 'PEND-1775831157224', 'Walk-in', 2, NULL, 300.00, 0.00, 0.00, 0.00, 30.00, 330.00, 'NGN', 'checked_out', NULL, '2026-04-10 07:25:57', '2026-04-14 02:05:25', 1, 1),
+(8, 'PEND-1776185985344', 'Samuel Oghenchovwe', 2, NULL, 100.00, 0.00, 0.00, 0.00, 10.00, 110.00, 'NGN', 'cancelled', 'From customer order DM-1776185905915', '2026-04-14 09:59:45', '2026-04-14 09:59:49', 1, 1);
 
 -- --------------------------------------------------------
 
@@ -458,7 +452,8 @@ INSERT INTO `pending_cart_items` (`id`, `pending_cart_id`, `product_id`, `item_n
 (6, 3, 2, 'rice', '📦', 'fixed', 1, 100.00, 2000.00, 0.00, NULL, NULL, 0, 100.00, 1, '2026-03-19 16:52:55', '2026-03-19 16:52:55'),
 (7, 4, 2, 'rice', '📦', 'fixed', 1, 100.00, 2000.00, 0.00, NULL, NULL, 0, 100.00, 1, '2026-03-19 17:53:22', '2026-03-19 17:53:22'),
 (12, 7, 2, 'rice', '📦', 'fixed', 2, 100.00, 2000.00, 0.00, NULL, NULL, 0, 200.00, 1, '2026-04-10 07:26:10', '2026-04-10 07:26:10'),
-(13, 7, 3, 'meat', '📦', 'fixed', 1, 100.00, 2000.00, 0.00, NULL, NULL, 0, 100.00, 1, '2026-04-10 07:26:10', '2026-04-10 07:26:10');
+(13, 7, 3, 'meat', '📦', 'fixed', 1, 100.00, 2000.00, 0.00, NULL, NULL, 0, 100.00, 1, '2026-04-10 07:26:10', '2026-04-10 07:26:10'),
+(14, 8, 3, 'meat', '📦', 'fixed', 1, 100.00, 0.00, 0.00, NULL, NULL, 0, 100.00, 0, '2026-04-14 09:59:45', '2026-04-14 09:59:45');
 
 -- --------------------------------------------------------
 
@@ -494,9 +489,9 @@ CREATE TABLE `products` (
 --
 
 INSERT INTO `products` (`id`, `name`, `icon`, `category_id`, `type`, `hourly_rate`, `price`, `cost`, `stock`, `low_stock`, `modifier_group_id`, `is_active`, `created_at`, `is_unlimited`, `consumable_type`, `has_expiry`, `expiry_date`, `shelf_life_days`, `business_id`, `branch_id`) VALUES
-(1, ' Snooker Table', '🎱', 1, 'timed', 1000.00, 0.00, 0.00, NULL, 0, NULL, 1, '2026-03-10 12:21:19', 1, NULL, 0, NULL, NULL, 1, 1),
-(2, 'rice', '📦', 5, 'fixed', 0.00, 100.00, 2000.00, 0, 5, NULL, 1, '2026-03-16 15:36:26', 0, 'food', 1, '2026-04-07', 4, 1, 1),
-(3, 'meat', '📦', 5, 'food', 0.00, 100.00, 2000.00, 0, 5, NULL, 1, '2026-03-16 15:36:26', 0, 'food', 1, '2026-04-07', 4, 1, 1);
+(1, ' Snooker Table', '🎱', 1, 'timed', 1000.00, 1000.00, 0.00, NULL, 0, NULL, 1, '2026-03-10 12:21:19', 1, NULL, 0, NULL, NULL, 1, 1),
+(2, 'rice', '📦', 5, 'fixed', 0.00, 100.00, 2000.00, 100, 5, NULL, 1, '2026-03-16 15:36:26', 0, 'food', 1, '2026-04-07', 4, 1, 1),
+(3, 'meat', '📦', 5, 'food', 0.00, 100.00, 2000.00, 100, 5, NULL, 1, '2026-03-16 15:36:26', 0, 'food', 1, '2026-04-07', 4, 1, 1);
 
 -- --------------------------------------------------------
 
@@ -722,7 +717,7 @@ CREATE TABLE `users` (
 
 INSERT INTO `users` (`id`, `name`, `email`, `avatar`, `role`, `pin_hash`, `total_hours`, `is_active`, `created_at`, `updated_at`, `business_id`, `branch_id`) VALUES
 (2, 'Admin', 'admin@admin.com', '👤', 'admin', '$2b$10$w2Jm51Z5KwAJGV9CEaunu.NaZaHLrkDvCEE5ZGcM90wQn814zrMsm', 0.00, 1, '2026-03-10 00:55:13', '2026-04-14 02:05:24', 1, 1),
-(3, 'manager', 'md@gmail.com', '👤', 'manager', '$2b$10$w2Jm51Z5KwAJGV9CEaunu.NaZaHLrkDvCEE5ZGcM90wQn814zrMsm', 0.00, 1, '2026-03-10 00:55:13', '2026-04-14 02:05:24', 1, 1),
+(3, 'manager', 'md@gmail.com', '👤', 'manager', '$2b$10$w2Jm51Z5KwAJGV9CEaunu.NaZaHLrkDvCEE5ZGcM90wQn814zrMsm', 0.00, 1, '2026-03-10 00:55:13', '2026-04-16 04:55:50', 1, 2),
 (4, 'cashier', 'cash@gmail.com', '👤', 'cashier', '$2b$10$w2Jm51Z5KwAJGV9CEaunu.NaZaHLrkDvCEE5ZGcM90wQn814zrMsm', 0.00, 1, '2026-03-10 00:55:13', '2026-04-14 02:05:24', 1, 1),
 (5, 'viewer', 'viewer@gmail.com', '👤', 'viewer', '$2b$10$w2Jm51Z5KwAJGV9CEaunu.NaZaHLrkDvCEE5ZGcM90wQn814zrMsm', 0.00, 1, '2026-03-10 00:55:13', '2026-04-14 02:05:24', 1, 1),
 (6, 'user', NULL, '👤', 'cashier', '$2b$10$vInvPx3MuugwBnQEzkhjsuOP6hgi6ciDzoPF8CS7y88Sf7s4/dkHy', 0.00, 1, '2026-03-10 11:11:07', '2026-04-14 02:05:24', 1, 1);
@@ -911,33 +906,6 @@ ALTER TABLE `members`
   ADD KEY `idx_members_business_id` (`business_id`);
 
 --
--- Indexes for table `menu_categories`
---
-ALTER TABLE `menu_categories`
-  ADD PRIMARY KEY (`id`),
-  ADD KEY `idx_menu_categories_business_id` (`business_id`),
-  ADD KEY `idx_menu_categories_collection_id` (`collection_id`);
-
---
--- Indexes for table `menu_collections`
---
-ALTER TABLE `menu_collections`
-  ADD PRIMARY KEY (`id`),
-  ADD KEY `idx_menu_collections_business_id` (`business_id`),
-  ADD KEY `idx_menu_collections_branch_id` (`branch_id`),
-  ADD KEY `idx_menu_collections_slug` (`slug`);
-
---
--- Indexes for table `menu_products`
---
-ALTER TABLE `menu_products`
-  ADD PRIMARY KEY (`id`),
-  ADD KEY `idx_menu_products_business_id` (`business_id`),
-  ADD KEY `idx_menu_products_branch_id` (`branch_id`),
-  ADD KEY `idx_menu_products_product_id` (`product_id`),
-  ADD KEY `idx_menu_products_collection_id` (`collection_id`);
-
---
 -- Indexes for table `modifier_groups`
 --
 ALTER TABLE `modifier_groups`
@@ -1092,7 +1060,7 @@ ALTER TABLE `businesses`
 -- AUTO_INCREMENT for table `business_branches`
 --
 ALTER TABLE `business_branches`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
 
 --
 -- AUTO_INCREMENT for table `categories`
@@ -1104,7 +1072,7 @@ ALTER TABLE `categories`
 -- AUTO_INCREMENT for table `clock_events`
 --
 ALTER TABLE `clock_events`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=27;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=38;
 
 --
 -- AUTO_INCREMENT for table `courts`
@@ -1116,19 +1084,19 @@ ALTER TABLE `courts`
 -- AUTO_INCREMENT for table `customer_orders`
 --
 ALTER TABLE `customer_orders`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
 
 --
 -- AUTO_INCREMENT for table `customer_order_items`
 --
 ALTER TABLE `customer_order_items`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
 
 --
 -- AUTO_INCREMENT for table `customer_order_status_logs`
 --
 ALTER TABLE `customer_order_status_logs`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=15;
 
 --
 -- AUTO_INCREMENT for table `gift_cards`
@@ -1155,24 +1123,6 @@ ALTER TABLE `members`
   MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
 
 --
--- AUTO_INCREMENT for table `menu_categories`
---
-ALTER TABLE `menu_categories`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
-
---
--- AUTO_INCREMENT for table `menu_collections`
---
-ALTER TABLE `menu_collections`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
-
---
--- AUTO_INCREMENT for table `menu_products`
---
-ALTER TABLE `menu_products`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
-
---
 -- AUTO_INCREMENT for table `modifier_groups`
 --
 ALTER TABLE `modifier_groups`
@@ -1188,13 +1138,13 @@ ALTER TABLE `modifier_options`
 -- AUTO_INCREMENT for table `pending_carts`
 --
 ALTER TABLE `pending_carts`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=8;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=9;
 
 --
 -- AUTO_INCREMENT for table `pending_cart_items`
 --
 ALTER TABLE `pending_cart_items`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=14;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=15;
 
 --
 -- AUTO_INCREMENT for table `products`
@@ -1389,18 +1339,8 @@ ALTER TABLE `warehouse_history`
 --
 ALTER TABLE `warehouse_stock`
   ADD CONSTRAINT `warehouse_stock_ibfk_1` FOREIGN KEY (`product_id`) REFERENCES `products` (`id`) ON DELETE CASCADE;
-
--- branch image support for business management uploads
-ALTER TABLE `business_branches`
-  ADD COLUMN IF NOT EXISTS `image_url` varchar(255) DEFAULT NULL;
 COMMIT;
 
 /*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
 /*!40101 SET CHARACTER_SET_RESULTS=@OLD_CHARACTER_SET_RESULTS */;
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
-
-
-
-DROP TABLE IF EXISTS menu_products;
-DROP TABLE IF EXISTS menu_collections;
-DROP TABLE IF EXISTS menu_categories;

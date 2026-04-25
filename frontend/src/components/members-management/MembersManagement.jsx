@@ -3,6 +3,9 @@ import moment from "moment";
 import * as XLSX from "xlsx";
 import {
   getMembers,
+  getMembershipTiers,
+  createMembershipTier,
+  updateMembershipTier,
   createMember,
   getMemberHistory
 } from "../../api/membersApi";
@@ -12,19 +15,29 @@ const initialForm = {
   name: "",
   phone: "",
   email: "",
-  tier: "Walk-in"
+  membership_tier_id: ""
+};
+
+const initialTierForm = {
+  name: "",
+  discount_pct: ""
 };
 
 export default function MembersManagement() {
   const [members, setMembers] = useState([]);
+  const [membershipTiers, setMembershipTiers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [tierSubmitting, setTierSubmitting] = useState(false);
+  const [updatingTierId, setUpdatingTierId] = useState(null);
   const [historyLoading, setHistoryLoading] = useState(false);
 
   const [search, setSearch] = useState("");
   const [tierFilter, setTierFilter] = useState("all");
 
   const [form, setForm] = useState(initialForm);
+  const [tierForm, setTierForm] = useState(initialTierForm);
+  const [editingTier, setEditingTier] = useState(null);
 
   const [error, setError] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
@@ -38,8 +51,13 @@ export default function MembersManagement() {
       setLoading(true);
       setError("");
 
-      const res = await getMembers();
-      setMembers(res?.data || []);
+      const [membersRes, tiersRes] = await Promise.all([
+        getMembers(),
+        getMembershipTiers()
+      ]);
+
+      setMembers(membersRes?.data || []);
+      setMembershipTiers(tiersRes?.data || []);
     } catch (err) {
       setError(err?.response?.data?.message || "Failed to load members");
     } finally {
@@ -60,6 +78,28 @@ export default function MembersManagement() {
     }));
   };
 
+  const handleTierChange = (e) => {
+    const { name, value } = e.target;
+
+    setTierForm((prev) => ({
+      ...prev,
+      [name]: value
+    }));
+  };
+
+  const handleEditingTierChange = (e) => {
+    const { name, value } = e.target;
+
+    setEditingTier((prev) =>
+      prev
+        ? {
+            ...prev,
+            [name]: value
+          }
+        : prev
+    );
+  };
+
   const handleCreateMember = async (e) => {
     e.preventDefault();
 
@@ -77,7 +117,9 @@ export default function MembersManagement() {
         name: form.name.trim(),
         phone: form.phone.trim(),
         email: form.email.trim(),
-        tier: form.tier
+        membership_tier_id: form.membership_tier_id
+          ? Number(form.membership_tier_id)
+          : null
       });
 
       setSuccessMessage(
@@ -92,6 +134,88 @@ export default function MembersManagement() {
       setError(err?.response?.data?.message || "Failed to create member");
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handleCreateTier = async (e) => {
+    e.preventDefault();
+
+    if (!tierForm.name.trim()) {
+      setError("Tier name is required");
+      return;
+    }
+
+    try {
+      setTierSubmitting(true);
+      setError("");
+      setSuccessMessage("");
+
+      const res = await createMembershipTier({
+        name: tierForm.name.trim(),
+        discount_pct: Number(tierForm.discount_pct || 0)
+      });
+
+      setSuccessMessage(
+        res?.data?.name
+          ? `Membership tier created: ${res.data.name}`
+          : "Membership tier created successfully"
+      );
+
+      setTierForm(initialTierForm);
+      await fetchMembers();
+    } catch (err) {
+      setError(err?.response?.data?.message || "Failed to create membership tier");
+    } finally {
+      setTierSubmitting(false);
+    }
+  };
+
+  const startEditingTier = (tier) => {
+    setEditingTier({
+      id: tier.id,
+      name: tier.name || "",
+      discount_pct: String(Number(tier.discount_pct || 0))
+    });
+    setError("");
+    setSuccessMessage("");
+  };
+
+  const cancelEditingTier = () => {
+    setEditingTier(null);
+  };
+
+  const handleUpdateTier = async (e) => {
+    e.preventDefault();
+
+    if (!editingTier?.id) return;
+
+    if (!String(editingTier.name || "").trim()) {
+      setError("Tier name is required");
+      return;
+    }
+
+    try {
+      setUpdatingTierId(editingTier.id);
+      setError("");
+      setSuccessMessage("");
+
+      const res = await updateMembershipTier(editingTier.id, {
+        name: String(editingTier.name || "").trim(),
+        discount_pct: Number(editingTier.discount_pct || 0)
+      });
+
+      setSuccessMessage(
+        res?.data?.name
+          ? `Membership tier updated: ${res.data.name}`
+          : "Membership tier updated successfully"
+      );
+
+      setEditingTier(null);
+      await fetchMembers();
+    } catch (err) {
+      setError(err?.response?.data?.message || "Failed to update membership tier");
+    } finally {
+      setUpdatingTierId(null);
     }
   };
 
@@ -137,11 +261,36 @@ export default function MembersManagement() {
     });
   }, [members, search, tierFilter]);
 
+  const tierOptions = useMemo(() => {
+    const optionMap = new Map();
+
+    membershipTiers.forEach((tier) => {
+      optionMap.set(String(tier.name || "").toLowerCase(), {
+        value: tier.name,
+        label: `${tier.name} (${Number(tier.discount_pct || 0)}% off)`
+      });
+    });
+
+    members.forEach((member) => {
+      const tierName = String(member.tier || "").trim();
+      if (!tierName) return;
+      const key = tierName.toLowerCase();
+
+      if (!optionMap.has(key)) {
+        optionMap.set(key, {
+          value: tierName,
+          label: tierName
+        });
+      }
+    });
+
+    return Array.from(optionMap.values()).sort((a, b) =>
+      a.value.localeCompare(b.value)
+    );
+  }, [membershipTiers, members]);
+
   const stats = useMemo(() => {
     const totalMembers = members.length;
-    const walkIn = members.filter(
-      (member) => String(member.tier || "").toLowerCase() === "walk-in"
-    ).length;
     const vip = members.filter(
       (member) => String(member.tier || "").toLowerCase() === "vip"
     ).length;
@@ -151,11 +300,11 @@ export default function MembersManagement() {
 
     return {
       totalMembers,
-      walkIn,
+      totalTiers: membershipTiers.length,
       vip,
       regular
     };
-  }, [members]);
+  }, [members, membershipTiers]);
 
   const formatMoney = (value) => {
     return `₦${Number(value || 0).toLocaleString()}`;
@@ -175,6 +324,7 @@ export default function MembersManagement() {
         Phone: member.phone || "",
         Email: member.email || "",
         Tier: member.tier || "",
+        "Tier Discount %": Number(member.membership_discount_pct || 0),
         "Created At": formatDateTime(member.created_at)
       }));
 
@@ -203,6 +353,7 @@ export default function MembersManagement() {
               <td>${member.phone || ""}</td>
               <td>${member.email || ""}</td>
               <td>${member.tier || ""}</td>
+              <td>${Number(member.membership_discount_pct || 0)}%</td>
               <td>${formatDateTime(member.created_at)}</td>
             </tr>
           `
@@ -258,6 +409,7 @@ export default function MembersManagement() {
                   <th>Phone</th>
                   <th>Email</th>
                   <th>Tier</th>
+                  <th>Tier Discount %</th>
                   <th>Created At</th>
                 </tr>
               </thead>
@@ -298,6 +450,7 @@ export default function MembersManagement() {
           Phone: selectedMember.phone || "",
           Email: selectedMember.email || "",
           Tier: selectedMember.tier || "",
+          "Tier Discount %": Number(selectedMember.membership_discount_pct || 0),
           "Created At": formatDateTime(selectedMember.created_at)
         }
       ];
@@ -398,6 +551,9 @@ export default function MembersManagement() {
               <p><strong>Phone:</strong> ${selectedMember.phone || ""}</p>
               <p><strong>Email:</strong> ${selectedMember.email || ""}</p>
               <p><strong>Tier:</strong> ${selectedMember.tier || ""}</p>
+              <p><strong>Tier Discount:</strong> ${Number(
+                selectedMember.membership_discount_pct || 0
+              )}%</p>
               <p><strong>Created At:</strong> ${formatDateTime(selectedMember.created_at)}</p>
             </div>
 
@@ -449,9 +605,9 @@ export default function MembersManagement() {
         </div>
 
         <div className={styles.statCard}>
-          <h3>Walk-in</h3>
-          <p>{stats.walkIn}</p>
-          <span>Walk-in members</span>
+          <h3>Membership Tiers</h3>
+          <p>{stats.totalTiers}</p>
+          <span>Available tiers for members</span>
         </div>
 
         <div className={styles.statCard}>
@@ -518,11 +674,18 @@ export default function MembersManagement() {
             </div>
 
             <div className={styles.formGroup}>
-              <label>Tier</label>
-              <select name="tier" value={form.tier} onChange={handleChange}>
-                <option value="Walk-in">Walk-in</option>
-                <option value="Regular">Regular</option>
-                <option value="VIP">VIP</option>
+              <label>Membership Tier</label>
+              <select
+                name="membership_tier_id"
+                value={form.membership_tier_id}
+                onChange={handleChange}
+              >
+                <option value="">Select tier</option>
+                {membershipTiers.map((tier) => (
+                  <option key={tier.id} value={tier.id}>
+                    {tier.name} ({Number(tier.discount_pct || 0)}% off)
+                  </option>
+                ))}
               </select>
             </div>
 
@@ -534,6 +697,139 @@ export default function MembersManagement() {
               {submitting ? "Adding Member..." : "Add Member"}
             </button>
           </form>
+
+          <div className={styles.cardHeader}>
+            <div>
+              <h2 className={styles.title}>Create Membership Tier</h2>
+              <p className={styles.subtitle}>
+                Add new tiers like VIP, Regular, or custom benefits
+              </p>
+            </div>
+          </div>
+
+          <form onSubmit={handleCreateTier} className={styles.form}>
+            <div className={styles.formGroup}>
+              <label>Tier Name</label>
+              <input
+                type="text"
+                name="name"
+                value={tierForm.name}
+                onChange={handleTierChange}
+                placeholder="Example: Premium"
+              />
+            </div>
+
+            <div className={styles.formGroup}>
+              <label>Discount %</label>
+              <input
+                type="number"
+                min="0"
+                max="100"
+                name="discount_pct"
+                value={tierForm.discount_pct}
+                onChange={handleTierChange}
+                placeholder="0"
+              />
+            </div>
+
+            <button
+              type="submit"
+              className={styles.secondaryBtn}
+              disabled={tierSubmitting}
+            >
+              {tierSubmitting ? "Creating Tier..." : "Create Tier"}
+            </button>
+          </form>
+
+          <div className={styles.cardHeader}>
+            <div>
+              <h2 className={styles.title}>Membership Tier Benefits</h2>
+              <p className={styles.subtitle}>
+                View existing tiers and update their discount benefits
+              </p>
+            </div>
+          </div>
+
+          {membershipTiers.length ? (
+            <div className={styles.tierList}>
+              {membershipTiers.map((tier) => (
+                <div key={tier.id} className={styles.tierItem}>
+                  <div>
+                    <strong>{tier.name}</strong>
+                    <span>{Number(tier.discount_pct || 0)}% discount</span>
+                  </div>
+
+                  <button
+                    type="button"
+                    className={styles.secondaryBtn}
+                    onClick={() => startEditingTier(tier)}
+                  >
+                    Update Tier
+                  </button>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className={styles.emptyStateSmall}>No membership tiers found</div>
+          )}
+
+          {editingTier ? (
+            <form onSubmit={handleUpdateTier} className={styles.form}>
+              <div className={styles.cardHeader}>
+                <div>
+                  <h2 className={styles.title}>Update Tier</h2>
+                  <p className={styles.subtitle}>
+                    Edit the tier name and discount benefit
+                  </p>
+                </div>
+              </div>
+
+              <div className={styles.formGroup}>
+                <label>Tier Name</label>
+                <input
+                  type="text"
+                  name="name"
+                  value={editingTier.name}
+                  onChange={handleEditingTierChange}
+                  placeholder="Tier name"
+                />
+              </div>
+
+              <div className={styles.formGroup}>
+                <label>Discount %</label>
+                <input
+                  type="number"
+                  min="0"
+                  max="100"
+                  name="discount_pct"
+                  value={editingTier.discount_pct}
+                  onChange={handleEditingTierChange}
+                  placeholder="0"
+                />
+              </div>
+
+              <div className={styles.inlineActions}>
+                <button
+                  type="submit"
+                  className={styles.primaryBtn}
+                  disabled={updatingTierId === editingTier.id}
+                >
+                  {updatingTierId === editingTier.id
+                    ? "Updating Tier..."
+                    : "Save Tier"}
+                </button>
+
+                <button
+                  type="button"
+                  className={styles.secondaryBtn}
+                  onClick={cancelEditingTier}
+                  disabled={updatingTierId === editingTier.id}
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          ) : null}
         </section>
 
         <section className={styles.card}>
@@ -591,9 +887,11 @@ export default function MembersManagement() {
               onChange={(e) => setTierFilter(e.target.value)}
             >
               <option value="all">All Tiers</option>
-              <option value="Walk-in">Walk-in</option>
-              <option value="Regular">Regular</option>
-              <option value="VIP">VIP</option>
+              {tierOptions.map((tier) => (
+                <option key={tier.value} value={tier.value}>
+                  {tier.label}
+                </option>
+              ))}
             </select>
           </div>
 
@@ -613,6 +911,7 @@ export default function MembersManagement() {
                       <th>Phone</th>
                       <th>Email</th>
                       <th>Tier</th>
+                      <th>Discount %</th>
                       <th>Created At</th>
                       <th>Action</th>
                     </tr>
@@ -630,6 +929,7 @@ export default function MembersManagement() {
                             {member.tier || "—"}
                           </span>
                         </td>
+                        <td>{Number(member.membership_discount_pct || 0)}%</td>
                         <td>{formatDateTime(member.created_at)}</td>
                         <td>
                           <button
@@ -691,6 +991,11 @@ export default function MembersManagement() {
                   <div className={styles.detailCard}>
                     <span>Tier</span>
                     <strong>{selectedMember.tier || "—"}</strong>
+                  </div>
+
+                  <div className={styles.detailCard}>
+                    <span>Tier Discount</span>
+                    <strong>{Number(selectedMember.membership_discount_pct || 0)}%</strong>
                   </div>
 
                   <div className={styles.detailCard}>
