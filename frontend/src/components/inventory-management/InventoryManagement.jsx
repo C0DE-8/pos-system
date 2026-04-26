@@ -2356,10 +2356,6 @@ export default function InventoryManagement() {
                                 <p>{product.category_name || "No category"}</p>
                               </div>
                             </div>
-
-                            <span className={getTypeClassName(product.type, styles)}>
-                              {getTypeLabel(product.type)}
-                            </span>
                           </div>
 
                           <div className={styles.mobileTagRow}>
@@ -2373,6 +2369,10 @@ export default function InventoryManagement() {
                                 {getCategoryTypeLabel(product.category_type)}
                               </span>
                             ) : null}
+
+                            <span className={getTypeClassName(product.type, styles)}>
+                              {getTypeLabel(product.type)}
+                            </span>
 
                             {product.consumable_type ? (
                               <span className={styles.metaChip}>
@@ -2390,8 +2390,8 @@ export default function InventoryManagement() {
                             ) : null}
                           </div>
 
-                          <div className={styles.mobileMeta}>
-                            <div>
+                          <div className={styles.mobileMetricsRow}>
+                            <div className={styles.mobileMetric}>
                               <span>Unit</span>
                               <strong>
                                 {product.product_unit_name
@@ -2402,25 +2402,24 @@ export default function InventoryManagement() {
                                   : "No unit"}
                               </strong>
                             </div>
-                            <div>
+                            <div className={styles.mobileMetric}>
                               <span>Price / Rate</span>
                               <strong>{getProductAmountText(product)}</strong>
                             </div>
-                            <div>
-                              <span>Cost</span>
-                              <strong>₦{Number(product.cost || 0).toLocaleString()}</strong>
-                            </div>
-                            <div>
+                            <div className={styles.mobileMetric}>
                               <span>Stock</span>
                               <strong>{isUnlimited ? "Unlimited" : product.stock}</strong>
                             </div>
-                            <div>
+                            <div className={styles.mobileMetric}>
                               <span>Status</span>
                               <strong>
                                 {isUnlimited ? "No tracking" : isLow ? "Low stock" : "In stock"}
                               </strong>
                             </div>
-                            <div>
+                          </div>
+
+                          <div className={styles.mobileFooterRow}>
+                            <div className={styles.mobileDateMeta}>
                               <span>Expiry Date</span>
                               <strong>
                                 {Number(product.has_expiry) === 1
@@ -2428,7 +2427,7 @@ export default function InventoryManagement() {
                                   : "No expiry"}
                               </strong>
                             </div>
-                            <div>
+                            <div className={styles.mobileDateMeta}>
                               <span>Shelf Life</span>
                               <strong>
                                 {product.shelf_life_days
@@ -2436,30 +2435,30 @@ export default function InventoryManagement() {
                                   : "-"}
                               </strong>
                             </div>
-                          </div>
 
-                          <div className={styles.mobileActions}>
+                            <div className={styles.mobileActions}>
                             <button
                               type="button"
-                              className={styles.editBtn}
+                              className={`${styles.editBtn} ${styles.mobileActionBtn}`}
                               onClick={() => handleEdit(product)}
                             >
                               Edit
                             </button>
                             <button
                               type="button"
-                              className={styles.warnBtn}
+                              className={`${styles.warnBtn} ${styles.mobileActionBtn}`}
                               onClick={() => handleDisable(product.id)}
                             >
                               Disable
                             </button>
                             <button
                               type="button"
-                              className={styles.deleteBtn}
+                              className={`${styles.deleteBtn} ${styles.mobileActionBtn}`}
                               onClick={() => handleDelete(product.id)}
                             >
                               Delete
                             </button>
+                            </div>
                           </div>
                         </div>
                       );
