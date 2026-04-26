@@ -66,3 +66,24 @@ export const deleteCategory = async (id) => {
   const { data } = await API.delete(`/products/categories/${id}`);
   return data;
 };
+
+// product units
+export const getProductUnits = async () => {
+  const { data } = await API.get("/products/units");
+  return data;
+};
+
+export const createProductUnit = async (payload) => {
+  const { data } = await API.post("/products/units", payload);
+  return data;
+};
+
+export const updateProductUnit = async (id, payload) => {
+  const { data } = await API.put(`/products/units/${id}`, payload);
+  return data;
+};
+
+export const deleteProductUnit = async (id) => {
+  const { data } = await API.delete(`/products/units/${id}`);
+  return data;
+};

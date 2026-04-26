@@ -29,6 +29,22 @@ function normalizeNullableNumber(value) {
   return Number.isNaN(num) ? null : num;
 }
 
+function normalizeOptionalText(value) {
+  if (value === null || value === undefined) return null;
+  const trimmed = String(value).trim();
+  return trimmed ? trimmed : null;
+}
+
+async function findScopedProductUnit(unitId, businessId) {
+  return query(
+    `SELECT id, name, short_name
+     FROM product_units
+     WHERE id = ? AND business_id = ?
+     LIMIT 1`,
+    [unitId, businessId]
+  );
+}
+
 // categories / get all categories
 router.get("/categories", requirePermission("inventory"), async (req, res) => {
   try {
@@ -193,6 +209,176 @@ router.delete("/categories/:id", requirePermission("inventory"), async (req, res
   }
 });
 
+// product units / list all units
+router.get("/units", requirePermission("inventory"), async (req, res) => {
+  try {
+    if (!ensureBusinessContext(req, res)) return;
+    const rows = await query(
+      `SELECT id, name, short_name, created_at, updated_at
+       FROM product_units
+       WHERE business_id = ?
+       ORDER BY name ASC`,
+      [req.user.business_id]
+    );
+
+    res.json({
+      success: true,
+      count: rows.length,
+      data: rows
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// product units / create unit
+router.post("/units", requirePermission("inventory"), async (req, res) => {
+  try {
+    if (!ensureBusinessContext(req, res)) return;
+    const name = normalizeOptionalText(req.body?.name);
+    const shortName = normalizeOptionalText(req.body?.short_name);
+
+    if (!name) {
+      return res.status(400).json({
+        success: false,
+        message: "Unit name is required"
+      });
+    }
+
+    const existingUnit = await query(
+      `SELECT id
+       FROM product_units
+       WHERE business_id = ? AND name = ?
+       LIMIT 1`,
+      [req.user.business_id, name]
+    );
+
+    if (existingUnit.length) {
+      return res.status(400).json({
+        success: false,
+        message: "Unit type already exists"
+      });
+    }
+
+    await query(
+      `INSERT INTO product_units (name, short_name, business_id)
+       VALUES (?, ?, ?)`,
+      [name, shortName, req.user.business_id]
+    );
+
+    res.status(201).json({
+      success: true,
+      message: "Unit type created successfully"
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// product units / update unit
+router.put("/units/:id", requirePermission("inventory"), async (req, res) => {
+  try {
+    if (!ensureBusinessContext(req, res)) return;
+    const { id } = req.params;
+    const name = normalizeOptionalText(req.body?.name);
+    const shortName = normalizeOptionalText(req.body?.short_name);
+
+    if (!name) {
+      return res.status(400).json({
+        success: false,
+        message: "Unit name is required"
+      });
+    }
+
+    const existingUnit = await query(
+      `SELECT id
+       FROM product_units
+       WHERE id = ? AND business_id = ?
+       LIMIT 1`,
+      [id, req.user.business_id]
+    );
+
+    if (!existingUnit.length) {
+      return res.status(404).json({
+        success: false,
+        message: "Unit type not found"
+      });
+    }
+
+    const duplicateUnit = await query(
+      `SELECT id
+       FROM product_units
+       WHERE business_id = ? AND name = ? AND id != ?
+       LIMIT 1`,
+      [req.user.business_id, name, id]
+    );
+
+    if (duplicateUnit.length) {
+      return res.status(400).json({
+        success: false,
+        message: "Another unit type with this name already exists"
+      });
+    }
+
+    await query(
+      `UPDATE product_units
+       SET name = ?, short_name = ?
+       WHERE id = ? AND business_id = ?`,
+      [name, shortName, id, req.user.business_id]
+    );
+
+    res.json({
+      success: true,
+      message: "Unit type updated successfully"
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// product units / delete unit
+router.delete("/units/:id", requirePermission("inventory"), async (req, res) => {
+  try {
+    if (!ensureBusinessContext(req, res)) return;
+    const { id } = req.params;
+
+    const existingUnit = await query(
+      `SELECT id
+       FROM product_units
+       WHERE id = ? AND business_id = ?
+       LIMIT 1`,
+      [id, req.user.business_id]
+    );
+
+    if (!existingUnit.length) {
+      return res.status(404).json({
+        success: false,
+        message: "Unit type not found"
+      });
+    }
+
+    await query(
+      `UPDATE products
+       SET product_unit_id = NULL
+       WHERE product_unit_id = ? AND business_id = ?`,
+      [id, req.user.business_id]
+    );
+
+    await query(
+      `DELETE FROM product_units
+       WHERE id = ? AND business_id = ?`,
+      [id, req.user.business_id]
+    );
+
+    res.json({
+      success: true,
+      message: "Unit type deleted successfully"
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
 // products / get all active products
 router.get("/", requirePermission("pos"), branchAccessMiddleware, async (req, res) => {
   try {
@@ -205,6 +391,7 @@ router.get("/", requirePermission("pos"), branchAccessMiddleware, async (req, re
         p.name,
         p.icon,
         p.category_id,
+        p.product_unit_id,
         p.type,
         p.hourly_rate,
         p.price,
@@ -218,10 +405,13 @@ router.get("/", requirePermission("pos"), branchAccessMiddleware, async (req, re
         p.has_expiry,
         p.expiry_date,
         p.shelf_life_days,
+        pu.name AS product_unit_name,
+        pu.short_name AS product_unit_short_name,
         c.name AS category_name,
         c.type AS category_type
       FROM products p
       LEFT JOIN categories c ON c.id = p.category_id
+      LEFT JOIN product_units pu ON pu.id = p.product_unit_id
       WHERE p.is_active = 1
         AND p.business_id = ?
         ${!isAdmin(req.user) ? "AND p.branch_id = ?" : branchId ? "AND p.branch_id = ?" : ""}
@@ -255,6 +445,7 @@ router.get("/lists", requirePermission("pos"), branchAccessMiddleware, async (re
         p.name,
         p.icon,
         p.category_id,
+        p.product_unit_id,
         p.type,
         p.hourly_rate,
         p.price,
@@ -268,10 +459,13 @@ router.get("/lists", requirePermission("pos"), branchAccessMiddleware, async (re
         p.has_expiry,
         p.expiry_date,
         p.shelf_life_days,
+        pu.name AS product_unit_name,
+        pu.short_name AS product_unit_short_name,
         c.name AS category_name,
         c.type AS category_type
       FROM products p
       LEFT JOIN categories c ON c.id = p.category_id
+      LEFT JOIN product_units pu ON pu.id = p.product_unit_id
       WHERE p.is_unlimited = 1
         AND p.business_id = ?
         ${scopedBranchSql}
@@ -286,6 +480,7 @@ router.get("/lists", requirePermission("pos"), branchAccessMiddleware, async (re
         p.name,
         p.icon,
         p.category_id,
+        p.product_unit_id,
         p.type,
         p.hourly_rate,
         p.price,
@@ -299,10 +494,13 @@ router.get("/lists", requirePermission("pos"), branchAccessMiddleware, async (re
         p.has_expiry,
         p.expiry_date,
         p.shelf_life_days,
+        pu.name AS product_unit_name,
+        pu.short_name AS product_unit_short_name,
         c.name AS category_name,
         c.type AS category_type
       FROM products p
       LEFT JOIN categories c ON c.id = p.category_id
+      LEFT JOIN product_units pu ON pu.id = p.product_unit_id
       WHERE p.type = 'timed'
         AND p.business_id = ?
         ${scopedBranchSql}
@@ -317,6 +515,7 @@ router.get("/lists", requirePermission("pos"), branchAccessMiddleware, async (re
         p.name,
         p.icon,
         p.category_id,
+        p.product_unit_id,
         p.type,
         p.hourly_rate,
         p.price,
@@ -330,10 +529,13 @@ router.get("/lists", requirePermission("pos"), branchAccessMiddleware, async (re
         p.has_expiry,
         p.expiry_date,
         p.shelf_life_days,
+        pu.name AS product_unit_name,
+        pu.short_name AS product_unit_short_name,
         c.name AS category_name,
         c.type AS category_type
       FROM products p
       LEFT JOIN categories c ON c.id = p.category_id
+      LEFT JOIN product_units pu ON pu.id = p.product_unit_id
       WHERE p.has_expiry = 1
         AND p.business_id = ?
         ${scopedBranchSql}
@@ -348,6 +550,7 @@ router.get("/lists", requirePermission("pos"), branchAccessMiddleware, async (re
         p.name,
         p.icon,
         p.category_id,
+        p.product_unit_id,
         p.type,
         p.hourly_rate,
         p.price,
@@ -361,10 +564,13 @@ router.get("/lists", requirePermission("pos"), branchAccessMiddleware, async (re
         p.has_expiry,
         p.expiry_date,
         p.shelf_life_days,
+        pu.name AS product_unit_name,
+        pu.short_name AS product_unit_short_name,
         c.name AS category_name,
         c.type AS category_type
       FROM products p
       LEFT JOIN categories c ON c.id = p.category_id
+      LEFT JOIN product_units pu ON pu.id = p.product_unit_id
       WHERE p.is_active = 0
         AND p.business_id = ?
         ${scopedBranchSql}
@@ -408,6 +614,7 @@ router.get("/:id", requirePermission("inventory"), branchAccessMiddleware, async
         p.name,
         p.icon,
         p.category_id,
+        p.product_unit_id,
         p.type,
         p.hourly_rate,
         p.price,
@@ -421,10 +628,13 @@ router.get("/:id", requirePermission("inventory"), branchAccessMiddleware, async
         p.has_expiry,
         p.expiry_date,
         p.shelf_life_days,
+        pu.name AS product_unit_name,
+        pu.short_name AS product_unit_short_name,
         c.name AS category_name,
         c.type AS category_type
       FROM products p
       LEFT JOIN categories c ON c.id = p.category_id
+      LEFT JOIN product_units pu ON pu.id = p.product_unit_id
       WHERE p.id = ? AND p.business_id = ?
       ${!isAdmin(req.user) ? "AND p.branch_id = ?" : req.query.branch_id ? "AND p.branch_id = ?" : ""}
       LIMIT 1
@@ -463,6 +673,7 @@ router.post("/", requirePermission("inventory"), branchAccessMiddleware, async (
       name,
       icon = "📦",
       category_id = null,
+      product_unit_id = null,
       type = "fixed",
       hourly_rate = 0,
       price = 0,
@@ -492,6 +703,7 @@ router.post("/", requirePermission("inventory"), branchAccessMiddleware, async (
     }
 
     let categoryType = null;
+    let finalProductUnitId = null;
 
     if (category_id) {
       const categoryRows = await query(
@@ -507,6 +719,28 @@ router.post("/", requirePermission("inventory"), branchAccessMiddleware, async (
       }
 
       categoryType = categoryRows[0].type;
+    }
+
+    if (product_unit_id !== null && product_unit_id !== undefined && product_unit_id !== "") {
+      const unitId = Number(product_unit_id);
+
+      if (!Number.isInteger(unitId) || unitId <= 0) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid product unit"
+        });
+      }
+
+      const unitRows = await findScopedProductUnit(unitId, req.user.business_id);
+
+      if (!unitRows.length) {
+        return res.status(404).json({
+          success: false,
+          message: "Selected unit type not found"
+        });
+      }
+
+      finalProductUnitId = unitId;
     }
 
     const unlimitedValue = is_unlimited ? 1 : 0;
@@ -562,6 +796,7 @@ router.post("/", requirePermission("inventory"), branchAccessMiddleware, async (
         name,
         icon,
         category_id,
+        product_unit_id,
         type,
         hourly_rate,
         price,
@@ -577,12 +812,13 @@ router.post("/", requirePermission("inventory"), branchAccessMiddleware, async (
         business_id,
         branch_id
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `,
       [
         String(name).trim(),
         icon,
         category_id || null,
+        finalProductUnitId,
         type,
         finalHourlyRate,
         finalPrice,
@@ -621,6 +857,7 @@ router.put("/:id", requirePermission("inventory"), async (req, res) => {
       name,
       icon = "📦",
       category_id = null,
+      product_unit_id = null,
       type = "fixed",
       hourly_rate = 0,
       price = 0,
@@ -643,9 +880,14 @@ router.put("/:id", requirePermission("inventory"), async (req, res) => {
       });
     }
 
+    if (!ensureBusinessContext(req, res)) return;
+
     const existing = await query(
-      `SELECT id, stock, is_unlimited FROM products WHERE id = ? LIMIT 1`,
-      [id]
+      `SELECT id, stock, is_unlimited
+       FROM products
+       WHERE id = ? AND business_id = ?
+       LIMIT 1`,
+      [id, req.user.business_id]
     );
 
     if (!existing.length) {
@@ -663,6 +905,7 @@ router.put("/:id", requirePermission("inventory"), async (req, res) => {
     }
 
     let categoryType = null;
+    let finalProductUnitId = null;
 
     if (category_id) {
       const categoryRows = await query(
@@ -678,6 +921,28 @@ router.put("/:id", requirePermission("inventory"), async (req, res) => {
       }
 
       categoryType = categoryRows[0].type;
+    }
+
+    if (product_unit_id !== null && product_unit_id !== undefined && product_unit_id !== "") {
+      const unitId = Number(product_unit_id);
+
+      if (!Number.isInteger(unitId) || unitId <= 0) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid product unit"
+        });
+      }
+
+      const unitRows = await findScopedProductUnit(unitId, req.user.business_id);
+
+      if (!unitRows.length) {
+        return res.status(404).json({
+          success: false,
+          message: "Selected unit type not found"
+        });
+      }
+
+      finalProductUnitId = unitId;
     }
 
     const unlimitedValue = is_unlimited ? 1 : 0;
@@ -733,6 +998,7 @@ router.put("/:id", requirePermission("inventory"), async (req, res) => {
         name = ?,
         icon = ?,
         category_id = ?,
+        product_unit_id = ?,
         type = ?,
         hourly_rate = ?,
         price = ?,
@@ -751,6 +1017,7 @@ router.put("/:id", requirePermission("inventory"), async (req, res) => {
         String(name).trim(),
         icon,
         category_id || null,
+        finalProductUnitId,
         type,
         finalHourlyRate,
         finalPrice,
@@ -883,6 +1150,7 @@ router.delete("/:id", requirePermission("inventory"), async (req, res) => {
 // products/disabled/list / get all disabled products
 router.get("/disabled/list", requirePermission("inventory"), async (req, res) => {
   try {
+    if (!ensureBusinessContext(req, res)) return;
     const rows = await query(
       `
       SELECT 
@@ -890,6 +1158,7 @@ router.get("/disabled/list", requirePermission("inventory"), async (req, res) =>
         p.name,
         p.icon,
         p.category_id,
+        p.product_unit_id,
         p.type,
         p.hourly_rate,
         p.price,
@@ -903,13 +1172,18 @@ router.get("/disabled/list", requirePermission("inventory"), async (req, res) =>
         p.has_expiry,
         p.expiry_date,
         p.shelf_life_days,
+        pu.name AS product_unit_name,
+        pu.short_name AS product_unit_short_name,
         c.name AS category_name,
         c.type AS category_type
       FROM products p
       LEFT JOIN categories c ON c.id = p.category_id
+      LEFT JOIN product_units pu ON pu.id = p.product_unit_id
       WHERE p.is_active = 0
+        AND p.business_id = ?
       ORDER BY p.id DESC
-      `
+      `,
+      [req.user.business_id]
     );
 
     res.json({

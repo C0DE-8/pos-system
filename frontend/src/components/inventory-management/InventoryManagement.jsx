@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   getProducts,
+  getProductById,
   createProduct,
   updateProduct,
   disableProduct,
@@ -10,6 +11,10 @@ import {
   createCategory,
   updateCategory,
   deleteCategory,
+  getProductUnits,
+  createProductUnit,
+  updateProductUnit,
+  deleteProductUnit,
   getDisabledProducts,
   getProductSpecialLists
 } from "../../api/productsApi";
@@ -26,6 +31,7 @@ const initialForm = {
   name: "",
   icon: "📦",
   category_id: "",
+  product_unit_id: "",
   type: "fixed",
   hourly_rate: "",
   price: "",
@@ -44,6 +50,11 @@ const initialForm = {
 const initialCategoryForm = {
   name: "",
   type: "other"
+};
+
+const initialUnitForm = {
+  name: "",
+  short_name: ""
 };
 
 const initialRestockForm = {
@@ -148,9 +159,52 @@ const getProductAmountText = (product) => {
   return `₦${Number(product.price || 0).toLocaleString()}`;
 };
 
+const getProductUnitLabel = (unit) => {
+  if (!unit) return "No unit";
+  if (unit.short_name) return `${unit.name} (${unit.short_name})`;
+  return unit.name || "No unit";
+};
+
 const toInputNumber = (value, fallback = "") => {
   if (value === null || value === undefined) return fallback;
   return String(value);
+};
+
+const formatDateForInput = (value) => {
+  if (!value) return "";
+  const raw = String(value).trim();
+  if (!raw) return "";
+
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+    return raw;
+  }
+
+  const date = new Date(raw);
+  if (Number.isNaN(date.getTime())) return "";
+
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+
+const formatReadableDate = (value) => {
+  const normalized = formatDateForInput(value);
+  if (!normalized) return "Not set";
+
+  const date = new Date(`${normalized}T00:00:00`);
+  if (Number.isNaN(date.getTime())) return normalized;
+
+  return date.toLocaleDateString("en-US", {
+    year: "numeric",
+    month: "short",
+    day: "2-digit"
+  });
+};
+
+const getProductImageLabel = (product) => {
+  const name = String(product?.name || "Product").trim();
+  return name ? name.charAt(0).toUpperCase() : "P";
 };
 
 function SectionToggle({
@@ -336,10 +390,20 @@ function ProductListModal({
 
                       <small>{getProductAmountText(product)}</small>
 
+                      {product.product_unit_name ? (
+                        <small className={modalStyles.expiry}>
+                          Unit:{" "}
+                          {getProductUnitLabel({
+                            name: product.product_unit_name,
+                            short_name: product.product_unit_short_name
+                          })}
+                        </small>
+                      ) : null}
+
                       {Number(product.has_expiry) === 1 ? (
                         <small className={modalStyles.expiry}>
                           {product.expiry_date
-                            ? `Expires: ${product.expiry_date}`
+                            ? `Expires: ${formatReadableDate(product.expiry_date)}`
                             : "Expiry tracked"}
                           {product.shelf_life_days
                             ? ` • Shelf life: ${product.shelf_life_days} day(s)`
@@ -384,6 +448,7 @@ export default function InventoryManagement() {
   const [products, setProducts] = useState([]);
   const [disabledProducts, setDisabledProducts] = useState([]);
   const [categories, setCategories] = useState([]);
+  const [productUnits, setProductUnits] = useState([]);
   const [lowStockProducts, setLowStockProducts] = useState([]);
   const [stockHistory, setStockHistory] = useState([]);
 
@@ -404,17 +469,20 @@ export default function InventoryManagement() {
 
   const [form, setForm] = useState(initialForm);
   const [categoryForm, setCategoryForm] = useState(initialCategoryForm);
+  const [unitForm, setUnitForm] = useState(initialUnitForm);
   const [restockForm, setRestockForm] = useState(initialRestockForm);
   const [adjustForm, setAdjustForm] = useState(initialAdjustForm);
 
   const [editingId, setEditingId] = useState(null);
   const [editingCategoryId, setEditingCategoryId] = useState(null);
+  const [editingUnitId, setEditingUnitId] = useState(null);
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [categorySaving, setCategorySaving] = useState(false);
   const [stockActionLoading, setStockActionLoading] = useState(false);
   const [confirmLoading, setConfirmLoading] = useState(false);
+  const [editLoading, setEditLoading] = useState(false);
 
   const [search, setSearch] = useState("");
   const [pageAlert, setPageAlert] = useState(null);
@@ -434,6 +502,7 @@ export default function InventoryManagement() {
     productForm: false,
     stockTools: false,
     categories: false,
+    units: false,
     inventoryList: false,
     lowStock: false,
     stockHistory: false,
@@ -573,6 +642,17 @@ export default function InventoryManagement() {
     }
   };
 
+  const loadProductUnits = async () => {
+    try {
+      const res = await getProductUnits();
+      setProductUnits(res?.data || []);
+    } catch (err) {
+      const msg = err?.response?.data?.message || "Failed to load product units";
+      showAlert("error", "Product units could not load", msg);
+      pushToast("error", "Load failed", msg);
+    }
+  };
+
   const loadStockHistory = async () => {
     try {
       const res = await getStockHistory();
@@ -610,6 +690,7 @@ export default function InventoryManagement() {
         loadProducts(),
         loadDisabledProducts(),
         loadCategories(),
+        loadProductUnits(),
         loadLowStockProducts(),
         loadStockHistory(),
         loadSpecialLists()
@@ -626,6 +707,10 @@ export default function InventoryManagement() {
   const selectedCategory = useMemo(() => {
     return categories.find((item) => String(item.id) === String(form.category_id));
   }, [categories, form.category_id]);
+
+  const selectedUnit = useMemo(() => {
+    return productUnits.find((item) => String(item.id) === String(form.product_unit_id));
+  }, [productUnits, form.product_unit_id]);
 
   const selectedCategoryType = selectedCategory?.type || "other";
   const isTimed = form.type === "timed";
@@ -723,6 +808,11 @@ export default function InventoryManagement() {
     setEditingCategoryId(null);
   };
 
+  const resetUnitForm = () => {
+    setUnitForm(initialUnitForm);
+    setEditingUnitId(null);
+  };
+
   const resetStockForms = () => {
     setRestockForm(initialRestockForm);
     setAdjustForm(initialAdjustForm);
@@ -737,6 +827,7 @@ export default function InventoryManagement() {
       const payload = {
         ...form,
         category_id: form.category_id || null,
+        product_unit_id: form.product_unit_id || null,
         modifier_group_id:
           form.modifier_group_id !== "" ? Number(form.modifier_group_id) : null,
         is_unlimited: !!form.is_unlimited,
@@ -749,7 +840,7 @@ export default function InventoryManagement() {
         has_expiry: showConsumableFields ? !!form.has_expiry : false,
         expiry_date:
           showConsumableFields && form.has_expiry && form.expiry_date
-            ? form.expiry_date
+            ? formatDateForInput(form.expiry_date)
             : null,
         shelf_life_days:
           showConsumableFields && form.has_expiry && form.shelf_life_days !== ""
@@ -779,44 +870,61 @@ export default function InventoryManagement() {
     }
   };
 
-  const handleEdit = (product) => {
-    setEditingId(product.id);
-    setForm({
-      name: product.name || "",
-      icon: product.icon || "📦",
-      category_id: product.category_id || "",
-      type: product.type || "fixed",
-      hourly_rate: toInputNumber(product.hourly_rate, ""),
-      price: toInputNumber(product.price, ""),
-      cost: toInputNumber(product.cost, ""),
-      stock:
-        product.stock === null || product.stock === undefined ? "" : String(product.stock),
-      low_stock:
-        product.low_stock === null || product.low_stock === undefined
-          ? ""
-          : String(product.low_stock),
-      modifier_group_id:
-        product.modifier_group_id === null || product.modifier_group_id === undefined
-          ? ""
-          : String(product.modifier_group_id),
-      is_unlimited: !!Number(product.is_unlimited || 0),
-      consumable_type: product.consumable_type || "",
-      has_expiry: !!Number(product.has_expiry || 0),
-      expiry_date: product.expiry_date || "",
-      shelf_life_days:
-        product.shelf_life_days === null || product.shelf_life_days === undefined
-          ? ""
-          : String(product.shelf_life_days),
-      reason: ""
-    });
+  const handleEdit = async (product) => {
+    try {
+      setEditLoading(true);
+      clearAlerts();
 
-    setOpenSections((prev) => ({
-      ...prev,
-      productForm: true
-    }));
+      const response = await getProductById(product.id);
+      const details = response?.data || product;
 
-    clearAlerts();
-    window.scrollTo({ top: 0, behavior: "smooth" });
+      setEditingId(details.id);
+      setForm({
+        name: details.name || "",
+        icon: details.icon || "📦",
+        category_id: details.category_id || "",
+        product_unit_id:
+          details.product_unit_id === null || details.product_unit_id === undefined
+            ? ""
+            : String(details.product_unit_id),
+        type: details.type || "fixed",
+        hourly_rate: toInputNumber(details.hourly_rate, ""),
+        price: toInputNumber(details.price, ""),
+        cost: toInputNumber(details.cost, ""),
+        stock:
+          details.stock === null || details.stock === undefined ? "" : String(details.stock),
+        low_stock:
+          details.low_stock === null || details.low_stock === undefined
+            ? ""
+            : String(details.low_stock),
+        modifier_group_id:
+          details.modifier_group_id === null || details.modifier_group_id === undefined
+            ? ""
+            : String(details.modifier_group_id),
+        is_unlimited: !!Number(details.is_unlimited || 0),
+        consumable_type: details.consumable_type || "",
+        has_expiry: !!Number(details.has_expiry || 0),
+        expiry_date: formatDateForInput(details.expiry_date),
+        shelf_life_days:
+          details.shelf_life_days === null || details.shelf_life_days === undefined
+            ? ""
+            : String(details.shelf_life_days),
+        reason: ""
+      });
+
+      setOpenSections((prev) => ({
+        ...prev,
+        productForm: true
+      }));
+
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    } catch (err) {
+      const msg = err?.response?.data?.message || "Failed to load product details";
+      showAlert("error", "Edit load failed", msg);
+      pushToast("error", "Edit load failed", msg);
+    } finally {
+      setEditLoading(false);
+    }
   };
 
   const handleDisable = (id) => {
@@ -981,6 +1089,87 @@ export default function InventoryManagement() {
     });
   };
 
+  const handleUnitSubmit = async (e) => {
+    e.preventDefault();
+    setCategorySaving(true);
+    clearAlerts();
+
+    try {
+      if (!unitForm.name.trim()) {
+        showAlert("error", "Unit name required", "Please enter a unit type name.");
+        pushToast("error", "Unit name required");
+        setCategorySaving(false);
+        return;
+      }
+
+      const payload = {
+        name: unitForm.name.trim(),
+        short_name: unitForm.short_name.trim() || null
+      };
+
+      if (editingUnitId) {
+        await updateProductUnit(editingUnitId, payload);
+        showAlert("success", "Unit updated", "Product unit updated successfully.");
+        pushToast("success", "Unit updated");
+      } else {
+        await createProductUnit(payload);
+        showAlert("success", "Unit created", "Product unit created successfully.");
+        pushToast("success", "Unit created");
+      }
+
+      resetUnitForm();
+      await loadAll();
+    } catch (err) {
+      const msg = err?.response?.data?.message || "Failed to save unit";
+      showAlert("error", "Unit save failed", msg);
+      pushToast("error", "Unit save failed", msg);
+    } finally {
+      setCategorySaving(false);
+    }
+  };
+
+  const handleUnitEdit = (unit) => {
+    setEditingUnitId(unit.id);
+    setUnitForm({
+      name: unit.name || "",
+      short_name: unit.short_name || ""
+    });
+
+    setOpenSections((prev) => ({
+      ...prev,
+      units: true
+    }));
+
+    clearAlerts();
+  };
+
+  const handleUnitDelete = (id) => {
+    openConfirm({
+      title: "Delete unit type",
+      message: "This will remove the unit type and unassign it from linked products. Continue?",
+      confirmText: "Delete",
+      variant: "danger",
+      onConfirm: async () => {
+        try {
+          setConfirmLoading(true);
+          clearAlerts();
+
+          await deleteProductUnit(id);
+          showAlert("success", "Unit deleted", "The unit type was removed successfully.");
+          pushToast("success", "Unit deleted");
+          closeConfirm();
+          await loadAll();
+        } catch (err) {
+          const msg = err?.response?.data?.message || "Failed to delete unit";
+          showAlert("error", "Unit delete failed", msg);
+          pushToast("error", "Unit delete failed", msg);
+        } finally {
+          setConfirmLoading(false);
+        }
+      }
+    });
+  };
+
   const handleRestockSubmit = async (e) => {
     e.preventDefault();
     setStockActionLoading(true);
@@ -1069,7 +1258,9 @@ export default function InventoryManagement() {
         String(product.category_name || "").toLowerCase().includes(keyword) ||
         String(product.category_type || "").toLowerCase().includes(keyword) ||
         String(product.type || "").toLowerCase().includes(keyword) ||
-        String(product.consumable_type || "").toLowerCase().includes(keyword)
+        String(product.consumable_type || "").toLowerCase().includes(keyword) ||
+        String(product.product_unit_name || "").toLowerCase().includes(keyword) ||
+        String(product.product_unit_short_name || "").toLowerCase().includes(keyword)
       );
     });
   }, [products, search]);
@@ -1093,6 +1284,7 @@ export default function InventoryManagement() {
 
   const totalProducts = products.length;
   const totalCategories = categories.length;
+  const totalUnits = productUnits.length;
   const lowStockCount = lowStockProducts.length;
   const disabledCount = disabledProducts.length;
 
@@ -1211,6 +1403,15 @@ export default function InventoryManagement() {
             <span className={styles.statLabel}>Categories</span>
             <strong>{totalCategories}</strong>
             <small>Organized product groups</small>
+          </div>
+        </div>
+
+        <div className={styles.statCard}>
+          <div className={styles.statIcon}>📏</div>
+          <div className={styles.statCardContent}>
+            <span className={styles.statLabel}>Unit Types</span>
+            <strong>{totalUnits}</strong>
+            <small>Optional pack, piece, carton labels</small>
           </div>
         </div>
 
@@ -1333,6 +1534,31 @@ export default function InventoryManagement() {
                         </option>
                       ))}
                     </select>
+                  </div>
+                </div>
+
+                <div className={styles.formRow}>
+                  <div className={styles.field}>
+                    <label>Product Unit</label>
+                    <select
+                      name="product_unit_id"
+                      value={form.product_unit_id}
+                      onChange={handleChange}
+                    >
+                      <option value="">No unit</option>
+                      {productUnits.map((unit) => (
+                        <option key={unit.id} value={unit.id}>
+                          {getProductUnitLabel(unit)}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className={styles.field}>
+                    <label>Unit Note</label>
+                    <div className={styles.disabledInfoBox}>
+                      Units are optional. Products can still be created without one.
+                    </div>
                   </div>
                 </div>
 
@@ -1558,11 +1784,14 @@ export default function InventoryManagement() {
                         ? "Unlimited stock"
                         : `Stock: ${Number(form.stock || 0)}`}
                     </small>
+                    <small className={styles.previewMeta}>
+                      Unit: {selectedUnit ? getProductUnitLabel(selectedUnit) : "No unit"}
+                    </small>
                     {showConsumableFields ? (
                       <small className={styles.previewMeta}>
                         {form.consumable_type ? `Type: ${form.consumable_type}` : "Consumable"}
                         {form.has_expiry && form.expiry_date
-                          ? ` • Expires: ${form.expiry_date}`
+                          ? ` • Expires: ${formatReadableDate(form.expiry_date)}`
                           : ""}
                         {form.has_expiry && form.shelf_life_days
                           ? ` • Shelf life: ${form.shelf_life_days} day(s)`
@@ -1582,6 +1811,9 @@ export default function InventoryManagement() {
                       ? "Update Product"
                       : "Create Product"}
                   </button>
+                  {editLoading ? (
+                    <span className={styles.formHint}>Loading current product details...</span>
+                  ) : null}
                 </div>
               </form>
             ) : null}
@@ -1838,6 +2070,95 @@ export default function InventoryManagement() {
               </>
             ) : null}
           </div>
+
+          <div className={styles.panelCard}>
+            <SectionToggle
+              title={editingUnitId ? "Edit Unit Type" : "Product Units"}
+              subtitle="Create flexible unit labels like piece, pack, or carton."
+              sectionKey="units"
+              isOpen={openSections.units}
+              onToggle={toggleSection}
+              rightNode={
+                editingUnitId ? (
+                  <button type="button" className={styles.ghostBtn} onClick={resetUnitForm}>
+                    Cancel
+                  </button>
+                ) : null
+              }
+            />
+
+            {openSections.units ? (
+              <>
+                <form onSubmit={handleUnitSubmit} className={styles.managementForm}>
+                  <input
+                    type="text"
+                    value={unitForm.name}
+                    onChange={(e) =>
+                      setUnitForm((prev) => ({ ...prev, name: e.target.value }))
+                    }
+                    placeholder="Enter unit name"
+                  />
+
+                  <input
+                    type="text"
+                    value={unitForm.short_name}
+                    onChange={(e) =>
+                      setUnitForm((prev) => ({ ...prev, short_name: e.target.value }))
+                    }
+                    placeholder="Short name e.g. pc, ctn"
+                  />
+
+                  <button
+                    type="submit"
+                    className={styles.primaryBtn}
+                    disabled={categorySaving}
+                  >
+                    {categorySaving
+                      ? editingUnitId
+                        ? "Updating..."
+                        : "Saving..."
+                      : editingUnitId
+                      ? "Update"
+                      : "Add"}
+                  </button>
+                </form>
+
+                <div className={styles.categoryList}>
+                  {productUnits.length ? (
+                    productUnits.map((unit) => (
+                      <div key={unit.id} className={styles.categoryItem}>
+                        <div className={styles.categoryInfo}>
+                          <span>{unit.name}</span>
+                          <small className={styles.metaChip}>
+                            {unit.short_name || "No short name"}
+                          </small>
+                        </div>
+
+                        <div className={styles.categoryActions}>
+                          <button
+                            type="button"
+                            className={styles.editBtn}
+                            onClick={() => handleUnitEdit(unit)}
+                          >
+                            Edit
+                          </button>
+                          <button
+                            type="button"
+                            className={styles.deleteBtn}
+                            onClick={() => handleUnitDelete(unit.id)}
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <div className={styles.emptyMini}>No product units yet</div>
+                  )}
+                </div>
+              </>
+            ) : null}
+          </div>
         </div>
 
         <div className={styles.rightPanel}>
@@ -1852,7 +2173,7 @@ export default function InventoryManagement() {
                 <input
                   type="text"
                   className={styles.searchInput}
-                  placeholder="Search product, category, type, consumable..."
+                  placeholder="Search product, category, type, unit..."
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                 />
@@ -1872,6 +2193,7 @@ export default function InventoryManagement() {
                           <th>Product</th>
                           <th>Category</th>
                           <th>Type</th>
+                          <th>Unit</th>
                           <th>Price / Rate</th>
                           <th>Cost</th>
                           <th>Stock</th>
@@ -1893,15 +2215,33 @@ export default function InventoryManagement() {
                               <td>
                                 <div className={styles.productCell}>
                                   <span className={styles.productCellIcon}>
-                                    {product.icon || "📦"}
+                                    {product.icon || getProductImageLabel(product)}
                                   </span>
-                                  <div>
-                                    <strong>{product.name}</strong>
+                                  <div className={styles.productCellBody}>
+                                    <div className={styles.productCellTop}>
+                                      <strong>{product.name}</strong>
+                                      <small className={styles.productIdTag}>#{product.id}</small>
+                                    </div>
                                     <small>
                                       {product.consumable_type
                                         ? `${product.consumable_type}`
                                         : product.category_name || "No category"}
                                     </small>
+                                    <div className={styles.inlineMetaRow}>
+                                      {product.product_unit_name ? (
+                                        <span className={styles.metaChip}>
+                                          {getProductUnitLabel({
+                                            name: product.product_unit_name,
+                                            short_name: product.product_unit_short_name
+                                          })}
+                                        </span>
+                                      ) : null}
+                                      {Number(product.has_expiry) === 1 ? (
+                                        <span className={styles.metaChipMuted}>
+                                          Exp: {formatReadableDate(product.expiry_date)}
+                                        </span>
+                                      ) : null}
+                                    </div>
                                   </div>
                                 </div>
                               </td>
@@ -1925,6 +2265,10 @@ export default function InventoryManagement() {
                                   {getTypeLabel(product.type)}
                                 </span>
                               </td>
+                              <td>{product.product_unit_name ? getProductUnitLabel({
+                                name: product.product_unit_name,
+                                short_name: product.product_unit_short_name
+                              }) : "No unit"}</td>
                               <td>{getProductAmountText(product)}</td>
                               <td>₦{Number(product.cost || 0).toLocaleString()}</td>
                               <td>
@@ -1941,7 +2285,7 @@ export default function InventoryManagement() {
                               <td>
                                 {Number(product.has_expiry) === 1 ? (
                                   <div className={styles.cellStack}>
-                                    <span>{product.expiry_date || "No fixed date"}</span>
+                                    <span>{formatReadableDate(product.expiry_date)}</span>
                                     <small>
                                       {product.shelf_life_days
                                         ? `${product.shelf_life_days} day(s)`
@@ -2004,7 +2348,9 @@ export default function InventoryManagement() {
                         <div key={product.id} className={styles.mobileCard}>
                           <div className={styles.mobileCardTop}>
                             <div className={styles.mobileTitleWrap}>
-                              <span className={styles.mobileIcon}>{product.icon || "📦"}</span>
+                              <span className={styles.mobileIcon}>
+                                {product.icon || getProductImageLabel(product)}
+                              </span>
                               <div>
                                 <h4>{product.name}</h4>
                                 <p>{product.category_name || "No category"}</p>
@@ -2033,9 +2379,29 @@ export default function InventoryManagement() {
                                 {product.consumable_type}
                               </span>
                             ) : null}
+
+                            {product.product_unit_name ? (
+                              <span className={styles.metaChip}>
+                                {getProductUnitLabel({
+                                  name: product.product_unit_name,
+                                  short_name: product.product_unit_short_name
+                                })}
+                              </span>
+                            ) : null}
                           </div>
 
                           <div className={styles.mobileMeta}>
+                            <div>
+                              <span>Unit</span>
+                              <strong>
+                                {product.product_unit_name
+                                  ? getProductUnitLabel({
+                                      name: product.product_unit_name,
+                                      short_name: product.product_unit_short_name
+                                    })
+                                  : "No unit"}
+                              </strong>
+                            </div>
                             <div>
                               <span>Price / Rate</span>
                               <strong>{getProductAmountText(product)}</strong>
@@ -2058,7 +2424,7 @@ export default function InventoryManagement() {
                               <span>Expiry Date</span>
                               <strong>
                                 {Number(product.has_expiry) === 1
-                                  ? product.expiry_date || "Not set"
+                                  ? formatReadableDate(product.expiry_date)
                                   : "No expiry"}
                               </strong>
                             </div>
