@@ -14,7 +14,9 @@ import {
   FiEye,
   FiX,
   FiCalendar,
-  FiFilter
+  FiFilter,
+  FiChevronDown,
+  FiChevronUp
 } from "react-icons/fi";
 
 import {
@@ -68,6 +70,17 @@ export default function SalesManagement() {
   const [showRefundModal, setShowRefundModal] = useState(false);
   const [refundReason, setRefundReason] = useState("");
   const [refundSaleId, setRefundSaleId] = useState(null);
+  const [sectionsOpen, setSectionsOpen] = useState({
+    overview: true,
+    trend: true,
+    filters: true,
+    results: true
+  });
+  const [currentPage, setCurrentPage] = useState(1);
+  const [detailItemsPage, setDetailItemsPage] = useState(1);
+
+  const SALES_PER_PAGE = 10;
+  const SALE_ITEMS_PER_PAGE = 8;
 
   useEffect(() => {
     loadInitialData();
@@ -353,6 +366,13 @@ export default function SalesManagement() {
     await fetchSales();
   };
 
+  const toggleSection = (sectionKey) => {
+    setSectionsOpen((prev) => ({
+      ...prev,
+      [sectionKey]: !prev[sectionKey]
+    }));
+  };
+
   const filteredSales = useMemo(() => {
     return sales.filter((sale) => {
       const searchValue = search.trim().toLowerCase();
@@ -382,6 +402,15 @@ export default function SalesManagement() {
       .filter((sale) => !isRefundedSale(sale))
       .reduce((sum, sale) => sum + Number(sale.total_amount || sale.total || 0), 0);
   }, [filteredSales]);
+
+  const totalSalesPages = useMemo(() => {
+    return Math.max(1, Math.ceil(filteredSales.length / SALES_PER_PAGE));
+  }, [filteredSales.length]);
+
+  const paginatedSales = useMemo(() => {
+    const startIndex = (currentPage - 1) * SALES_PER_PAGE;
+    return filteredSales.slice(startIndex, startIndex + SALES_PER_PAGE);
+  }, [filteredSales, currentPage]);
 
   const buildStatsForRange = (range) => {
     const scopedSales = sales.filter((sale) => isInRange(sale, range));
@@ -656,6 +685,15 @@ export default function SalesManagement() {
     };
   }, [saleItems]);
 
+  const totalSaleItemsPages = useMemo(() => {
+    return Math.max(1, Math.ceil(saleItems.length / SALE_ITEMS_PER_PAGE));
+  }, [saleItems.length]);
+
+  const paginatedSaleItems = useMemo(() => {
+    const startIndex = (detailItemsPage - 1) * SALE_ITEMS_PER_PAGE;
+    return saleItems.slice(startIndex, startIndex + SALE_ITEMS_PER_PAGE);
+  }, [saleItems, detailItemsPage]);
+
   const receiptData = useMemo(() => {
     if (!selectedSale) return null;
 
@@ -686,6 +724,20 @@ export default function SalesManagement() {
       total
     };
   }, [selectedSale, detailsTotals]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [search, statusFilter, rangeFilter, dateFrom, dateTo, paymentFilter, sales]);
+
+  useEffect(() => {
+    if (currentPage > totalSalesPages) {
+      setCurrentPage(totalSalesPages);
+    }
+  }, [currentPage, totalSalesPages]);
+
+  useEffect(() => {
+    setDetailItemsPage(1);
+  }, [selectedSale, saleItems]);
 
   const printSaleInvoice = () => {
     if (!selectedSale) return;
@@ -1014,316 +1066,441 @@ export default function SalesManagement() {
 
   return (
     <div className={styles.wrapper}>
-      <div className={styles.analyticsGrid}>
-        <div className={styles.analyticsCard}>
-          <div className={styles.analyticsIcon}><FiDollarSign /></div>
+      <section className={styles.sectionCard}>
+        <button
+          type="button"
+          className={styles.sectionToggle}
+          onClick={() => toggleSection("overview")}
+        >
           <div>
-            <h4>Today Revenue</h4>
-            <p>{formatMoney(todayStats.revenue)}</p>
-            <span>{todayStats.count} sale(s) today</span>
+            <h2 className={styles.title}>Sales Overview</h2>
+            <p className={styles.subtitle}>
+              Revenue snapshots, totals, and refund overview
+            </p>
           </div>
-        </div>
+          <span className={styles.sectionToggleIcon}>
+            {sectionsOpen.overview ? <FiChevronUp /> : <FiChevronDown />}
+          </span>
+        </button>
 
-        <div className={styles.analyticsCard}>
-          <div className={styles.analyticsIcon}><FiTrendingUp /></div>
-          <div>
-            <h4>This Week</h4>
-            <p>{formatMoney(weekStats.revenue)}</p>
-            <span>{weekStats.count} sale(s) this week</span>
+        {sectionsOpen.overview ? (
+          <div className={styles.sectionBody}>
+            <div className={styles.analyticsGrid}>
+              <div className={styles.analyticsCard}>
+                <div className={styles.analyticsIcon}><FiDollarSign /></div>
+                <div>
+                  <h4>Today Revenue</h4>
+                  <p>{formatMoney(todayStats.revenue)}</p>
+                  <span>{todayStats.count} sale(s) today</span>
+                </div>
+              </div>
+
+              <div className={styles.analyticsCard}>
+                <div className={styles.analyticsIcon}><FiTrendingUp /></div>
+                <div>
+                  <h4>This Week</h4>
+                  <p>{formatMoney(weekStats.revenue)}</p>
+                  <span>{weekStats.count} sale(s) this week</span>
+                </div>
+              </div>
+
+              <div className={styles.analyticsCard}>
+                <div className={styles.analyticsIcon}><FiBarChart2 /></div>
+                <div>
+                  <h4>This Month</h4>
+                  <p>{formatMoney(monthStats.revenue)}</p>
+                  <span>{monthStats.count} sale(s) this month</span>
+                </div>
+              </div>
+
+              <div className={styles.analyticsCard}>
+                <div className={styles.analyticsIcon}><FiShoppingBag /></div>
+                <div>
+                  <h4>Overall Revenue</h4>
+                  <p>{formatMoney(overallStats.revenue)}</p>
+                  <span>{overallStats.totalSales} total record(s)</span>
+                </div>
+              </div>
+            </div>
+
+            <div className={styles.topGrid}>
+              <div className={styles.statCard}>
+                <h3>Total Sales</h3>
+                <p>{overallStats.totalSales}</p>
+                <span>All sales records</span>
+              </div>
+
+              <div className={styles.statCard}>
+                <h3>Completed</h3>
+                <p>{overallStats.completedSales}</p>
+                <span>Non-refunded sales</span>
+              </div>
+
+              <div className={styles.statCard}>
+                <h3>Refunded</h3>
+                <p>{overallStats.refundedSales}</p>
+                <span>Refunded transactions</span>
+              </div>
+
+              <div className={styles.statCard}>
+                <h3>Filtered Revenue</h3>
+                <p>{formatMoney(filteredSalesTotal)}</p>
+                <span>Based on current filters</span>
+              </div>
+            </div>
           </div>
-        </div>
+        ) : null}
+      </section>
 
-        <div className={styles.analyticsCard}>
-          <div className={styles.analyticsIcon}><FiBarChart2 /></div>
-          <div>
-            <h4>This Month</h4>
-            <p>{formatMoney(monthStats.revenue)}</p>
-            <span>{monthStats.count} sale(s) this month</span>
-          </div>
-        </div>
-
-        <div className={styles.analyticsCard}>
-          <div className={styles.analyticsIcon}><FiShoppingBag /></div>
-          <div>
-            <h4>Overall Revenue</h4>
-            <p>{formatMoney(overallStats.revenue)}</p>
-            <span>{overallStats.totalSales} total record(s)</span>
-          </div>
-        </div>
-      </div>
-
-      <div className={styles.topGrid}>
-        <div className={styles.statCard}>
-          <h3>Total Sales</h3>
-          <p>{overallStats.totalSales}</p>
-          <span>All sales records</span>
-        </div>
-
-        <div className={styles.statCard}>
-          <h3>Completed</h3>
-          <p>{overallStats.completedSales}</p>
-          <span>Non-refunded sales</span>
-        </div>
-
-        <div className={styles.statCard}>
-          <h3>Refunded</h3>
-          <p>{overallStats.refundedSales}</p>
-          <span>Refunded transactions</span>
-        </div>
-
-        <div className={styles.statCard}>
-          <h3>Filtered Revenue</h3>
-          <p>{formatMoney(filteredSalesTotal)}</p>
-          <span>Based on current filters</span>
-        </div>
-      </div>
-
-      <section className={styles.chartCard}>
-        <div className={styles.cardHeader}>
+      <section className={styles.sectionCard}>
+        <button
+          type="button"
+          className={styles.sectionToggle}
+          onClick={() => toggleSection("trend")}
+        >
           <div>
             <h2 className={styles.title}>7-Day Sales Trend</h2>
             <p className={styles.subtitle}>
               Quick visual of the last seven days non-refunded revenue
             </p>
           </div>
-        </div>
+          <span className={styles.sectionToggleIcon}>
+            {sectionsOpen.trend ? <FiChevronUp /> : <FiChevronDown />}
+          </span>
+        </button>
 
-        <div className={styles.chartWrap}>
-          {chartData.map((item) => (
-            <div key={item.label} className={styles.chartBarItem}>
-              <div className={styles.chartValue}>{formatMoney(item.total)}</div>
-              <div className={styles.chartTrack}>
-                <div
-                  className={styles.chartBar}
-                  style={{
-                    height: `${Math.max((item.total / chartMax) * 180, item.total > 0 ? 16 : 6)}px`
-                  }}
-                />
-              </div>
-              <div className={styles.chartLabel}>{item.label}</div>
+        {sectionsOpen.trend ? (
+          <div className={styles.sectionBody}>
+            <div className={styles.chartWrap}>
+              {chartData.map((item) => (
+                <div key={item.label} className={styles.chartBarItem}>
+                  <div className={styles.chartValue}>{formatMoney(item.total)}</div>
+                  <div className={styles.chartTrack}>
+                    <div
+                      className={styles.chartBar}
+                      style={{
+                        height: `${Math.max((item.total / chartMax) * 180, item.total > 0 ? 16 : 6)}px`
+                      }}
+                    />
+                  </div>
+                  <div className={styles.chartLabel}>{item.label}</div>
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
+          </div>
+        ) : null}
       </section>
 
-      <section className={styles.card}>
-        <div className={styles.cardHeader}>
+      <section className={styles.sectionCard}>
+        <button
+          type="button"
+          className={styles.sectionToggle}
+          onClick={() => toggleSection("filters")}
+        >
           <div>
-            <h2 className={styles.title}>Sales Management</h2>
+            <h2 className={styles.title}>Filters And Exports</h2>
             <p className={styles.subtitle}>
-              View sales, inspect items, refund transactions, export reports, and print invoice
+              Narrow results, export reports, and refresh the current sales scope
             </p>
           </div>
+          <span className={styles.sectionToggleIcon}>
+            {sectionsOpen.filters ? <FiChevronUp /> : <FiChevronDown />}
+          </span>
+        </button>
 
-          <div className={styles.headerActions}>
-            <button
-              className={styles.secondaryBtn}
-              onClick={downloadExcel}
-              disabled={loading || filteredSales.length === 0}
-            >
-              <FiDownload />
-              Excel
-            </button>
+        {sectionsOpen.filters ? (
+          <div className={styles.sectionBody}>
+            <div className={styles.cardHeader}>
+              <div className={styles.resultsMeta}>
+                <span className={styles.metaChip}>{filteredSales.length} filtered sales</span>
+                <span className={styles.metaChip}>{formatMoney(filteredSalesTotal)} revenue</span>
+                <span className={styles.metaChip}>{getPaymentFilterLabel()}</span>
+              </div>
 
-            <button
-              className={styles.secondaryBtn}
-              onClick={downloadWordDoc}
-              disabled={loading || filteredSales.length === 0}
-            >
-              <FiDownload />
-              Doc
-            </button>
+              <div className={styles.headerActions}>
+                <button
+                  className={styles.secondaryBtn}
+                  onClick={downloadExcel}
+                  disabled={loading || filteredSales.length === 0}
+                >
+                  <FiDownload />
+                  Excel
+                </button>
 
-            <button
-              className={styles.secondaryBtn}
-              onClick={clearAllFilters}
-              disabled={loading}
-            >
-              <FiFilter />
-              Reset Filters
-            </button>
+                <button
+                  className={styles.secondaryBtn}
+                  onClick={downloadWordDoc}
+                  disabled={loading || filteredSales.length === 0}
+                >
+                  <FiDownload />
+                  Doc
+                </button>
 
-            <button
-              className={styles.secondaryBtn}
-              onClick={() => handlePaymentFilterChange(paymentFilter)}
-              disabled={loading}
-            >
-              <FiRefreshCw />
-              {loading ? "Refreshing..." : "Refresh"}
-            </button>
-          </div>
-        </div>
+                <button
+                  className={styles.secondaryBtn}
+                  onClick={clearAllFilters}
+                  disabled={loading}
+                >
+                  <FiFilter />
+                  Reset Filters
+                </button>
 
-        <div className={styles.toolbar}>
-          <div className={styles.searchBox}>
-            <FiSearch />
-            <input
-              type="text"
-              className={styles.searchInput}
-              placeholder="Search by sale ID, cashier, customer, or payment method"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
-          </div>
-
-          <select
-            className={styles.filterSelect}
-            value={paymentFilter}
-            onChange={(e) => handlePaymentFilterChange(e.target.value)}
-          >
-            <option value="all">All Payments</option>
-            <option value="cash">Cash</option>
-            <option value="card">Card</option>
-            <option value="transfer">Transfer</option>
-            <option value="split">Split (All)</option>
-            <option value="split-cash">Split + Cash</option>
-            <option value="split-card">Split + Card</option>
-            <option value="split-transfer">Split + Transfer</option>
-          </select>
-
-          <select
-            className={styles.filterSelect}
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-          >
-            <option value="all">All Status</option>
-            <option value="paid">Paid</option>
-            <option value="completed">Completed</option>
-            <option value="refunded">Refunded</option>
-            <option value="pending">Pending</option>
-          </select>
-
-          <select
-            className={styles.filterSelect}
-            value={rangeFilter}
-            onChange={(e) => setRangeFilter(e.target.value)}
-          >
-            <option value="all">All Time</option>
-            <option value="today">Today</option>
-            <option value="week">This Week</option>
-            <option value="month">This Month</option>
-          </select>
-
-          <div className={styles.dateFilterGroup}>
-            <div className={styles.dateInputWrap}>
-              <FiCalendar />
-              <input
-                type="date"
-                className={styles.dateInput}
-                value={dateFrom}
-                onChange={(e) => setDateFrom(e.target.value)}
-                aria-label="Date from"
-              />
+                <button
+                  className={styles.secondaryBtn}
+                  onClick={() => handlePaymentFilterChange(paymentFilter)}
+                  disabled={loading}
+                >
+                  <FiRefreshCw />
+                  {loading ? "Refreshing..." : "Refresh"}
+                </button>
+              </div>
             </div>
 
-            <div className={styles.dateInputWrap}>
-              <FiCalendar />
-              <input
-                type="date"
-                className={styles.dateInput}
-                value={dateTo}
-                onChange={(e) => setDateTo(e.target.value)}
-                aria-label="Date to"
-              />
+            <div className={styles.toolbar}>
+              <div className={styles.searchBox}>
+                <FiSearch />
+                <input
+                  type="text"
+                  className={styles.searchInput}
+                  placeholder="Search by sale ID, cashier, customer, or payment method"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                />
+              </div>
+
+              <select
+                className={styles.filterSelect}
+                value={paymentFilter}
+                onChange={(e) => handlePaymentFilterChange(e.target.value)}
+              >
+                <option value="all">All Payments</option>
+                <option value="cash">Cash</option>
+                <option value="card">Card</option>
+                <option value="transfer">Transfer</option>
+                <option value="split">Split (All)</option>
+                <option value="split-cash">Split + Cash</option>
+                <option value="split-card">Split + Card</option>
+                <option value="split-transfer">Split + Transfer</option>
+              </select>
+
+              <select
+                className={styles.filterSelect}
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+              >
+                <option value="all">All Status</option>
+                <option value="paid">Paid</option>
+                <option value="completed">Completed</option>
+                <option value="refunded">Refunded</option>
+                <option value="pending">Pending</option>
+              </select>
+
+              <select
+                className={styles.filterSelect}
+                value={rangeFilter}
+                onChange={(e) => setRangeFilter(e.target.value)}
+              >
+                <option value="all">All Time</option>
+                <option value="today">Today</option>
+                <option value="week">This Week</option>
+                <option value="month">This Month</option>
+              </select>
+
+              <div className={styles.dateFilterGroup}>
+                <div className={styles.dateInputWrap}>
+                  <FiCalendar />
+                  <input
+                    type="date"
+                    className={styles.dateInput}
+                    value={dateFrom}
+                    onChange={(e) => setDateFrom(e.target.value)}
+                    aria-label="Date from"
+                  />
+                </div>
+
+                <div className={styles.dateInputWrap}>
+                  <FiCalendar />
+                  <input
+                    type="date"
+                    className={styles.dateInput}
+                    value={dateTo}
+                    onChange={(e) => setDateTo(e.target.value)}
+                    aria-label="Date to"
+                  />
+                </div>
+
+                <button
+                  type="button"
+                  className={styles.secondaryBtn}
+                  onClick={clearDateFilters}
+                >
+                  Clear Dates
+                </button>
+              </div>
             </div>
 
-            <button
-              type="button"
-              className={styles.secondaryBtn}
-              onClick={clearDateFilters}
-            >
-              Clear Dates
-            </button>
+            {(dateFrom || dateTo || rangeFilter !== "all" || paymentFilter !== "all") && (
+              <div className={styles.activeFilterNote}>
+                Active filters:
+                <strong> {getActiveDateLabel()}</strong>
+                {" • "}
+                <strong>{getPaymentFilterLabel()}</strong>
+              </div>
+            )}
           </div>
-        </div>
+        ) : null}
+      </section>
 
-        {(dateFrom || dateTo || rangeFilter !== "all" || paymentFilter !== "all") && (
-          <div className={styles.activeFilterNote}>
-            Active filters:
-            <strong> {getActiveDateLabel()}</strong>
-            {" • "}
-            <strong>{getPaymentFilterLabel()}</strong>
+      <section className={styles.sectionCard}>
+        <button
+          type="button"
+          className={styles.sectionToggle}
+          onClick={() => toggleSection("results")}
+        >
+          <div>
+            <h2 className={styles.title}>Sales Results</h2>
+            <p className={styles.subtitle}>
+              Review transactions, inspect details, refund, and move through pages
+            </p>
           </div>
-        )}
+          <span className={styles.sectionToggleIcon}>
+            {sectionsOpen.results ? <FiChevronUp /> : <FiChevronDown />}
+          </span>
+        </button>
 
-        {loading ? (
-          <div className={styles.loader}>Loading sales...</div>
-        ) : filteredSales.length === 0 ? (
-          <div className={styles.emptyState}>No sales found</div>
-        ) : (
-          <div className={styles.tableWrapper}>
-            <table className={styles.table}>
-              <thead>
-                <tr>
-                  <th>Sale ID</th>
-                  <th>Cashier</th>
-                  <th>Customer</th>
-                  <th>Payment</th>
-                  <th>Total</th>
-                  <th>Status</th>
-                  <th>Date</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
+        {sectionsOpen.results ? (
+          <div className={styles.sectionBody}>
+            <div className={styles.resultsSummaryBar}>
+              <span>
+                Showing {paginatedSales.length} of {filteredSales.length} sale(s)
+              </span>
+              <span>
+                Page {currentPage} of {totalSalesPages}
+              </span>
+            </div>
 
-              <tbody>
-                {filteredSales.map((sale) => {
-                  const isRefunded = isRefundedSale(sale);
+            {loading ? (
+              <div className={styles.loader}>Loading sales...</div>
+            ) : filteredSales.length === 0 ? (
+              <div className={styles.emptyState}>No sales found</div>
+            ) : (
+              <>
+                <div className={styles.tableWrapper}>
+                  <table className={styles.table}>
+                    <thead>
+                      <tr>
+                        <th>Sale ID</th>
+                        <th>Cashier</th>
+                        <th>Customer</th>
+                        <th>Payment</th>
+                        <th>Total</th>
+                        <th>Status</th>
+                        <th>Date</th>
+                        <th>Actions</th>
+                      </tr>
+                    </thead>
 
-                  return (
-                    <tr key={sale.id}>
-                      <td>#{sale.id}</td>
-                      <td>{sale.cashier_name || "—"}</td>
-                      <td>{sale.customer_name || "Walk-in"}</td>
-                      <td>
-                        <span className={styles.paymentText}>
-                          {getReadablePaymentMethod(sale)}
-                        </span>
-                      </td>
-                      <td>{formatMoney(sale.total_amount || sale.total)}</td>
-                      <td>
-                        <span
-                          className={`${styles.badge} ${
-                            isRefunded ? styles.badgeDanger : styles.badgeSuccess
+                    <tbody>
+                      {paginatedSales.map((sale) => {
+                        const isRefunded = isRefundedSale(sale);
+
+                        return (
+                          <tr key={sale.id}>
+                            <td>#{sale.id}</td>
+                            <td>{sale.cashier_name || "—"}</td>
+                            <td>{sale.customer_name || "Walk-in"}</td>
+                            <td>
+                              <span className={styles.paymentText}>
+                                {getReadablePaymentMethod(sale)}
+                              </span>
+                            </td>
+                            <td>{formatMoney(sale.total_amount || sale.total)}</td>
+                            <td>
+                              <span
+                                className={`${styles.badge} ${
+                                  isRefunded ? styles.badgeDanger : styles.badgeSuccess
+                                }`}
+                              >
+                                {sale.status || "paid"}
+                              </span>
+                            </td>
+                            <td>{formatDateTime(getSaleDate(sale))}</td>
+                            <td>
+                              <div className={styles.actionButtons}>
+                                <button
+                                  className={styles.primaryBtn}
+                                  onClick={() => openSaleDetails(sale.id)}
+                                >
+                                  <FiEye />
+                                  View
+                                </button>
+
+                                {!isRefunded ? (
+                                  <button
+                                    className={styles.dangerBtn}
+                                    onClick={() => openRefundModal(sale.id)}
+                                    disabled={refundLoadingId === sale.id}
+                                  >
+                                    <FiRotateCcw />
+                                    {refundLoadingId === sale.id ? "Refunding..." : "Refund"}
+                                  </button>
+                                ) : (
+                                  <button className={styles.disabledBtn} disabled>
+                                    Refunded
+                                  </button>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+
+                <div className={styles.paginationBar}>
+                  <button
+                    type="button"
+                    className={styles.secondaryBtn}
+                    onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
+                    disabled={currentPage === 1}
+                  >
+                    Previous
+                  </button>
+
+                  <div className={styles.paginationPages}>
+                    {Array.from({ length: totalSalesPages }, (_, index) => {
+                      const page = index + 1;
+                      return (
+                        <button
+                          key={page}
+                          type="button"
+                          className={`${styles.pageNumberBtn} ${
+                            currentPage === page ? styles.pageNumberBtnActive : ""
                           }`}
+                          onClick={() => setCurrentPage(page)}
                         >
-                          {sale.status || "paid"}
-                        </span>
-                      </td>
-                      <td>{formatDateTime(getSaleDate(sale))}</td>
-                      <td>
-                        <div className={styles.actionButtons}>
-                          <button
-                            className={styles.primaryBtn}
-                            onClick={() => openSaleDetails(sale.id)}
-                          >
-                            <FiEye />
-                            View
-                          </button>
+                          {page}
+                        </button>
+                      );
+                    })}
+                  </div>
 
-                          {!isRefunded ? (
-                            <button
-                              className={styles.dangerBtn}
-                              onClick={() => openRefundModal(sale.id)}
-                              disabled={refundLoadingId === sale.id}
-                            >
-                              <FiRotateCcw />
-                              {refundLoadingId === sale.id ? "Refunding..." : "Refund"}
-                            </button>
-                          ) : (
-                            <button className={styles.disabledBtn} disabled>
-                              Refunded
-                            </button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                  <button
+                    type="button"
+                    className={styles.secondaryBtn}
+                    onClick={() =>
+                      setCurrentPage((prev) => Math.min(prev + 1, totalSalesPages))
+                    }
+                    disabled={currentPage === totalSalesPages}
+                  >
+                    Next
+                  </button>
+                </div>
+              </>
+            )}
           </div>
-        )}
+        ) : null}
       </section>
 
       {showDetailsModal ? (
@@ -1435,6 +1612,15 @@ export default function SalesManagement() {
                     </span>
                   </div>
 
+                  <div className={styles.resultsSummaryBar}>
+                    <span>
+                      Showing {paginatedSaleItems.length} of {saleItems.length} item(s)
+                    </span>
+                    <span>
+                      Page {detailItemsPage} of {totalSaleItemsPages}
+                    </span>
+                  </div>
+
                   <div className={styles.tableWrapper}>
                     <table className={styles.table}>
                       <thead>
@@ -1448,15 +1634,16 @@ export default function SalesManagement() {
                           <th>Session End</th>
                         </tr>
                       </thead>
+
                       <tbody>
-                        {saleItems.length ? (
-                          saleItems.map((item, index) => (
+                        {paginatedSaleItems.length ? (
+                          paginatedSaleItems.map((item, index) => (
                             <tr key={item.id || index}>
                               <td>{item.product_id || "—"}</td>
                               <td>{item.item_name || "—"}</td>
                               <td>{item.qty || 0}</td>
-                              <td>{formatMoney(item.unit_price)}</td>
-                              <td>{formatMoney(item.final_price || item.total)}</td>
+                              <td>{formatMoney(item.unit_price || 0)}</td>
+                              <td>{formatMoney(item.final_price || item.total || 0)}</td>
                               <td>{formatDateTime(item.session_start)}</td>
                               <td>{formatDateTime(item.session_end)}</td>
                             </tr>
@@ -1470,6 +1657,48 @@ export default function SalesManagement() {
                         )}
                       </tbody>
                     </table>
+                  </div>
+
+                  <div className={styles.paginationBar}>
+                    <button
+                      type="button"
+                      className={styles.secondaryBtn}
+                      onClick={() => setDetailItemsPage((prev) => Math.max(prev - 1, 1))}
+                      disabled={detailItemsPage === 1}
+                    >
+                      Previous
+                    </button>
+
+                    <div className={styles.paginationPages}>
+                      {Array.from({ length: totalSaleItemsPages }, (_, index) => {
+                        const page = index + 1;
+                        return (
+                          <button
+                            key={page}
+                            type="button"
+                            className={`${styles.pageNumberBtn} ${
+                              detailItemsPage === page ? styles.pageNumberBtnActive : ""
+                            }`}
+                            onClick={() => setDetailItemsPage(page)}
+                          >
+                            {page}
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    <button
+                      type="button"
+                      className={styles.secondaryBtn}
+                      onClick={() =>
+                        setDetailItemsPage((prev) =>
+                          Math.min(prev + 1, totalSaleItemsPages)
+                        )
+                      }
+                      disabled={detailItemsPage === totalSaleItemsPages}
+                    >
+                      Next
+                    </button>
                   </div>
                 </div>
 

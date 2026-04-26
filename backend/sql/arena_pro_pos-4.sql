@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: localhost
--- Generation Time: Apr 26, 2026 at 01:25 AM
+-- Generation Time: Apr 26, 2026 at 02:20 AM
 -- Server version: 10.4.28-MariaDB
 -- PHP Version: 8.2.4
 
@@ -159,7 +159,11 @@ INSERT INTO `clock_events` (`id`, `user_id`, `event_type`, `event_time`, `create
 (34, 2, 'in', '2026-04-16 04:45:19', '2026-04-16 04:45:19'),
 (35, 2, 'out', '2026-04-16 04:45:20', '2026-04-16 04:45:20'),
 (36, 2, 'in', '2026-04-16 04:45:40', '2026-04-16 04:45:40'),
-(37, 2, 'in', '2026-04-25 16:09:51', '2026-04-25 16:09:51');
+(37, 2, 'in', '2026-04-25 16:09:51', '2026-04-25 16:09:51'),
+(38, 2, 'out', '2026-04-25 17:07:50', '2026-04-25 17:07:50'),
+(39, 4, 'in', '2026-04-25 17:07:58', '2026-04-25 17:07:58'),
+(40, 4, 'out', '2026-04-25 17:08:12', '2026-04-25 17:08:12'),
+(41, 2, 'in', '2026-04-25 17:08:23', '2026-04-25 17:08:23');
 
 -- --------------------------------------------------------
 
@@ -341,13 +345,44 @@ CREATE TABLE `members` (
   `name` varchar(150) NOT NULL,
   `phone` varchar(50) DEFAULT NULL,
   `email` varchar(150) DEFAULT NULL,
-  `tier` enum('Walk-in','Silver','Gold','Platinum') DEFAULT 'Walk-in',
+  `tier` varchar(150) DEFAULT NULL,
+  `membership_tier_id` int(11) DEFAULT NULL,
   `points` int(11) DEFAULT 0,
   `visits` int(11) DEFAULT 0,
   `total_spent` decimal(12,2) DEFAULT 0.00,
   `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
   `business_id` int(11) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Dumping data for table `members`
+--
+
+INSERT INTO `members` (`id`, `member_code`, `name`, `phone`, `email`, `tier`, `membership_tier_id`, `points`, `visits`, `total_spent`, `created_at`, `business_id`) VALUES
+(1, 'M1777161380818', 'Samuel Oghenchovwe', '07065785436', '8amlight@gmail.com', 'VIP', 2, 0, 0, 0.00, '2026-04-25 23:56:20', 1);
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `membership_tiers`
+--
+
+CREATE TABLE `membership_tiers` (
+  `id` int(11) NOT NULL,
+  `name` varchar(150) NOT NULL,
+  `discount_pct` decimal(10,2) NOT NULL DEFAULT 0.00,
+  `business_id` int(11) DEFAULT NULL,
+  `created_at` datetime NOT NULL DEFAULT current_timestamp(),
+  `updated_at` datetime NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Dumping data for table `membership_tiers`
+--
+
+INSERT INTO `membership_tiers` (`id`, `name`, `discount_pct`, `business_id`, `created_at`, `updated_at`) VALUES
+(1, 'Regular', 2.00, 1, '2026-04-25 16:50:41', '2026-04-25 16:56:05'),
+(2, 'VIP', 10.00, 1, '2026-04-25 16:50:41', '2026-04-25 16:56:11');
 
 -- --------------------------------------------------------
 
@@ -386,6 +421,11 @@ CREATE TABLE `pending_carts` (
   `id` int(11) NOT NULL,
   `cart_code` varchar(100) NOT NULL,
   `customer` varchar(150) DEFAULT 'Walk-in',
+  `member_id` int(11) DEFAULT NULL,
+  `membership_tier_id` int(11) DEFAULT NULL,
+  `membership_tier_name` varchar(150) DEFAULT NULL,
+  `membership_discount_pct` decimal(10,2) NOT NULL DEFAULT 0.00,
+  `membership_discount` decimal(12,2) NOT NULL DEFAULT 0.00,
   `cashier_id` int(11) NOT NULL,
   `shift_id` int(11) DEFAULT NULL,
   `subtotal` decimal(12,2) DEFAULT 0.00,
@@ -407,12 +447,13 @@ CREATE TABLE `pending_carts` (
 -- Dumping data for table `pending_carts`
 --
 
-INSERT INTO `pending_carts` (`id`, `cart_code`, `customer`, `cashier_id`, `shift_id`, `subtotal`, `discount`, `loyalty_discount`, `giftcard_discount`, `tax`, `total`, `currency`, `status`, `note`, `created_at`, `updated_at`, `business_id`, `branch_id`) VALUES
-(2, 'PEND-1773246746989', 'Walk-in', 2, NULL, 2000.00, 0.00, 0.00, 0.00, 200.00, 2200.00, 'NGN', 'checked_out', 'mr sam ', '2026-03-11 09:32:27', '2026-04-14 02:05:25', 1, 1),
-(3, 'PEND-1773964375406', 'Walk-in', 2, NULL, 100.00, 0.00, 0.00, 0.00, 10.00, 110.00, 'NGN', 'checked_out', NULL, '2026-03-19 16:52:55', '2026-04-14 02:05:25', 1, 1),
-(4, 'PEND-1773968002056', 'Walk-in', 2, NULL, 100.00, 0.00, 0.00, 0.00, 10.00, 110.00, 'NGN', 'checked_out', NULL, '2026-03-19 17:53:22', '2026-04-14 02:05:25', 1, 1),
-(7, 'PEND-1775831157224', 'Walk-in', 2, NULL, 300.00, 0.00, 0.00, 0.00, 30.00, 330.00, 'NGN', 'checked_out', NULL, '2026-04-10 07:25:57', '2026-04-14 02:05:25', 1, 1),
-(8, 'PEND-1776185985344', 'Samuel Oghenchovwe', 2, NULL, 100.00, 0.00, 0.00, 0.00, 10.00, 110.00, 'NGN', 'cancelled', 'From customer order DM-1776185905915', '2026-04-14 09:59:45', '2026-04-14 09:59:49', 1, 1);
+INSERT INTO `pending_carts` (`id`, `cart_code`, `customer`, `member_id`, `membership_tier_id`, `membership_tier_name`, `membership_discount_pct`, `membership_discount`, `cashier_id`, `shift_id`, `subtotal`, `discount`, `loyalty_discount`, `giftcard_discount`, `tax`, `total`, `currency`, `status`, `note`, `created_at`, `updated_at`, `business_id`, `branch_id`) VALUES
+(2, 'PEND-1773246746989', 'Walk-in', NULL, NULL, NULL, 0.00, 0.00, 2, NULL, 2000.00, 0.00, 0.00, 0.00, 200.00, 2200.00, 'NGN', 'checked_out', 'mr sam ', '2026-03-11 09:32:27', '2026-04-14 02:05:25', 1, 1),
+(3, 'PEND-1773964375406', 'Walk-in', NULL, NULL, NULL, 0.00, 0.00, 2, NULL, 100.00, 0.00, 0.00, 0.00, 10.00, 110.00, 'NGN', 'checked_out', NULL, '2026-03-19 16:52:55', '2026-04-14 02:05:25', 1, 1),
+(4, 'PEND-1773968002056', 'Walk-in', NULL, NULL, NULL, 0.00, 0.00, 2, NULL, 100.00, 0.00, 0.00, 0.00, 10.00, 110.00, 'NGN', 'checked_out', NULL, '2026-03-19 17:53:22', '2026-04-14 02:05:25', 1, 1),
+(7, 'PEND-1775831157224', 'Walk-in', NULL, NULL, NULL, 0.00, 0.00, 2, NULL, 300.00, 0.00, 0.00, 0.00, 30.00, 330.00, 'NGN', 'checked_out', NULL, '2026-04-10 07:25:57', '2026-04-14 02:05:25', 1, 1),
+(8, 'PEND-1776185985344', 'Samuel Oghenchovwe', NULL, NULL, NULL, 0.00, 0.00, 2, NULL, 100.00, 0.00, 0.00, 0.00, 10.00, 110.00, 'NGN', 'cancelled', 'From customer order DM-1776185905915', '2026-04-14 09:59:45', '2026-04-14 09:59:49', 1, 1),
+(9, 'PEND-1777161575508', 'Samuel Oghenchovwe', 1, 2, 'VIP', 10.00, 50.00, 2, NULL, 500.00, 0.00, 0.00, 0.00, 45.00, 495.00, 'NGN', 'pending', NULL, '2026-04-25 16:59:35', '2026-04-25 16:59:35', 1, 1);
 
 -- --------------------------------------------------------
 
@@ -453,7 +494,8 @@ INSERT INTO `pending_cart_items` (`id`, `pending_cart_id`, `product_id`, `item_n
 (7, 4, 2, 'rice', '📦', 'fixed', 1, 100.00, 2000.00, 0.00, NULL, NULL, 0, 100.00, 1, '2026-03-19 17:53:22', '2026-03-19 17:53:22'),
 (12, 7, 2, 'rice', '📦', 'fixed', 2, 100.00, 2000.00, 0.00, NULL, NULL, 0, 200.00, 1, '2026-04-10 07:26:10', '2026-04-10 07:26:10'),
 (13, 7, 3, 'meat', '📦', 'fixed', 1, 100.00, 2000.00, 0.00, NULL, NULL, 0, 100.00, 1, '2026-04-10 07:26:10', '2026-04-10 07:26:10'),
-(14, 8, 3, 'meat', '📦', 'fixed', 1, 100.00, 0.00, 0.00, NULL, NULL, 0, 100.00, 0, '2026-04-14 09:59:45', '2026-04-14 09:59:45');
+(14, 8, 3, 'meat', '📦', 'fixed', 1, 100.00, 0.00, 0.00, NULL, NULL, 0, 100.00, 0, '2026-04-14 09:59:45', '2026-04-14 09:59:45'),
+(15, 9, 1, ' Snooker Table', '🎱', 'timed', 1, 1000.00, 0.00, 0.00, '2026-04-25 16:59:21', NULL, 0, 500.00, 0, '2026-04-25 16:59:35', '2026-04-25 16:59:35');
 
 -- --------------------------------------------------------
 
@@ -490,8 +532,8 @@ CREATE TABLE `products` (
 
 INSERT INTO `products` (`id`, `name`, `icon`, `category_id`, `type`, `hourly_rate`, `price`, `cost`, `stock`, `low_stock`, `modifier_group_id`, `is_active`, `created_at`, `is_unlimited`, `consumable_type`, `has_expiry`, `expiry_date`, `shelf_life_days`, `business_id`, `branch_id`) VALUES
 (1, ' Snooker Table', '🎱', 1, 'timed', 1000.00, 1000.00, 0.00, NULL, 0, NULL, 1, '2026-03-10 12:21:19', 1, NULL, 0, NULL, NULL, 1, 1),
-(2, 'rice', '📦', 5, 'fixed', 0.00, 100.00, 2000.00, 100, 5, NULL, 1, '2026-03-16 15:36:26', 0, 'food', 1, '2026-04-07', 4, 1, 1),
-(3, 'meat', '📦', 5, 'food', 0.00, 100.00, 2000.00, 100, 5, NULL, 1, '2026-03-16 15:36:26', 0, 'food', 1, '2026-04-07', 4, 1, 1);
+(2, 'rice', '📦', 5, 'fixed', 0.00, 100.00, 2000.00, 99, 5, NULL, 1, '2026-03-16 15:36:26', 0, 'food', 1, '2026-04-07', 4, 1, 1),
+(3, 'meat', '📦', 5, 'food', 0.00, 100.00, 2000.00, 99, 5, NULL, 1, '2026-03-16 15:36:26', 0, 'food', 1, '2026-04-07', 4, 1, 1);
 
 -- --------------------------------------------------------
 
@@ -537,6 +579,11 @@ CREATE TABLE `sales` (
   `id` int(11) NOT NULL,
   `sale_code` varchar(50) NOT NULL,
   `customer` varchar(150) DEFAULT 'Walk-in',
+  `member_id` int(11) DEFAULT NULL,
+  `membership_tier_id` int(11) DEFAULT NULL,
+  `membership_tier_name` varchar(150) DEFAULT NULL,
+  `membership_discount_pct` decimal(10,2) NOT NULL DEFAULT 0.00,
+  `membership_discount` decimal(12,2) NOT NULL DEFAULT 0.00,
   `cashier_id` int(11) NOT NULL,
   `shift_id` int(11) DEFAULT NULL,
   `subtotal` decimal(12,2) DEFAULT 0.00,
@@ -558,12 +605,14 @@ CREATE TABLE `sales` (
 -- Dumping data for table `sales`
 --
 
-INSERT INTO `sales` (`id`, `sale_code`, `customer`, `cashier_id`, `shift_id`, `subtotal`, `discount`, `loyalty_discount`, `giftcard_discount`, `tax`, `total`, `payment_method`, `currency`, `status`, `refund_reason`, `sale_date`, `business_id`, `branch_id`) VALUES
-(1, 'SALE-1773246815739', 'Walk-in', 2, NULL, 2000.00, 0.00, 0.00, 0.00, 200.00, 2200.00, 'card', 'NGN', 'completed', NULL, '2026-03-11 09:33:35', 1, 1),
-(2, 'SALE-1773964650505', 'Walk-in', 2, NULL, 100.00, 0.00, 0.00, 0.00, 10.00, 110.00, 'card', 'NGN', 'completed', NULL, '2026-03-19 16:57:30', 1, 1),
-(3, 'SALE-1773968095077', 'Walk-in', 2, NULL, 100.00, 0.00, 0.00, 0.00, 10.00, 110.00, 'transfer', 'NGN', 'refunded', 'test', '2026-03-19 17:54:55', 1, 1),
-(4, 'SALE-1775831111681', 'Walk-in', 2, NULL, 200.00, 0.00, 0.00, 0.00, 20.00, 220.00, 'card', 'NGN', 'completed', NULL, '2026-04-10 07:25:11', 1, 1),
-(5, 'SALE-1775831170911', 'Walk-in', 2, NULL, 300.00, 0.00, 0.00, 0.00, 30.00, 330.00, 'card', 'NGN', 'completed', NULL, '2026-04-10 07:26:10', 1, 1);
+INSERT INTO `sales` (`id`, `sale_code`, `customer`, `member_id`, `membership_tier_id`, `membership_tier_name`, `membership_discount_pct`, `membership_discount`, `cashier_id`, `shift_id`, `subtotal`, `discount`, `loyalty_discount`, `giftcard_discount`, `tax`, `total`, `payment_method`, `currency`, `status`, `refund_reason`, `sale_date`, `business_id`, `branch_id`) VALUES
+(1, 'SALE-1773246815739', 'Walk-in', NULL, NULL, NULL, 0.00, 0.00, 2, NULL, 2000.00, 0.00, 0.00, 0.00, 200.00, 2200.00, 'card', 'NGN', 'completed', NULL, '2026-03-11 09:33:35', 1, 1),
+(2, 'SALE-1773964650505', 'Walk-in', NULL, NULL, NULL, 0.00, 0.00, 2, NULL, 100.00, 0.00, 0.00, 0.00, 10.00, 110.00, 'card', 'NGN', 'completed', NULL, '2026-03-19 16:57:30', 1, 1),
+(3, 'SALE-1773968095077', 'Walk-in', NULL, NULL, NULL, 0.00, 0.00, 2, NULL, 100.00, 0.00, 0.00, 0.00, 10.00, 110.00, 'transfer', 'NGN', 'refunded', 'test', '2026-03-19 17:54:55', 1, 1),
+(4, 'SALE-1775831111681', 'Walk-in', NULL, NULL, NULL, 0.00, 0.00, 2, NULL, 200.00, 0.00, 0.00, 0.00, 20.00, 220.00, 'card', 'NGN', 'completed', NULL, '2026-04-10 07:25:11', 1, 1),
+(5, 'SALE-1775831170911', 'Walk-in', NULL, NULL, NULL, 0.00, 0.00, 2, NULL, 300.00, 0.00, 0.00, 0.00, 30.00, 330.00, 'card', 'NGN', 'completed', NULL, '2026-04-10 07:26:10', 1, 1),
+(6, 'SALE-1777161520438', 'Samuel Oghenchovwe', 1, 2, 'VIP', 10.00, 60.00, 2, NULL, 600.00, 0.00, 0.00, 0.00, 54.00, 594.00, 'card', 'NGN', 'completed', NULL, '2026-04-25 16:58:40', 1, 1),
+(7, 'SALE-1777161556376', 'Samuel Oghenchovwe', 1, 2, 'VIP', 10.00, 10.00, 2, NULL, 100.00, 0.00, 0.00, 0.00, 9.00, 99.00, 'card', 'NGN', 'completed', NULL, '2026-04-25 16:59:16', 1, 1);
 
 -- --------------------------------------------------------
 
@@ -602,7 +651,10 @@ INSERT INTO `sale_items` (`id`, `sale_id`, `product_id`, `item_name`, `icon`, `i
 (7, 4, 2, 'rice', '📦', 'fixed', 1, 100.00, 2000.00, 0.00, NULL, NULL, 0, 100.00),
 (8, 4, 3, 'meat', '📦', 'fixed', 1, 100.00, 2000.00, 0.00, NULL, NULL, 0, 100.00),
 (9, 5, 2, 'rice', '📦', 'fixed', 2, 100.00, 2000.00, 0.00, NULL, NULL, 0, 200.00),
-(10, 5, 3, 'meat', '📦', 'fixed', 1, 100.00, 2000.00, 0.00, NULL, NULL, 0, 100.00);
+(10, 5, 3, 'meat', '📦', 'fixed', 1, 100.00, 2000.00, 0.00, NULL, NULL, 0, 100.00),
+(11, 6, 3, 'meat', '📦', 'fixed', 1, 100.00, 2000.00, 0.00, NULL, NULL, 0, 100.00),
+(12, 6, 1, ' Snooker Table', '🎱', 'timed', 1, 1000.00, 0.00, 0.00, '2026-04-25 16:56:35', NULL, 0, 500.00),
+(13, 7, 2, 'rice', '📦', 'fixed', 1, 100.00, 2000.00, 0.00, NULL, NULL, 0, 100.00);
 
 -- --------------------------------------------------------
 
@@ -688,7 +740,9 @@ INSERT INTO `stock_history` (`id`, `product_id`, `before_qty`, `after_qty`, `cha
 (7, 2, 3, 2, -1, 'Sale #4', 2, '2026-04-10 07:25:11', 1, 1),
 (8, 3, 2, 1, -1, 'Sale #4', 2, '2026-04-10 07:25:11', 1, 1),
 (9, 2, 2, 0, -2, 'Sale #5', 2, '2026-04-10 07:26:10', 1, 1),
-(10, 3, 1, 0, -1, 'Sale #5', 2, '2026-04-10 07:26:10', 1, 1);
+(10, 3, 1, 0, -1, 'Sale #5', 2, '2026-04-10 07:26:10', 1, 1),
+(11, 3, 100, 99, -1, 'Sale #6', 2, '2026-04-25 16:58:40', 1, 1),
+(12, 2, 100, 99, -1, 'Sale #7', 2, '2026-04-25 16:59:16', 1, 1);
 
 -- --------------------------------------------------------
 
@@ -903,7 +957,16 @@ ALTER TABLE `kds_order_items`
 ALTER TABLE `members`
   ADD PRIMARY KEY (`id`),
   ADD UNIQUE KEY `member_code` (`member_code`),
-  ADD KEY `idx_members_business_id` (`business_id`);
+  ADD KEY `idx_members_business_id` (`business_id`),
+  ADD KEY `idx_members_membership_tier_id` (`membership_tier_id`);
+
+--
+-- Indexes for table `membership_tiers`
+--
+ALTER TABLE `membership_tiers`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `uniq_membership_tier_name_per_business` (`business_id`,`name`),
+  ADD KEY `idx_membership_tiers_business_id` (`business_id`);
 
 --
 -- Indexes for table `modifier_groups`
@@ -928,7 +991,9 @@ ALTER TABLE `pending_carts`
   ADD KEY `cashier_id` (`cashier_id`),
   ADD KEY `shift_id` (`shift_id`),
   ADD KEY `idx_pending_carts_business_id` (`business_id`),
-  ADD KEY `idx_pending_carts_branch_id` (`branch_id`);
+  ADD KEY `idx_pending_carts_branch_id` (`branch_id`),
+  ADD KEY `idx_pending_carts_member_id` (`member_id`),
+  ADD KEY `idx_pending_carts_membership_tier_id` (`membership_tier_id`);
 
 --
 -- Indexes for table `pending_cart_items`
@@ -977,7 +1042,9 @@ ALTER TABLE `sales`
   ADD KEY `shift_id` (`shift_id`),
   ADD KEY `idx_sales_business_id` (`business_id`),
   ADD KEY `idx_sales_branch_id` (`branch_id`),
-  ADD KEY `idx_sales_sale_date` (`sale_date`);
+  ADD KEY `idx_sales_sale_date` (`sale_date`),
+  ADD KEY `idx_sales_member_id` (`member_id`),
+  ADD KEY `idx_sales_membership_tier_id` (`membership_tier_id`);
 
 --
 -- Indexes for table `sale_items`
@@ -1072,7 +1139,7 @@ ALTER TABLE `categories`
 -- AUTO_INCREMENT for table `clock_events`
 --
 ALTER TABLE `clock_events`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=38;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=42;
 
 --
 -- AUTO_INCREMENT for table `courts`
@@ -1120,7 +1187,13 @@ ALTER TABLE `kds_order_items`
 -- AUTO_INCREMENT for table `members`
 --
 ALTER TABLE `members`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
+
+--
+-- AUTO_INCREMENT for table `membership_tiers`
+--
+ALTER TABLE `membership_tiers`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
 
 --
 -- AUTO_INCREMENT for table `modifier_groups`
@@ -1138,13 +1211,13 @@ ALTER TABLE `modifier_options`
 -- AUTO_INCREMENT for table `pending_carts`
 --
 ALTER TABLE `pending_carts`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=9;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=10;
 
 --
 -- AUTO_INCREMENT for table `pending_cart_items`
 --
 ALTER TABLE `pending_cart_items`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=15;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=16;
 
 --
 -- AUTO_INCREMENT for table `products`
@@ -1168,13 +1241,13 @@ ALTER TABLE `purchase_order_items`
 -- AUTO_INCREMENT for table `sales`
 --
 ALTER TABLE `sales`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=6;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=8;
 
 --
 -- AUTO_INCREMENT for table `sale_items`
 --
 ALTER TABLE `sale_items`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=11;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=14;
 
 --
 -- AUTO_INCREMENT for table `settings`
@@ -1192,7 +1265,7 @@ ALTER TABLE `shifts`
 -- AUTO_INCREMENT for table `stock_history`
 --
 ALTER TABLE `stock_history`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=11;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=13;
 
 --
 -- AUTO_INCREMENT for table `users`
@@ -1247,6 +1320,12 @@ ALTER TABLE `kds_order_items`
   ADD CONSTRAINT `kds_order_items_ibfk_1` FOREIGN KEY (`kds_order_id`) REFERENCES `kds_orders` (`id`) ON DELETE CASCADE;
 
 --
+-- Constraints for table `members`
+--
+ALTER TABLE `members`
+  ADD CONSTRAINT `members_ibfk_membership_tier` FOREIGN KEY (`membership_tier_id`) REFERENCES `membership_tiers` (`id`) ON DELETE SET NULL;
+
+--
 -- Constraints for table `modifier_options`
 --
 ALTER TABLE `modifier_options`
@@ -1257,7 +1336,9 @@ ALTER TABLE `modifier_options`
 --
 ALTER TABLE `pending_carts`
   ADD CONSTRAINT `pending_carts_ibfk_1` FOREIGN KEY (`cashier_id`) REFERENCES `users` (`id`),
-  ADD CONSTRAINT `pending_carts_ibfk_2` FOREIGN KEY (`shift_id`) REFERENCES `shifts` (`id`) ON DELETE SET NULL;
+  ADD CONSTRAINT `pending_carts_ibfk_2` FOREIGN KEY (`shift_id`) REFERENCES `shifts` (`id`) ON DELETE SET NULL,
+  ADD CONSTRAINT `pending_carts_ibfk_member` FOREIGN KEY (`member_id`) REFERENCES `members` (`id`) ON DELETE SET NULL,
+  ADD CONSTRAINT `pending_carts_ibfk_membership_tier` FOREIGN KEY (`membership_tier_id`) REFERENCES `membership_tiers` (`id`) ON DELETE SET NULL;
 
 --
 -- Constraints for table `pending_cart_items`
@@ -1291,7 +1372,9 @@ ALTER TABLE `purchase_order_items`
 --
 ALTER TABLE `sales`
   ADD CONSTRAINT `sales_ibfk_1` FOREIGN KEY (`cashier_id`) REFERENCES `users` (`id`),
-  ADD CONSTRAINT `sales_ibfk_2` FOREIGN KEY (`shift_id`) REFERENCES `shifts` (`id`) ON DELETE SET NULL;
+  ADD CONSTRAINT `sales_ibfk_2` FOREIGN KEY (`shift_id`) REFERENCES `shifts` (`id`) ON DELETE SET NULL,
+  ADD CONSTRAINT `sales_ibfk_member` FOREIGN KEY (`member_id`) REFERENCES `members` (`id`) ON DELETE SET NULL,
+  ADD CONSTRAINT `sales_ibfk_membership_tier` FOREIGN KEY (`membership_tier_id`) REFERENCES `membership_tiers` (`id`) ON DELETE SET NULL;
 
 --
 -- Constraints for table `sale_items`
