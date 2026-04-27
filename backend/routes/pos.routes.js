@@ -35,6 +35,17 @@ const toAmount = (value) => {
   return amount;
 };
 const roundMoney = (value) => Number(toAmount(value).toFixed(2));
+const buildRecentSalesDates = () => {
+  return [0, 1, 2].map((daysAgo) => {
+    const date = moment().subtract(daysAgo, "days");
+
+    return {
+      key: date.format("YYYY-MM-DD"),
+      label: daysAgo === 0 ? "Today" : daysAgo === 1 ? "Yesterday" : date.format("ddd"),
+      fullLabel: date.format("ddd, MMM D")
+    };
+  });
+};
 
 async function resolveMembershipContext(conn, businessId, memberId, fallbackCustomer, subtotal) {
   const normalizedSubtotal = roundMoney(subtotal);
@@ -154,6 +165,85 @@ router.post("/split-price", requirePermission("pos"), branchAccessMiddleware, as
         split_count: splitCount,
         split_unit_price: splitUnitPrice,
         item_discount_pct: itemDiscountPct
+      }
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+});
+
+router.get("/sales-summary", requirePermission("pos"), branchAccessMiddleware, async (req, res) => {
+  try {
+    if (!ensureBusinessContext(req, res)) return;
+
+    const recentDates = buildRecentSalesDates();
+    const dateKeys = recentDates.map((entry) => entry.key);
+    const placeholders = dateKeys.map(() => "?").join(", ");
+    const params = [req.user.id, req.user.business_id, ...dateKeys];
+
+    let sql = `
+      SELECT
+        DATE(sale_date) AS sale_day,
+        COUNT(*) AS sales_count,
+        COALESCE(SUM(total), 0) AS sales_total
+      FROM sales
+      WHERE cashier_id = ?
+        AND business_id = ?
+        AND DATE(sale_date) IN (${placeholders})
+    `;
+
+    if (req.user.branch_id) {
+      sql += ` AND branch_id = ?`;
+      params.push(req.user.branch_id);
+    }
+
+    sql += `
+      GROUP BY DATE(sale_date)
+      ORDER BY sale_day DESC
+    `;
+
+    const [rows] = await pool.execute(sql, params);
+    const rowMap = new Map(
+      rows.map((row) => [
+        moment(row.sale_day).format("YYYY-MM-DD"),
+        {
+          sales_count: Number(row.sales_count || 0),
+          sales_total: roundMoney(row.sales_total || 0)
+        }
+      ])
+    );
+
+    const days = recentDates.map((entry) => {
+      const matched = rowMap.get(entry.key);
+
+      return {
+        date: entry.key,
+        label: entry.label,
+        full_label: entry.fullLabel,
+        sales_count: matched?.sales_count || 0,
+        sales_total: matched?.sales_total || 0
+      };
+    });
+
+    const totalSales = roundMoney(
+      days.reduce((sum, day) => sum + Number(day.sales_total || 0), 0)
+    );
+    const totalCount = days.reduce(
+      (sum, day) => sum + Number(day.sales_count || 0),
+      0
+    );
+
+    res.json({
+      success: true,
+      data: {
+        cashier_id: req.user.id,
+        branch_id: req.user.branch_id || null,
+        days,
+        total_sales: totalSales,
+        total_count: totalCount
       }
     });
   } catch (error) {

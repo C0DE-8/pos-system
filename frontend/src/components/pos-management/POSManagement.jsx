@@ -1,5 +1,5 @@
 // src/components/pos-management/POSManagement.jsx
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   FiSearch,
   FiTrash2,
@@ -29,6 +29,7 @@ import { getProducts } from "../../api/productsApi";
 import {
   checkoutSale,
   splitItemPrice,
+  getSalesSummary,
   createPendingCart,
   getPendingCarts,
   getPendingCartById,
@@ -80,6 +81,40 @@ const currencySymbols = {
   KES: "Ksh "
 };
 
+const getStoredUser = () => {
+  try {
+    const rawUser = localStorage.getItem("user");
+    return rawUser ? JSON.parse(rawUser) : null;
+  } catch (error) {
+    return null;
+  }
+};
+
+const getInitialSalesDockPosition = () => {
+  if (typeof window === "undefined") {
+    return { top: 84, right: 18 };
+  }
+
+  return {
+    top: window.innerWidth <= 768 ? 72 : 84,
+    right: window.innerWidth <= 768 ? 14 : 18
+  };
+};
+
+const clampSalesDockPosition = (position, dockWidth = 280, dockHeight = 58) => {
+  if (typeof window === "undefined") return position;
+
+  const minTop = 12;
+  const minRight = 12;
+  const maxTop = Math.max(minTop, window.innerHeight - dockHeight - 12);
+  const maxRight = Math.max(minRight, window.innerWidth - dockWidth - 12);
+
+  return {
+    top: Math.min(Math.max(position.top, minTop), maxTop),
+    right: Math.min(Math.max(position.right, minRight), maxRight)
+  };
+};
+
 export default function POSManagement() {
   const [products, setProducts] = useState([]);
   const [members, setMembers] = useState([]);
@@ -92,6 +127,28 @@ export default function POSManagement() {
 
   const [settings, setSettings] = useState(DEFAULT_SETTINGS);
   const [currentUser, setCurrentUser] = useState(null);
+  const [salesSummary, setSalesSummary] = useState({
+    days: [],
+    total_sales: 0,
+    total_count: 0
+  });
+  const [loadingSalesSummary, setLoadingSalesSummary] = useState(true);
+  const [salesSummaryOpen, setSalesSummaryOpen] = useState(false);
+  const [salesSummaryPeek, setSalesSummaryPeek] = useState(false);
+  const [salesDockPosition, setSalesDockPosition] = useState(
+    getInitialSalesDockPosition
+  );
+  const salesDockRef = useRef(null);
+  const salesLongPressTimerRef = useRef(null);
+  const suppressSalesFabClickRef = useRef(false);
+  const salesDragStateRef = useRef({
+    pointerId: null,
+    startX: 0,
+    startY: 0,
+    startTop: 0,
+    startRight: 0,
+    moved: false
+  });
 
   const [cart, setCart] = useState([]);
   const [customer, setCustomer] = useState("Walk-in");
@@ -165,11 +222,42 @@ export default function POSManagement() {
     loadInitialData();
     loadPendingCarts();
     loadCustomerOrders();
+    loadSalesSummary();
   }, []);
 
   useEffect(() => {
     const timer = setInterval(loadCustomerOrders, 15000);
     return () => clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      loadSalesSummary({ silent: true });
+    }, 30000);
+
+    return () => clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
+    const handleResize = () => {
+      const rect = salesDockRef.current?.getBoundingClientRect();
+      setSalesDockPosition((prev) =>
+        clampSalesDockPosition(prev, rect?.width || 280, rect?.height || 58)
+      );
+    };
+
+    handleResize();
+    window.addEventListener("resize", handleResize);
+
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (salesLongPressTimerRef.current) {
+        window.clearTimeout(salesLongPressTimerRef.current);
+      }
+    };
   }, []);
 
   useEffect(() => {
@@ -225,7 +313,10 @@ export default function POSManagement() {
           DEFAULT_SETTINGS.receipt_footer
       });
 
-      setCurrentUser(meRes?.user || null);
+      const storedUser = getStoredUser();
+      setCurrentUser(
+        meRes?.user ? { ...storedUser, ...meRes.user } : storedUser
+      );
     } catch (err) {
       setError(err?.response?.data?.message || "Failed to load POS data");
     } finally {
@@ -253,6 +344,121 @@ export default function POSManagement() {
     } catch (err) {
       setError(err?.response?.data?.message || "Failed to load customer orders");
     }
+  };
+
+  const loadSalesSummary = async ({ silent = false } = {}) => {
+    try {
+      if (!silent) {
+        setLoadingSalesSummary(true);
+      }
+
+      const res = await getSalesSummary();
+      setSalesSummary({
+        days: res?.data?.days || [],
+        total_sales: Number(res?.data?.total_sales || 0),
+        total_count: Number(res?.data?.total_count || 0)
+      });
+    } catch (err) {
+      if (!silent) {
+        setError(err?.response?.data?.message || "Failed to load sales summary");
+      }
+    } finally {
+      if (!silent) {
+        setLoadingSalesSummary(false);
+      }
+    }
+  };
+
+  const handleSalesDockPointerDown = (event) => {
+    if (event.button !== undefined && event.button !== 0) return;
+
+    const rect = salesDockRef.current?.getBoundingClientRect();
+    suppressSalesFabClickRef.current = false;
+    salesDragStateRef.current = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      startTop: salesDockPosition.top,
+      startRight: salesDockPosition.right,
+      moved: false,
+      dockWidth: rect?.width || 280,
+      dockHeight: rect?.height || 58
+    };
+
+    if (salesLongPressTimerRef.current) {
+      window.clearTimeout(salesLongPressTimerRef.current);
+    }
+
+    salesLongPressTimerRef.current = window.setTimeout(() => {
+      setSalesSummaryPeek(true);
+    }, 450);
+
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+  };
+
+  const handleSalesDockPointerMove = (event) => {
+    const dragState = salesDragStateRef.current;
+    if (dragState.pointerId !== event.pointerId) return;
+
+    const deltaX = event.clientX - dragState.startX;
+    const deltaY = event.clientY - dragState.startY;
+    const nextPosition = clampSalesDockPosition(
+      {
+        top: dragState.startTop + deltaY,
+        right: dragState.startRight - deltaX
+      },
+      dragState.dockWidth,
+      dragState.dockHeight
+    );
+
+    if (Math.abs(deltaX) > 4 || Math.abs(deltaY) > 4) {
+      dragState.moved = true;
+      suppressSalesFabClickRef.current = true;
+      if (salesLongPressTimerRef.current) {
+        window.clearTimeout(salesLongPressTimerRef.current);
+        salesLongPressTimerRef.current = null;
+      }
+    }
+
+    setSalesDockPosition(nextPosition);
+  };
+
+  const handleSalesDockPointerUp = (event) => {
+    const dragState = salesDragStateRef.current;
+    if (dragState.pointerId !== event.pointerId) return;
+
+    event.currentTarget.releasePointerCapture?.(event.pointerId);
+
+    if (salesLongPressTimerRef.current) {
+      window.clearTimeout(salesLongPressTimerRef.current);
+      salesLongPressTimerRef.current = null;
+    }
+
+    salesDragStateRef.current = {
+      pointerId: null,
+      startX: 0,
+      startY: 0,
+      startTop: 0,
+      startRight: 0,
+      moved: false
+    };
+  };
+
+  const handleSalesDockPointerCancel = () => {
+    if (salesLongPressTimerRef.current) {
+      window.clearTimeout(salesLongPressTimerRef.current);
+      salesLongPressTimerRef.current = null;
+    }
+  };
+
+  const handleSalesFabClick = () => {
+    if (suppressSalesFabClickRef.current) {
+      suppressSalesFabClickRef.current = false;
+      return;
+    }
+
+    setSalesSummaryOpen((prev) => !prev);
+    setSalesSummaryPeek(false);
   };
 
   const categories = useMemo(() => {
@@ -1049,6 +1255,7 @@ export default function POSManagement() {
 
       resetCartState();
       await loadPendingCarts();
+      await loadSalesSummary({ silent: true });
     } catch (err) {
       setError(err?.response?.data?.message || "Checkout failed");
     } finally {
@@ -1316,8 +1523,122 @@ export default function POSManagement() {
     );
   }
 
+  const salesSummaryDays = salesSummary.days?.length
+    ? salesSummary.days
+    : [
+        { date: "", label: "Today", full_label: "Today", sales_total: 0, sales_count: 0 },
+        { date: "", label: "Yesterday", full_label: "Yesterday", sales_total: 0, sales_count: 0 },
+        { date: "", label: "2 Days Ago", full_label: "2 Days Ago", sales_total: 0, sales_count: 0 }
+      ];
+
   return (
     <div className={styles.posShell}>
+      {salesSummaryOpen ? (
+        <button
+          type="button"
+          className={styles.salesWidgetBackdrop}
+          aria-label="Close sales summary"
+          onClick={() => setSalesSummaryOpen(false)}
+        />
+      ) : null}
+
+      <div className={styles.salesWidgetDock}>
+        <button
+          type="button"
+          ref={salesDockRef}
+          className={`${styles.salesWidgetFab} ${
+            salesSummaryOpen || salesSummaryPeek ? styles.salesWidgetFabExpanded : ""
+          }`}
+          style={{
+            top: `${salesDockPosition.top}px`,
+            right: `${salesDockPosition.right}px`
+          }}
+          onClick={handleSalesFabClick}
+          onPointerDown={handleSalesDockPointerDown}
+          onPointerMove={handleSalesDockPointerMove}
+          onPointerUp={handleSalesDockPointerUp}
+          onPointerCancel={handleSalesDockPointerCancel}
+          onMouseEnter={() => setSalesSummaryPeek(true)}
+          onMouseLeave={() => {
+            if (!salesSummaryOpen) {
+              setSalesSummaryPeek(false);
+            }
+          }}
+          aria-expanded={salesSummaryOpen}
+          aria-controls="sales-summary-panel"
+        >
+          <span className={styles.salesWidgetFabIcon}>
+            $
+          </span>
+          <span className={styles.salesWidgetFabText}>
+            <strong>Sales Summary</strong>
+            <small>{formatMoney(salesSummary.total_sales)}</small>
+          </span>
+        </button>
+
+        <aside
+          id="sales-summary-panel"
+          className={`${styles.salesWidgetPanel} ${
+            salesSummaryOpen || salesSummaryPeek ? styles.salesWidgetPanelOpen : ""
+          }`}
+          style={{
+            top: `${salesDockPosition.top + 70}px`,
+            right: `${salesDockPosition.right}px`
+          }}
+          aria-label="Your recent sales summary"
+        >
+          <div className={styles.salesWidgetHeader}>
+            <div>
+              <p className={styles.salesWidgetEyebrow}>Your sales</p>
+              <h3>Last 3 days</h3>
+            </div>
+
+            <div className={styles.salesWidgetHeaderActions}>
+              <button
+                type="button"
+                className={styles.salesWidgetRefresh}
+                onClick={() => loadSalesSummary()}
+                disabled={loadingSalesSummary}
+                aria-label="Refresh sales summary"
+              >
+                <FiRefreshCw />
+              </button>
+
+              <button
+                type="button"
+                className={styles.salesWidgetClose}
+                onClick={() => setSalesSummaryOpen(false)}
+                aria-label="Close sales summary"
+              >
+                <FiX />
+              </button>
+            </div>
+          </div>
+
+          <div className={styles.salesWidgetTotal}>
+            <span>{currentUser?.name || "Staff"}</span>
+            <strong>{formatMoney(salesSummary.total_sales)}</strong>
+            <small>{salesSummary.total_count} sale(s) in 3 days</small>
+          </div>
+
+          <div className={styles.salesWidgetList}>
+            {salesSummaryDays.map((day) => (
+              <div key={day.date || day.label} className={styles.salesWidgetDay}>
+                <div>
+                  <strong>{day.label}</strong>
+                  <span>{day.full_label}</span>
+                </div>
+
+                <div className={styles.salesWidgetAmount}>
+                  <strong>{formatMoney(day.sales_total)}</strong>
+                  <span>{day.sales_count} sale(s)</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </aside>
+      </div>
+
       <CustomerOrdersAlert counts={customerCounts} onOpen={() => setCustomerOrdersOpen(true)} />
       <CustomerOrdersDrawer
         open={customerOrdersOpen}

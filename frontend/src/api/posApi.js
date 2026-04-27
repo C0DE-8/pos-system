@@ -11,6 +11,11 @@ export const splitItemPrice = async (payload) => {
   return data;
 };
 
+export const getSalesSummary = async () => {
+  const { data } = await API.get("/pos/sales-summary");
+  return data;
+};
+
 export const createPendingCart = async (payload) => {
   const { data } = await API.post("/pos/pending", payload);
   return data;
