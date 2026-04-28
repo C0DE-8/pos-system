@@ -1,6 +1,16 @@
 const express = require("express");
-const { query } = require("../config/db");
+const { query, pool } = require("../config/db");
 const { authenticateToken, requirePermission } = require("../middleware/auth");
+const { ensureBusinessContext } = require("../utils/tenant");
+const {
+  deductUnitInventory,
+  loadHierarchy,
+  loadInventoryMap,
+  calculateTotalInSmallestUnits,
+  recordUnitInventoryHistory,
+  restoreUnitInventory,
+  syncProductStock
+} = require("../utils/unitHierarchy");
 
 const router = express.Router();
 
@@ -81,13 +91,15 @@ router.get("/low-stock", requirePermission("inventory"), async (req, res) => {
 
 // /inventory/restock
 router.post("/restock/:productId", requirePermission("inventory"), async (req, res) => {
+  const conn = await pool.getConnection();
   try {
     const { qty, action = "add", reason } = req.body;
     const productId = req.params.productId;
+    const branchId = req.query.branch_id || req.user.branch_id || null;
 
     const changeQty = Number(qty);
 
-    if (!changeQty || changeQty <= 0) {
+    if (!Number.isInteger(changeQty) || changeQty <= 0) {
       return res.status(400).json({
         success: false,
         message: "qty must be greater than 0"
@@ -101,8 +113,8 @@ router.post("/restock/:productId", requirePermission("inventory"), async (req, r
       });
     }
 
-    const rows = await query(
-      "SELECT id, stock, is_unlimited, name FROM products WHERE id = ? LIMIT 1",
+    const [rows] = await conn.execute(
+      "SELECT id, stock, is_unlimited, has_unit_hierarchy, name FROM products WHERE id = ? LIMIT 1 FOR UPDATE",
       [productId]
     );
 
@@ -133,9 +145,39 @@ router.post("/restock/:productId", requirePermission("inventory"), async (req, r
       });
     }
 
-    await query("UPDATE products SET stock = ? WHERE id = ?", [afterQty, productId]);
+    await conn.beginTransaction();
 
-    await query(
+    if (Number(product.has_unit_hierarchy) === 1) {
+      const result =
+        action === "add"
+          ? await restoreUnitInventory(conn, productId, changeQty, branchId)
+          : await deductUnitInventory(conn, productId, changeQty, branchId);
+
+      if (!result.success) {
+        await conn.rollback();
+        return res.status(400).json({
+          success: false,
+          message: result.message
+        });
+      }
+
+      for (const change of result.changes) {
+        await recordUnitInventoryHistory(
+          conn,
+          Number(productId),
+          change.unit_level_id,
+          change.before_qty,
+          change.after_qty,
+          reason || (action === "add" ? "Stock added" : "Stock removed"),
+          req.user.id,
+          branchId
+        );
+      }
+    } else {
+      await conn.execute("UPDATE products SET stock = ? WHERE id = ?", [afterQty, productId]);
+    }
+
+    await conn.execute(
       `INSERT INTO stock_history (product_id, before_qty, after_qty, change_qty, reason, by_user_id)
        VALUES (?, ?, ?, ?, ?, ?)`,
       [
@@ -148,6 +190,8 @@ router.post("/restock/:productId", requirePermission("inventory"), async (req, r
       ]
     );
 
+    await conn.commit();
+
     res.json({
       success: true,
       message: action === "add" ? "Stock added successfully" : "Stock removed successfully",
@@ -156,32 +200,82 @@ router.post("/restock/:productId", requirePermission("inventory"), async (req, r
       afterQty
     });
   } catch (error) {
+    await conn.rollback();
     res.status(500).json({ success: false, message: error.message });
+  } finally {
+    conn.release();
   }
 });
 
 // /inventory/adjust
 router.post("/adjust/:productId", requirePermission("stockAdj"), async (req, res) => {
+  const conn = await pool.getConnection();
   try {
     const { newQty, reason } = req.body;
     const productId = req.params.productId;
-
-    const rows = await query("SELECT stock FROM products WHERE id = ? LIMIT 1", [productId]);
+    const branchId = req.query.branch_id || req.user.branch_id || null;
+    const [rows] = await conn.execute(
+      "SELECT stock, has_unit_hierarchy FROM products WHERE id = ? LIMIT 1 FOR UPDATE",
+      [productId]
+    );
     if (!rows.length) return res.status(404).json({ success: false, message: "Product not found" });
 
-    const beforeQty = rows[0].stock;
+    const beforeQty = Number(rows[0].stock || 0);
     const afterQty = Number(newQty);
 
-    await query("UPDATE products SET stock = ? WHERE id = ?", [afterQty, productId]);
-    await query(
+    if (!Number.isInteger(afterQty) || afterQty < 0) {
+      return res.status(400).json({
+        success: false,
+        message: "newQty must be a non-negative whole number"
+      });
+    }
+
+    await conn.beginTransaction();
+
+    if (Number(rows[0].has_unit_hierarchy) === 1) {
+      const delta = afterQty - beforeQty;
+      const result =
+        delta >= 0
+          ? await restoreUnitInventory(conn, productId, delta, branchId)
+          : await deductUnitInventory(conn, productId, Math.abs(delta), branchId);
+
+      if (!result.success) {
+        await conn.rollback();
+        return res.status(400).json({
+          success: false,
+          message: result.message
+        });
+      }
+
+      for (const change of result.changes) {
+        await recordUnitInventoryHistory(
+          conn,
+          Number(productId),
+          change.unit_level_id,
+          change.before_qty,
+          change.after_qty,
+          reason || "Manual adjustment",
+          req.user.id,
+          branchId
+        );
+      }
+    } else {
+      await conn.execute("UPDATE products SET stock = ? WHERE id = ?", [afterQty, productId]);
+    }
+
+    await conn.execute(
       `INSERT INTO stock_history (product_id, before_qty, after_qty, change_qty, reason, by_user_id)
        VALUES (?, ?, ?, ?, ?, ?)`,
       [productId, beforeQty, afterQty, afterQty - beforeQty, reason || "Manual adjustment", req.user.id]
     );
 
+    await conn.commit();
     res.json({ success: true, message: "Stock adjusted", beforeQty, afterQty });
   } catch (error) {
+    await conn.rollback();
     res.status(500).json({ success: false, message: error.message });
+  } finally {
+    conn.release();
   }
 });
 
@@ -690,6 +784,183 @@ router.get("/warehouse/:productId", requirePermission("inventory"), async (req, 
       success: false,
       message: error.message
     });
+  }
+});
+
+// ========================================================
+// UNIT HIERARCHY INVENTORY ENDPOINTS
+// ========================================================
+
+// /inventory/unit-hierarchy/:productId/breakdown
+// Get detailed inventory breakdown by unit level for products with hierarchy
+router.get("/unit-hierarchy/:productId/breakdown", requirePermission("inventory"), async (req, res) => {
+  try {
+    if (!ensureBusinessContext(req, res)) return;
+    const { productId } = req.params;
+    const branchId = req.query.branch_id || req.user.branch_id || null;
+
+    const productRows = await query(
+      `SELECT id, name, stock, has_unit_hierarchy
+       FROM products
+       WHERE id = ? AND business_id = ?
+       LIMIT 1`,
+      [productId, req.user.business_id]
+    );
+
+    if (!productRows.length) {
+      return res.status(404).json({
+        success: false,
+        message: "Product not found"
+      });
+    }
+
+    const product = productRows[0];
+
+    if (Number(product.has_unit_hierarchy) !== 1) {
+      return res.status(400).json({
+        success: false,
+        message: "Product does not have unit hierarchy"
+      });
+    }
+
+    const hierarchy = await loadHierarchy(pool, productId);
+    const inventoryMap = await loadInventoryMap(pool, productId, branchId, false);
+    const names = await query(
+      `SELECT pul.id, pu.name AS unit_name, pu.short_name AS unit_short_name
+       FROM product_unit_levels pul
+       JOIN product_units pu ON pu.id = pul.unit_id
+       WHERE pul.product_id = ?`,
+      [productId]
+    );
+    const nameMap = new Map(names.map((row) => [Number(row.id), row]));
+
+    const levels = hierarchy.map((level) => ({
+      id: Number(level.id),
+      level: Number(level.level),
+      conversion_factor: Number(level.conversion_factor),
+      smallest_unit_multiplier: Number(level.smallest_unit_multiplier || 1),
+      is_smallest_unit: Number(level.is_smallest_unit || 0),
+      unit_name: nameMap.get(Number(level.id))?.unit_name || null,
+      unit_short_name: nameMap.get(Number(level.id))?.unit_short_name || null,
+      current_qty: Number(inventoryMap.get(Number(level.id))?.qty || 0)
+    }));
+
+    const totalSmallestUnits = calculateTotalInSmallestUnits(hierarchy, inventoryMap);
+
+    res.json({
+      success: true,
+      data: {
+        product_id: Number(productId),
+        product_name: product.name,
+        total_in_smallest_units: totalSmallestUnits,
+        unit_levels: levels
+      }
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+});
+
+// /inventory/unit-hierarchy/:productId/sync
+// Synchronize traditional stock with unit hierarchy inventory total
+// For legacy support - convert traditional stock to unit hierarchy
+router.post("/unit-hierarchy/:productId/sync", requirePermission("inventory"), async (req, res) => {
+  const conn = await pool.getConnection();
+  try {
+    if (!ensureBusinessContext(req, res)) return;
+    const { productId } = req.params;
+    const { action = "sync-to-smallest" } = req.body;
+    const branchId = req.query.branch_id || req.user.branch_id || null;
+
+    const productRows = await query(
+      `SELECT id, stock, has_unit_hierarchy
+       FROM products
+       WHERE id = ? AND business_id = ?
+       LIMIT 1`,
+      [productId, req.user.business_id]
+    );
+
+    if (!productRows.length) {
+      return res.status(404).json({
+        success: false,
+        message: "Product not found"
+      });
+    }
+
+    const product = productRows[0];
+
+    if (Number(product.has_unit_hierarchy) !== 1) {
+      return res.status(400).json({
+        success: false,
+        message: "Product does not have unit hierarchy"
+      });
+    }
+
+    if (action === "sync-to-smallest") {
+      await conn.beginTransaction();
+      const hierarchy = await loadHierarchy(conn, productId);
+      const smallestLevel = hierarchy[hierarchy.length - 1];
+      const inventoryMap = await loadInventoryMap(conn, productId, branchId);
+      const existing = inventoryMap.get(Number(smallestLevel.id));
+      const currentTotal = calculateTotalInSmallestUnits(hierarchy, inventoryMap);
+      const stockQty = Math.max(0, Number(product.stock || 0) - currentTotal);
+
+      if (stockQty <= 0) {
+        await conn.rollback();
+        return res.json({
+          success: true,
+          message: "No legacy stock remains to sync",
+          data: {
+            product_id: Number(productId),
+            total_in_smallest_units: currentTotal
+          }
+        });
+      }
+
+      if (existing?.id) {
+        await conn.execute(
+          `UPDATE unit_inventory
+           SET qty = qty + ?
+           WHERE id = ?`,
+          [stockQty, existing.id]
+        );
+      } else {
+        await conn.execute(
+          `INSERT INTO unit_inventory (product_id, unit_level_id, qty, branch_id)
+           VALUES (?, ?, ?, ?)`,
+          [productId, smallestLevel.id, stockQty, branchId]
+        );
+      }
+
+      const total = await syncProductStock(conn, productId, branchId);
+      await conn.commit();
+
+      res.json({
+        success: true,
+        message: "Inventory synced to unit hierarchy",
+        data: {
+          product_id: Number(productId),
+          total_in_smallest_units: total
+        }
+      });
+      return;
+    }
+
+    return res.status(400).json({
+      success: false,
+      message: "Unsupported sync action"
+    });
+  } catch (error) {
+    await conn.rollback();
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  } finally {
+    conn.release();
   }
 });
 

@@ -4,6 +4,10 @@ const { pool } = require("../config/db");
 const { authenticateToken, requirePermission } = require("../middleware/auth");
 const { ensureBusinessContext, isAdmin } = require("../utils/tenant");
 const branchAccessMiddleware = require("../middleware/branchAccessMiddleware");
+const {
+  deductUnitInventory,
+  recordUnitInventoryHistory
+} = require("../utils/unitHierarchy");
 
 const router = express.Router();
 
@@ -45,6 +49,25 @@ const buildRecentSalesDates = () => {
       fullLabel: date.format("ddd, MMM D")
     };
   });
+};
+
+const buildSalesSummaryWhere = (req, dateKeys) => {
+  const placeholders = dateKeys.map(() => "?").join(", ");
+  const params = [req.user.id, req.user.business_id, ...dateKeys];
+
+  let sql = `
+    FROM sales
+    WHERE cashier_id = ?
+      AND business_id = ?
+      AND DATE(sale_date) IN (${placeholders})
+  `;
+
+  if (req.user.branch_id) {
+    sql += ` AND branch_id = ?`;
+    params.push(req.user.branch_id);
+  }
+
+  return { sql, params };
 };
 
 async function resolveMembershipContext(conn, businessId, memberId, fallbackCustomer, subtotal) {
@@ -181,31 +204,21 @@ router.get("/sales-summary", requirePermission("pos"), branchAccessMiddleware, a
 
     const recentDates = buildRecentSalesDates();
     const dateKeys = recentDates.map((entry) => entry.key);
-    const placeholders = dateKeys.map(() => "?").join(", ");
-    const params = [req.user.id, req.user.business_id, ...dateKeys];
+    const includeDetails =
+      String(req.query.include_details || req.query.includeDetails || "0") === "1";
+    const baseWhere = buildSalesSummaryWhere(req, dateKeys);
 
-    let sql = `
+    const summarySql = `
       SELECT
         DATE(sale_date) AS sale_day,
         COUNT(*) AS sales_count,
         COALESCE(SUM(total), 0) AS sales_total
-      FROM sales
-      WHERE cashier_id = ?
-        AND business_id = ?
-        AND DATE(sale_date) IN (${placeholders})
-    `;
-
-    if (req.user.branch_id) {
-      sql += ` AND branch_id = ?`;
-      params.push(req.user.branch_id);
-    }
-
-    sql += `
+      ${baseWhere.sql}
       GROUP BY DATE(sale_date)
       ORDER BY sale_day DESC
     `;
 
-    const [rows] = await pool.execute(sql, params);
+    const [rows] = await pool.execute(summarySql, baseWhere.params);
     const rowMap = new Map(
       rows.map((row) => [
         moment(row.sale_day).format("YYYY-MM-DD"),
@@ -236,6 +249,221 @@ router.get("/sales-summary", requirePermission("pos"), branchAccessMiddleware, a
       0
     );
 
+    let details = null;
+
+    if (includeDetails) {
+      const salesSql = `
+        SELECT
+          id,
+          sale_code,
+          customer,
+          shift_id,
+          subtotal,
+          discount,
+          loyalty_discount,
+          giftcard_discount,
+          membership_discount,
+          tax,
+          total,
+          payment_method,
+          currency,
+          status,
+          refund_reason,
+          sale_date
+        ${baseWhere.sql}
+        ORDER BY sale_date DESC, id DESC
+      `;
+
+      const itemsSql = `
+        SELECT
+          si.sale_id,
+          si.product_id,
+          si.item_name,
+          si.item_type,
+          si.qty,
+          si.unit_price,
+          si.cost,
+          si.item_discount_pct,
+          si.final_price,
+          s.sale_date
+        FROM sale_items si
+        JOIN sales s ON s.id = si.sale_id
+        WHERE s.cashier_id = ?
+          AND s.business_id = ?
+          AND DATE(s.sale_date) IN (${dateKeys.map(() => "?").join(", ")})
+          ${req.user.branch_id ? "AND s.branch_id = ?" : ""}
+        ORDER BY s.sale_date DESC, si.id DESC
+      `;
+
+      const [saleRows, itemRows] = await Promise.all([
+        pool.execute(salesSql, baseWhere.params),
+        pool.execute(itemsSql, baseWhere.params)
+      ]);
+
+      const sales = saleRows[0].map((sale) => {
+        const itemCount = 0;
+        return {
+          sale_id: Number(sale.id),
+          sale_code: sale.sale_code,
+          customer: sale.customer || "Walk-in",
+          shift_id: sale.shift_id || null,
+          subtotal: roundMoney(sale.subtotal || 0),
+          discount: roundMoney(sale.discount || 0),
+          loyalty_discount: roundMoney(sale.loyalty_discount || 0),
+          giftcard_discount: roundMoney(sale.giftcard_discount || 0),
+          membership_discount: roundMoney(sale.membership_discount || 0),
+          tax: roundMoney(sale.tax || 0),
+          total: roundMoney(sale.total || 0),
+          payment_method: sale.payment_method || "unknown",
+          currency: sale.currency || "NGN",
+          status: sale.status || "completed",
+          refund_reason: sale.refund_reason || null,
+          sale_date: sale.sale_date,
+          sold_items: itemCount,
+          sold_units: 0
+        };
+      });
+
+      const saleMap = new Map(sales.map((sale) => [sale.sale_id, sale]));
+      const itemSummaryMap = new Map();
+      const paymentSummaryMap = new Map();
+      const daysDetailMap = new Map(
+        recentDates.map((entry) => [
+          entry.key,
+          {
+            date: entry.key,
+            label: entry.label,
+            full_label: entry.fullLabel,
+            sales_total: 0,
+            sales_count: 0,
+            subtotal: 0,
+            tax_total: 0,
+            discounts_total: 0,
+            items_sold: 0,
+            unique_items: 0,
+            payment_methods: [],
+            top_items: [],
+            sales: []
+          }
+        ])
+      );
+
+      for (const item of itemRows[0]) {
+        const saleId = Number(item.sale_id);
+        const sale = saleMap.get(saleId);
+        const qty = Number(item.qty || 0);
+        const finalPrice = roundMoney(item.final_price || 0);
+
+        if (sale) {
+          sale.sold_items += 1;
+          sale.sold_units += qty;
+        }
+
+        const saleDayKey = moment(item.sale_date).format("YYYY-MM-DD");
+        const dayDetail = daysDetailMap.get(saleDayKey);
+        if (!dayDetail) continue;
+
+        dayDetail.items_sold += qty;
+
+        const itemKey = `${saleDayKey}::${String(item.item_name || "Item").trim().toLowerCase()}`;
+        const existingItem = itemSummaryMap.get(itemKey) || {
+          day: saleDayKey,
+          item_name: item.item_name || "Item",
+          item_type: item.item_type || "fixed",
+          qty: 0,
+          revenue: 0
+        };
+
+        existingItem.qty += qty;
+        existingItem.revenue = roundMoney(existingItem.revenue + finalPrice);
+        itemSummaryMap.set(itemKey, existingItem);
+      }
+
+      for (const sale of sales) {
+        const saleDayKey = moment(sale.sale_date).format("YYYY-MM-DD");
+        const dayDetail = daysDetailMap.get(saleDayKey);
+        if (!dayDetail) continue;
+
+        const discountsTotal =
+          Number(sale.discount || 0) +
+          Number(sale.loyalty_discount || 0) +
+          Number(sale.giftcard_discount || 0) +
+          Number(sale.membership_discount || 0);
+
+        dayDetail.sales_total = roundMoney(dayDetail.sales_total + Number(sale.total || 0));
+        dayDetail.sales_count += 1;
+        dayDetail.subtotal = roundMoney(dayDetail.subtotal + Number(sale.subtotal || 0));
+        dayDetail.tax_total = roundMoney(dayDetail.tax_total + Number(sale.tax || 0));
+        dayDetail.discounts_total = roundMoney(dayDetail.discounts_total + discountsTotal);
+        dayDetail.sales.push(sale);
+
+        const paymentKey = `${saleDayKey}::${sale.payment_method}`;
+        const paymentSummary = paymentSummaryMap.get(paymentKey) || {
+          day: saleDayKey,
+          payment_method: sale.payment_method,
+          sales_count: 0,
+          total: 0
+        };
+        paymentSummary.sales_count += 1;
+        paymentSummary.total = roundMoney(paymentSummary.total + Number(sale.total || 0));
+        paymentSummaryMap.set(paymentKey, paymentSummary);
+      }
+
+      for (const dayDetail of daysDetailMap.values()) {
+        const paymentMethods = Array.from(paymentSummaryMap.values())
+          .filter((entry) => entry.day === dayDetail.date)
+          .map(({ day, ...rest }) => rest)
+          .sort((a, b) => b.total - a.total);
+
+        const topItems = Array.from(itemSummaryMap.values())
+          .filter((entry) => entry.day === dayDetail.date)
+          .sort((a, b) => (b.qty !== a.qty ? b.qty - a.qty : b.revenue - a.revenue))
+          .map(({ day, ...rest }) => rest);
+
+        dayDetail.payment_methods = paymentMethods;
+        dayDetail.top_items = topItems;
+        dayDetail.unique_items = topItems.length;
+      }
+
+      details = {
+        generated_at: moment().format("YYYY-MM-DD HH:mm:ss"),
+        closing_window: {
+          from: recentDates[recentDates.length - 1]?.key || null,
+          to: recentDates[0]?.key || null
+        },
+        days: recentDates.map((entry) => daysDetailMap.get(entry.key)),
+        payment_methods: Array.from(paymentSummaryMap.values())
+          .map(({ day, ...rest }) => rest)
+          .reduce((acc, item) => {
+            const existing = acc.find((entry) => entry.payment_method === item.payment_method);
+            if (existing) {
+              existing.sales_count += item.sales_count;
+              existing.total = roundMoney(existing.total + item.total);
+            } else {
+              acc.push({ ...item });
+            }
+            return acc;
+          }, [])
+          .sort((a, b) => b.total - a.total),
+        sold_items: Array.from(itemSummaryMap.values())
+          .map(({ day, ...rest }) => rest)
+          .reduce((acc, item) => {
+            const existing = acc.find(
+              (entry) =>
+                entry.item_name === item.item_name && entry.item_type === item.item_type
+            );
+            if (existing) {
+              existing.qty += item.qty;
+              existing.revenue = roundMoney(existing.revenue + item.revenue);
+            } else {
+              acc.push({ ...item });
+            }
+            return acc;
+          }, [])
+          .sort((a, b) => (b.qty !== a.qty ? b.qty - a.qty : b.revenue - a.revenue))
+      };
+    }
+
     res.json({
       success: true,
       data: {
@@ -243,7 +471,8 @@ router.get("/sales-summary", requirePermission("pos"), branchAccessMiddleware, a
         branch_id: req.user.branch_id || null,
         days,
         total_sales: totalSales,
-        total_count: totalCount
+        total_count: totalCount,
+        details
       }
     });
   } catch (error) {
@@ -796,10 +1025,10 @@ router.post("/pending/:id/checkout", requirePermission("pos"), branchAccessMiddl
         ]
       );
 
-      // 🔥 stock protection stays intact
+      // 🔥 stock protection stays intact - support both traditional and unit hierarchy
       if (item.product_id && item.manage_stock && item.qty > 0) {
         const [productRows] = await conn.execute(
-          `SELECT stock FROM products WHERE id = ? LIMIT 1`,
+          `SELECT stock, has_unit_hierarchy FROM products WHERE id = ? LIMIT 1`,
           [item.product_id]
         );
 
@@ -811,38 +1040,73 @@ router.post("/pending/:id/checkout", requirePermission("pos"), branchAccessMiddl
           });
         }
 
-        const beforeQty = Number(productRows[0].stock || 0);
+        const product = productRows[0];
 
-        if (beforeQty < item.qty) {
-          await conn.rollback();
-          return res.status(400).json({
-            success: false,
-            message: `Insufficient stock for ${item.item_name}`
-          });
-        }
-
-        const afterQty = beforeQty - item.qty;
-
-        await conn.execute(
-          `UPDATE products SET stock = ? WHERE id = ?`,
-          [afterQty, item.product_id]
-        );
-
-        await conn.execute(
-          `INSERT INTO stock_history
-          (product_id, before_qty, after_qty, change_qty, reason, by_user_id, business_id, branch_id)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-          [
+        // Handle unit hierarchy products
+        if (Number(product.has_unit_hierarchy) === 1) {
+          const deductResult = await deductUnitInventory(
+            conn,
             item.product_id,
-            beforeQty,
-            afterQty,
-            -item.qty,
-            `Sale #${saleId}`,
-            req.user.id,
-            cart.business_id || req.user.business_id,
+            item.qty,
             cart.branch_id || req.user.branch_id || null
-          ]
-        );
+          );
+
+          if (!deductResult.success) {
+            await conn.rollback();
+            return res.status(400).json({
+              success: false,
+              message: deductResult.message
+            });
+          }
+
+          // Record history for each deduction
+          for (const change of deductResult.changes) {
+            await recordUnitInventoryHistory(
+              conn,
+              item.product_id,
+              change.unit_level_id,
+              change.before_qty,
+              change.after_qty,
+              `Sale #${saleId}`,
+              req.user.id,
+              cart.branch_id || req.user.branch_id || null
+            );
+          }
+        } else {
+          // Handle traditional stock products
+          const beforeQty = Number(product.stock || 0);
+
+          if (beforeQty < item.qty) {
+            await conn.rollback();
+            return res.status(400).json({
+              success: false,
+              message: `Insufficient stock for ${item.item_name}`
+            });
+          }
+
+          const afterQty = beforeQty - item.qty;
+
+          await conn.execute(
+            `UPDATE products SET stock = ? WHERE id = ?`,
+            [afterQty, item.product_id]
+          );
+
+          await conn.execute(
+            `INSERT INTO stock_history
+            (product_id, before_qty, after_qty, change_qty, reason, by_user_id, business_id, branch_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+            [
+              item.product_id,
+              beforeQty,
+              afterQty,
+              -item.qty,
+              `Sale #${saleId}`,
+              req.user.id,
+              cart.business_id || req.user.business_id,
+              cart.branch_id || req.user.branch_id || null
+            ]
+          );
+        }
       }
     }
 
@@ -971,7 +1235,7 @@ router.post("/checkout", requirePermission("pos"), branchAccessMiddleware, async
 
       if (item.product_id && item.manage_stock && item.qty > 0) {
         const [productRows] = await conn.execute(
-          `SELECT stock FROM products WHERE id = ? LIMIT 1`,
+          `SELECT stock, has_unit_hierarchy FROM products WHERE id = ? LIMIT 1`,
           [item.product_id]
         );
 
@@ -983,38 +1247,73 @@ router.post("/checkout", requirePermission("pos"), branchAccessMiddleware, async
           });
         }
 
-        const beforeQty = Number(productRows[0].stock || 0);
+        const product = productRows[0];
 
-        if (beforeQty < item.qty) {
-          await conn.rollback();
-          return res.status(400).json({
-            success: false,
-            message: `Insufficient stock for ${item.item_name}`
-          });
-        }
-
-        const afterQty = beforeQty - item.qty;
-
-        await conn.execute(
-          `UPDATE products SET stock = ? WHERE id = ?`,
-          [afterQty, item.product_id]
-        );
-
-        await conn.execute(
-          `INSERT INTO stock_history
-          (product_id, before_qty, after_qty, change_qty, reason, by_user_id, business_id, branch_id)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-          [
+        // Handle unit hierarchy products
+        if (Number(product.has_unit_hierarchy) === 1) {
+          const deductResult = await deductUnitInventory(
+            conn,
             item.product_id,
-            beforeQty,
-            afterQty,
-            -item.qty,
-            `Sale #${saleId}`,
-            req.user.id,
-            req.user.business_id,
+            item.qty,
             req.user.branch_id || null
-          ]
-        );
+          );
+
+          if (!deductResult.success) {
+            await conn.rollback();
+            return res.status(400).json({
+              success: false,
+              message: deductResult.message
+            });
+          }
+
+          // Record history for each deduction
+          for (const change of deductResult.changes) {
+            await recordUnitInventoryHistory(
+              conn,
+              item.product_id,
+              change.unit_level_id,
+              change.before_qty,
+              change.after_qty,
+              `Sale #${saleId}`,
+              req.user.id,
+              req.user.branch_id || null
+            );
+          }
+        } else {
+          // Handle traditional stock products
+          const beforeQty = Number(product.stock || 0);
+
+          if (beforeQty < item.qty) {
+            await conn.rollback();
+            return res.status(400).json({
+              success: false,
+              message: `Insufficient stock for ${item.item_name}`
+            });
+          }
+
+          const afterQty = beforeQty - item.qty;
+
+          await conn.execute(
+            `UPDATE products SET stock = ? WHERE id = ?`,
+            [afterQty, item.product_id]
+          );
+
+          await conn.execute(
+            `INSERT INTO stock_history
+            (product_id, before_qty, after_qty, change_qty, reason, by_user_id, business_id, branch_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+            [
+              item.product_id,
+              beforeQty,
+              afterQty,
+              -item.qty,
+              `Sale #${saleId}`,
+              req.user.id,
+              req.user.business_id,
+              req.user.branch_id || null
+            ]
+          );
+        }
       }
     }
 

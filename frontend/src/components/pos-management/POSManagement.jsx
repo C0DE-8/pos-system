@@ -22,7 +22,8 @@ import {
   FiFolder,
   FiCheckCircle,
   FiRepeat,
-  FiShare2
+  FiShare2,
+  FiExternalLink
 } from "react-icons/fi";
 
 import { getProducts } from "../../api/productsApi";
@@ -130,11 +131,14 @@ export default function POSManagement() {
   const [salesSummary, setSalesSummary] = useState({
     days: [],
     total_sales: 0,
-    total_count: 0
+    total_count: 0,
+    details: null
   });
   const [loadingSalesSummary, setLoadingSalesSummary] = useState(true);
   const [salesSummaryOpen, setSalesSummaryOpen] = useState(false);
   const [salesSummaryPeek, setSalesSummaryPeek] = useState(false);
+  const [salesSummaryDetailsOpen, setSalesSummaryDetailsOpen] = useState(false);
+  const [loadingSalesSummaryDetails, setLoadingSalesSummaryDetails] = useState(false);
   const [salesDockPosition, setSalesDockPosition] = useState(
     getInitialSalesDockPosition
   );
@@ -353,11 +357,12 @@ export default function POSManagement() {
       }
 
       const res = await getSalesSummary();
-      setSalesSummary({
+      setSalesSummary((current) => ({
         days: res?.data?.days || [],
         total_sales: Number(res?.data?.total_sales || 0),
-        total_count: Number(res?.data?.total_count || 0)
-      });
+        total_count: Number(res?.data?.total_count || 0),
+        details: silent ? current.details : null
+      }));
     } catch (err) {
       if (!silent) {
         setError(err?.response?.data?.message || "Failed to load sales summary");
@@ -366,6 +371,26 @@ export default function POSManagement() {
       if (!silent) {
         setLoadingSalesSummary(false);
       }
+    }
+  };
+
+  const loadSalesSummaryDetails = async () => {
+    try {
+      setLoadingSalesSummaryDetails(true);
+      const res = await getSalesSummary({ include_details: 1 });
+      setSalesSummary({
+        days: res?.data?.days || [],
+        total_sales: Number(res?.data?.total_sales || 0),
+        total_count: Number(res?.data?.total_count || 0),
+        details: res?.data?.details || null
+      });
+      setSalesSummaryDetailsOpen(true);
+    } catch (err) {
+      setError(
+        err?.response?.data?.message || "Failed to load detailed sales summary"
+      );
+    } finally {
+      setLoadingSalesSummaryDetails(false);
     }
   };
 
@@ -1530,9 +1555,19 @@ export default function POSManagement() {
         { date: "", label: "Yesterday", full_label: "Yesterday", sales_total: 0, sales_count: 0 },
         { date: "", label: "2 Days Ago", full_label: "2 Days Ago", sales_total: 0, sales_count: 0 }
       ];
+  const salesSummaryDetailDays = salesSummary.details?.days || [];
 
   return (
     <div className={styles.posShell}>
+      {salesSummaryDetailsOpen ? (
+        <button
+          type="button"
+          className={styles.salesDetailsBackdrop}
+          aria-label="Close detailed sales summary"
+          onClick={() => setSalesSummaryDetailsOpen(false)}
+        />
+      ) : null}
+
       {salesSummaryOpen ? (
         <button
           type="button"
@@ -1636,8 +1671,221 @@ export default function POSManagement() {
               </div>
             ))}
           </div>
+
+          <div className={styles.salesWidgetFooter}>
+            <button
+              type="button"
+              className={styles.salesWidgetViewMore}
+              onClick={loadSalesSummaryDetails}
+              disabled={loadingSalesSummaryDetails}
+            >
+              <FiExternalLink />
+              {loadingSalesSummaryDetails ? "Loading..." : "View more"}
+            </button>
+          </div>
         </aside>
       </div>
+
+      {salesSummaryDetailsOpen ? (
+        <section
+          className={styles.salesDetailsModal}
+          aria-label="Detailed three day sales summary"
+        >
+          <div className={styles.salesDetailsHeader}>
+            <div>
+              <p className={styles.salesWidgetEyebrow}>Closeout summary</p>
+              <h3>Last 3 days sales detail</h3>
+              <small>
+                {salesSummary.details?.closing_window?.from || ""} to{" "}
+                {salesSummary.details?.closing_window?.to || ""}
+              </small>
+            </div>
+
+            <div className={styles.salesDetailsActions}>
+              <button
+                type="button"
+                className={styles.salesWidgetRefresh}
+                onClick={loadSalesSummaryDetails}
+                disabled={loadingSalesSummaryDetails}
+                aria-label="Refresh detailed sales summary"
+              >
+                <FiRefreshCw />
+              </button>
+              <button
+                type="button"
+                className={styles.salesWidgetClose}
+                onClick={() => setSalesSummaryDetailsOpen(false)}
+                aria-label="Close detailed sales summary"
+              >
+                <FiX />
+              </button>
+            </div>
+          </div>
+
+          <div className={styles.salesDetailsOverview}>
+            <article className={styles.salesDetailsMetric}>
+              <span>Total sales</span>
+              <strong>{formatMoney(salesSummary.total_sales)}</strong>
+            </article>
+            <article className={styles.salesDetailsMetric}>
+              <span>Transactions</span>
+              <strong>{salesSummary.total_count}</strong>
+            </article>
+            <article className={styles.salesDetailsMetric}>
+              <span>Cashier</span>
+              <strong>{currentUser?.name || "Staff"}</strong>
+            </article>
+          </div>
+
+          <div className={styles.salesDetailsBody}>
+            <div className={styles.salesDetailsMain}>
+              {salesSummaryDetailDays.map((day) => (
+                <article key={day.date} className={styles.salesDetailsDayCard}>
+                  <div className={styles.salesDetailsDayHeader}>
+                    <div>
+                      <strong>{day.label}</strong>
+                      <span>{day.full_label}</span>
+                    </div>
+                    <div className={styles.salesDetailsDayAmount}>
+                      <strong>{formatMoney(day.sales_total)}</strong>
+                      <span>{day.sales_count} sale(s)</span>
+                    </div>
+                  </div>
+
+                  <div className={styles.salesDetailsDayStats}>
+                    <div>
+                      <span>Subtotal</span>
+                      <strong>{formatMoney(day.subtotal)}</strong>
+                    </div>
+                    <div>
+                      <span>Discounts</span>
+                      <strong>{formatMoney(day.discounts_total)}</strong>
+                    </div>
+                    <div>
+                      <span>Tax</span>
+                      <strong>{formatMoney(day.tax_total)}</strong>
+                    </div>
+                    <div>
+                      <span>Units sold</span>
+                      <strong>{day.items_sold}</strong>
+                    </div>
+                  </div>
+
+                  <div className={styles.salesDetailsColumns}>
+                    <div className={styles.salesDetailsBlock}>
+                      <h4>Payment mix</h4>
+                      {day.payment_methods?.length ? (
+                        day.payment_methods.map((payment) => (
+                          <div
+                            key={`${day.date}-${payment.payment_method}`}
+                            className={styles.salesDetailsRow}
+                          >
+                            <span>{payment.payment_method}</span>
+                            <strong>
+                              {payment.sales_count} / {formatMoney(payment.total)}
+                            </strong>
+                          </div>
+                        ))
+                      ) : (
+                        <p className={styles.salesDetailsEmpty}>No payment data.</p>
+                      )}
+                    </div>
+
+                    <div className={styles.salesDetailsBlock}>
+                      <h4>What was sold</h4>
+                      {day.top_items?.length ? (
+                        day.top_items.slice(0, 8).map((item) => (
+                          <div
+                            key={`${day.date}-${item.item_name}-${item.item_type}`}
+                            className={styles.salesDetailsRow}
+                          >
+                            <span>
+                              {item.item_name}
+                              <small>{item.item_type}</small>
+                            </span>
+                            <strong>
+                              {item.qty} / {formatMoney(item.revenue)}
+                            </strong>
+                          </div>
+                        ))
+                      ) : (
+                        <p className={styles.salesDetailsEmpty}>No sold items.</p>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className={styles.salesDetailsBlock}>
+                    <h4>Transactions</h4>
+                    {day.sales?.length ? (
+                      <div className={styles.salesDetailsSalesList}>
+                        {day.sales.map((sale) => (
+                          <div key={sale.sale_id} className={styles.salesDetailsSaleRow}>
+                            <div>
+                              <strong>{sale.sale_code}</strong>
+                              <span>
+                                {sale.customer} • {sale.payment_method} •{" "}
+                                {formatDateTimeLocal(sale.sale_date)}
+                              </span>
+                            </div>
+                            <div className={styles.salesDetailsSaleMeta}>
+                              <strong>{formatMoney(sale.total)}</strong>
+                              <span>
+                                {sale.sold_units} unit(s) • {sale.sold_items} line(s)
+                              </span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className={styles.salesDetailsEmpty}>No sales recorded.</p>
+                    )}
+                  </div>
+                </article>
+              ))}
+            </div>
+
+            <aside className={styles.salesDetailsSide}>
+              <div className={styles.salesDetailsBlock}>
+                <h4>All payment methods</h4>
+                {salesSummary.details?.payment_methods?.length ? (
+                  salesSummary.details.payment_methods.map((payment) => (
+                    <div key={payment.payment_method} className={styles.salesDetailsRow}>
+                      <span>{payment.payment_method}</span>
+                      <strong>
+                        {payment.sales_count} / {formatMoney(payment.total)}
+                      </strong>
+                    </div>
+                  ))
+                ) : (
+                  <p className={styles.salesDetailsEmpty}>No payment totals.</p>
+                )}
+              </div>
+
+              <div className={styles.salesDetailsBlock}>
+                <h4>Top sold items</h4>
+                {salesSummary.details?.sold_items?.length ? (
+                  salesSummary.details.sold_items.slice(0, 12).map((item) => (
+                    <div
+                      key={`${item.item_name}-${item.item_type}`}
+                      className={styles.salesDetailsRow}
+                    >
+                      <span>
+                        {item.item_name}
+                        <small>{item.item_type}</small>
+                      </span>
+                      <strong>
+                        {item.qty} / {formatMoney(item.revenue)}
+                      </strong>
+                    </div>
+                  ))
+                ) : (
+                  <p className={styles.salesDetailsEmpty}>No item summary.</p>
+                )}
+              </div>
+            </aside>
+          </div>
+        </section>
+      ) : null}
 
       <CustomerOrdersAlert counts={customerCounts} onOpen={() => setCustomerOrdersOpen(true)} />
       <CustomerOrdersDrawer

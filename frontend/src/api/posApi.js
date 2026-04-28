@@ -11,8 +11,8 @@ export const splitItemPrice = async (payload) => {
   return data;
 };
 
-export const getSalesSummary = async () => {
-  const { data } = await API.get("/pos/sales-summary");
+export const getSalesSummary = async (params = {}) => {
+  const { data } = await API.get("/pos/sales-summary", { params });
   return data;
 };
 

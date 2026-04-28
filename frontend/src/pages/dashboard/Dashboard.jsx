@@ -26,6 +26,7 @@ import PermissionsSummary from "../../components/permissions-summary/Permissions
 import DashboardLoader from "../../components/dashboard-loader/DashboardLoader";
 import UsersManagement from "../../components/users-management/UsersManagement";
 import InventoryManagement from "../../components/inventory-management/InventoryManagement";
+import UnitHierarchyManagement from "../../components/unit-hierarchy-management/UnitHierarchyManagement";
 import WarehouseManagement from "../../components/warehouse-management/WarehouseManagement";
 import POSManagement from "../../components/pos-management/POSManagement";
 import CourtsManagement from "../../components/courts-management/CourtsManagement";
@@ -60,6 +61,7 @@ const MENU_ITEMS = [
   { label: "POS", permission: "pos", icon: <FiCreditCard /> },
   { label: "Courts", permission: "courts", icon: <FiMapPin /> },
   { label: "Inventory", permission: "inventory", icon: <FiBox /> },
+  { label: "Unit Hierarchy", permission: "inventory", icon: <FiBox /> },
   { label: "Warehouse", permission: "inventory", icon: <FiBox /> },
   { label: "Sales", permission: "sales", icon: <FiTrendingUp /> },
   { label: "Reports", permission: "analytics", icon: <FiBarChart2 /> },
@@ -366,7 +368,7 @@ export default function Dashboard() {
   }, [dashboardData, currentUser, currentPermissions]);
 
   const bottomNavItems = useMemo(() => {
-    const preferredOrder = ["Overview", "POS", "Inventory", "Warehouse", "Settings"];
+    const preferredOrder = ["Overview", "POS", "Inventory", "Unit Hierarchy", "Settings"];
     return preferredOrder
       .map((label) => menu.find((item) => item.label === label))
       .filter(Boolean)
@@ -525,6 +527,14 @@ export default function Dashboard() {
       return (
         <section className={styles.fullSection}>
           <InventoryManagement />
+        </section>
+      );
+    }
+
+    if (activeMenu === "Unit Hierarchy" && hasPermission(currentUser, currentPermissions, "inventory")) {
+      return (
+        <section className={styles.fullSection}>
+          <UnitHierarchyManagement />
         </section>
       );
     }

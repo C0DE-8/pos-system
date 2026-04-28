@@ -3,6 +3,10 @@ const { query, pool } = require("../config/db");
 const { authenticateToken, requirePermission } = require("../middleware/auth");
 const { ensureBusinessContext, isAdmin } = require("../utils/tenant");
 const branchAccessMiddleware = require("../middleware/branchAccessMiddleware");
+const {
+  restoreUnitInventory,
+  recordUnitInventoryHistory
+} = require("../utils/unitHierarchy");
 
 const router = express.Router();
 
@@ -182,34 +186,60 @@ router.post("/:id/refund", requirePermission("refunds"), branchAccessMiddleware,
     for (const item of items) {
       if (item.product_id) {
         const [products] = await conn.execute(
-          "SELECT stock, is_unlimited FROM products WHERE id = ? LIMIT 1 FOR UPDATE",
+          "SELECT stock, is_unlimited, has_unit_hierarchy FROM products WHERE id = ? LIMIT 1 FOR UPDATE",
           [item.product_id]
         );
         if (products.length) {
           const product = products[0];
           if (Number(product.is_unlimited) === 1) continue;
 
-          const beforeQty = Number(product.stock ?? 0);
           const changeQty = Number(item.qty ?? 0);
           if (changeQty <= 0) continue;
 
-          const afterQty = beforeQty + changeQty;
-
-          await conn.execute("UPDATE products SET stock = ? WHERE id = ?", [afterQty, item.product_id]);
-          await conn.execute(
-            `INSERT INTO stock_history (product_id, before_qty, after_qty, change_qty, reason, by_user_id, business_id, branch_id)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-            [
+          // Handle unit hierarchy products
+          if (Number(product.has_unit_hierarchy) === 1) {
+            const restoreResult = await restoreUnitInventory(
+              conn,
               item.product_id,
-              beforeQty,
-              afterQty,
               changeQty,
-              `Refund sale #${req.params.id}: ${reason || "Refunded"}`,
-              req.user.id,
-              sale.business_id || req.user.business_id || null,
               sale.branch_id || req.user.branch_id || null
-            ]
-          );
+            );
+
+            if (restoreResult.success) {
+              for (const change of restoreResult.changes) {
+                await recordUnitInventoryHistory(
+                  conn,
+                  item.product_id,
+                  change.unit_level_id,
+                  change.before_qty,
+                  change.after_qty,
+                  `Refund sale #${req.params.id}: ${reason || "Refunded"}`,
+                  req.user.id,
+                  sale.branch_id || req.user.branch_id || null
+                );
+              }
+            }
+          } else {
+            // Handle traditional stock products
+            const beforeQty = Number(product.stock ?? 0);
+            const afterQty = beforeQty + changeQty;
+
+            await conn.execute("UPDATE products SET stock = ? WHERE id = ?", [afterQty, item.product_id]);
+            await conn.execute(
+              `INSERT INTO stock_history (product_id, before_qty, after_qty, change_qty, reason, by_user_id, business_id, branch_id)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+              [
+                item.product_id,
+                beforeQty,
+                afterQty,
+                changeQty,
+                `Refund sale #${req.params.id}: ${reason || "Refunded"}`,
+                req.user.id,
+                sale.business_id || req.user.business_id || null,
+                sale.branch_id || req.user.branch_id || null
+              ]
+            );
+          }
         }
       }
     }

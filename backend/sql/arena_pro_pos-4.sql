@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: localhost
--- Generation Time: Apr 26, 2026 at 02:20 AM
+-- Generation Time: Apr 28, 2026 at 05:02 PM
 -- Server version: 10.4.28-MariaDB
 -- PHP Version: 8.2.4
 
@@ -163,7 +163,14 @@ INSERT INTO `clock_events` (`id`, `user_id`, `event_type`, `event_time`, `create
 (38, 2, 'out', '2026-04-25 17:07:50', '2026-04-25 17:07:50'),
 (39, 4, 'in', '2026-04-25 17:07:58', '2026-04-25 17:07:58'),
 (40, 4, 'out', '2026-04-25 17:08:12', '2026-04-25 17:08:12'),
-(41, 2, 'in', '2026-04-25 17:08:23', '2026-04-25 17:08:23');
+(41, 2, 'in', '2026-04-25 17:08:23', '2026-04-25 17:08:23'),
+(42, 2, 'in', '2026-04-26 17:11:51', '2026-04-26 17:11:51'),
+(43, 2, 'out', '2026-04-26 17:13:12', '2026-04-26 17:13:12'),
+(44, 4, 'in', '2026-04-26 17:13:24', '2026-04-26 17:13:24'),
+(45, 4, 'out', '2026-04-26 17:13:31', '2026-04-26 17:13:31'),
+(46, 2, 'in', '2026-04-26 17:13:40', '2026-04-26 17:13:40'),
+(47, 2, 'out', '2026-04-26 17:14:07', '2026-04-26 17:14:07'),
+(48, 4, 'in', '2026-04-26 17:14:13', '2026-04-26 17:14:13');
 
 -- --------------------------------------------------------
 
@@ -284,7 +291,9 @@ INSERT INTO `customer_order_status_logs` (`id`, `customer_order_id`, `old_status
 (11, 1, 'confirmed', 'confirmed', 2, '2026-04-14 10:01:20'),
 (12, 1, 'confirmed', 'confirmed', 2, '2026-04-14 10:01:38'),
 (13, 1, 'confirmed', 'confirmed', 2, '2026-04-14 10:01:38'),
-(14, 2, 'pending', 'preparing', 2, '2026-04-14 10:02:21');
+(14, 2, 'pending', 'preparing', 2, '2026-04-14 10:02:21'),
+(15, 1, 'confirmed', 'confirmed', 4, '2026-04-26 17:27:41'),
+(16, 1, 'confirmed', 'confirmed', 4, '2026-04-26 17:27:44');
 
 -- --------------------------------------------------------
 
@@ -453,7 +462,7 @@ INSERT INTO `pending_carts` (`id`, `cart_code`, `customer`, `member_id`, `member
 (4, 'PEND-1773968002056', 'Walk-in', NULL, NULL, NULL, 0.00, 0.00, 2, NULL, 100.00, 0.00, 0.00, 0.00, 10.00, 110.00, 'NGN', 'checked_out', NULL, '2026-03-19 17:53:22', '2026-04-14 02:05:25', 1, 1),
 (7, 'PEND-1775831157224', 'Walk-in', NULL, NULL, NULL, 0.00, 0.00, 2, NULL, 300.00, 0.00, 0.00, 0.00, 30.00, 330.00, 'NGN', 'checked_out', NULL, '2026-04-10 07:25:57', '2026-04-14 02:05:25', 1, 1),
 (8, 'PEND-1776185985344', 'Samuel Oghenchovwe', NULL, NULL, NULL, 0.00, 0.00, 2, NULL, 100.00, 0.00, 0.00, 0.00, 10.00, 110.00, 'NGN', 'cancelled', 'From customer order DM-1776185905915', '2026-04-14 09:59:45', '2026-04-14 09:59:49', 1, 1),
-(9, 'PEND-1777161575508', 'Samuel Oghenchovwe', 1, 2, 'VIP', 10.00, 50.00, 2, NULL, 500.00, 0.00, 0.00, 0.00, 45.00, 495.00, 'NGN', 'pending', NULL, '2026-04-25 16:59:35', '2026-04-25 16:59:35', 1, 1);
+(9, 'PEND-1777161575508', 'Samuel Oghenchovwe', 1, 2, 'VIP', 10.00, 50.00, 2, NULL, 500.00, 0.00, 0.00, 0.00, 45.00, 495.00, 'NGN', 'cancelled', NULL, '2026-04-25 16:59:35', '2026-04-26 17:15:46', 1, 1);
 
 -- --------------------------------------------------------
 
@@ -508,6 +517,7 @@ CREATE TABLE `products` (
   `name` varchar(150) NOT NULL,
   `icon` varchar(20) DEFAULT '?',
   `category_id` int(11) DEFAULT NULL,
+  `product_unit_id` int(11) DEFAULT NULL,
   `type` enum('timed','fixed','food','gear') NOT NULL DEFAULT 'fixed',
   `hourly_rate` decimal(12,2) DEFAULT 0.00,
   `price` decimal(12,2) DEFAULT 0.00,
@@ -530,10 +540,34 @@ CREATE TABLE `products` (
 -- Dumping data for table `products`
 --
 
-INSERT INTO `products` (`id`, `name`, `icon`, `category_id`, `type`, `hourly_rate`, `price`, `cost`, `stock`, `low_stock`, `modifier_group_id`, `is_active`, `created_at`, `is_unlimited`, `consumable_type`, `has_expiry`, `expiry_date`, `shelf_life_days`, `business_id`, `branch_id`) VALUES
-(1, ' Snooker Table', '🎱', 1, 'timed', 1000.00, 1000.00, 0.00, NULL, 0, NULL, 1, '2026-03-10 12:21:19', 1, NULL, 0, NULL, NULL, 1, 1),
-(2, 'rice', '📦', 5, 'fixed', 0.00, 100.00, 2000.00, 99, 5, NULL, 1, '2026-03-16 15:36:26', 0, 'food', 1, '2026-04-07', 4, 1, 1),
-(3, 'meat', '📦', 5, 'food', 0.00, 100.00, 2000.00, 99, 5, NULL, 1, '2026-03-16 15:36:26', 0, 'food', 1, '2026-04-07', 4, 1, 1);
+INSERT INTO `products` (`id`, `name`, `icon`, `category_id`, `product_unit_id`, `type`, `hourly_rate`, `price`, `cost`, `stock`, `low_stock`, `modifier_group_id`, `is_active`, `created_at`, `is_unlimited`, `consumable_type`, `has_expiry`, `expiry_date`, `shelf_life_days`, `business_id`, `branch_id`) VALUES
+(1, ' Snooker Table', '🎱', 1, NULL, 'timed', 1000.00, 1000.00, 0.00, NULL, 0, NULL, 1, '2026-03-10 12:21:19', 1, NULL, 0, NULL, NULL, 1, 1),
+(2, 'rice', '📦', 5, NULL, 'fixed', 0.00, 100.00, 2000.00, 98, 5, NULL, 1, '2026-03-16 15:36:26', 0, 'food', 1, '2026-04-07', 4, 1, 1),
+(3, 'meat', '📦', 5, 1, 'food', 0.00, 100.00, 2000.00, 99, 5, NULL, 1, '2026-03-16 15:36:26', 0, 'food', 1, '2026-04-30', 4, 1, 1);
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `product_units`
+--
+
+CREATE TABLE `product_units` (
+  `id` int(11) NOT NULL,
+  `name` varchar(120) NOT NULL,
+  `short_name` varchar(30) DEFAULT NULL,
+  `business_id` int(11) DEFAULT NULL,
+  `created_at` datetime NOT NULL DEFAULT current_timestamp(),
+  `updated_at` datetime NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Dumping data for table `product_units`
+--
+
+INSERT INTO `product_units` (`id`, `name`, `short_name`, `business_id`, `created_at`, `updated_at`) VALUES
+(1, 'Piece', 'pc', 1, '2026-04-25 17:42:21', '2026-04-25 17:42:21'),
+(2, 'Pack', 'pack', 1, '2026-04-25 17:42:21', '2026-04-25 17:42:21'),
+(3, 'Carton', 'ctn', 1, '2026-04-25 17:42:21', '2026-04-25 17:42:21');
 
 -- --------------------------------------------------------
 
@@ -612,7 +646,9 @@ INSERT INTO `sales` (`id`, `sale_code`, `customer`, `member_id`, `membership_tie
 (4, 'SALE-1775831111681', 'Walk-in', NULL, NULL, NULL, 0.00, 0.00, 2, NULL, 200.00, 0.00, 0.00, 0.00, 20.00, 220.00, 'card', 'NGN', 'completed', NULL, '2026-04-10 07:25:11', 1, 1),
 (5, 'SALE-1775831170911', 'Walk-in', NULL, NULL, NULL, 0.00, 0.00, 2, NULL, 300.00, 0.00, 0.00, 0.00, 30.00, 330.00, 'card', 'NGN', 'completed', NULL, '2026-04-10 07:26:10', 1, 1),
 (6, 'SALE-1777161520438', 'Samuel Oghenchovwe', 1, 2, 'VIP', 10.00, 60.00, 2, NULL, 600.00, 0.00, 0.00, 0.00, 54.00, 594.00, 'card', 'NGN', 'completed', NULL, '2026-04-25 16:58:40', 1, 1),
-(7, 'SALE-1777161556376', 'Samuel Oghenchovwe', 1, 2, 'VIP', 10.00, 10.00, 2, NULL, 100.00, 0.00, 0.00, 0.00, 9.00, 99.00, 'card', 'NGN', 'completed', NULL, '2026-04-25 16:59:16', 1, 1);
+(7, 'SALE-1777161556376', 'Samuel Oghenchovwe', 1, 2, 'VIP', 10.00, 10.00, 2, NULL, 100.00, 0.00, 0.00, 0.00, 9.00, 99.00, 'card', 'NGN', 'completed', NULL, '2026-04-25 16:59:16', 1, 1),
+(8, 'SALE-1777249801497', 'Walk-in', NULL, NULL, NULL, 0.00, 0.00, 4, NULL, 500.00, 0.00, 0.00, 0.00, 50.00, 550.00, 'card', 'NGN', 'completed', NULL, '2026-04-26 17:30:01', 1, 1),
+(9, 'SALE-1777249817783', 'Walk-in', NULL, NULL, NULL, 0.00, 0.00, 4, NULL, 100.00, 0.00, 0.00, 0.00, 10.00, 110.00, 'transfer', 'NGN', 'completed', NULL, '2026-04-26 17:30:17', 1, 1);
 
 -- --------------------------------------------------------
 
@@ -654,7 +690,9 @@ INSERT INTO `sale_items` (`id`, `sale_id`, `product_id`, `item_name`, `icon`, `i
 (10, 5, 3, 'meat', '📦', 'fixed', 1, 100.00, 2000.00, 0.00, NULL, NULL, 0, 100.00),
 (11, 6, 3, 'meat', '📦', 'fixed', 1, 100.00, 2000.00, 0.00, NULL, NULL, 0, 100.00),
 (12, 6, 1, ' Snooker Table', '🎱', 'timed', 1, 1000.00, 0.00, 0.00, '2026-04-25 16:56:35', NULL, 0, 500.00),
-(13, 7, 2, 'rice', '📦', 'fixed', 1, 100.00, 2000.00, 0.00, NULL, NULL, 0, 100.00);
+(13, 7, 2, 'rice', '📦', 'fixed', 1, 100.00, 2000.00, 0.00, NULL, NULL, 0, 100.00),
+(14, 8, 1, ' Snooker Table', '🎱', 'timed', 1, 1000.00, 0.00, 0.00, '2026-04-26 17:29:56', NULL, 0, 500.00),
+(15, 9, 2, 'rice', '📦', 'fixed', 1, 100.00, 2000.00, 0.00, NULL, NULL, 0, 100.00);
 
 -- --------------------------------------------------------
 
@@ -742,7 +780,8 @@ INSERT INTO `stock_history` (`id`, `product_id`, `before_qty`, `after_qty`, `cha
 (9, 2, 2, 0, -2, 'Sale #5', 2, '2026-04-10 07:26:10', 1, 1),
 (10, 3, 1, 0, -1, 'Sale #5', 2, '2026-04-10 07:26:10', 1, 1),
 (11, 3, 100, 99, -1, 'Sale #6', 2, '2026-04-25 16:58:40', 1, 1),
-(12, 2, 100, 99, -1, 'Sale #7', 2, '2026-04-25 16:59:16', 1, 1);
+(12, 2, 100, 99, -1, 'Sale #7', 2, '2026-04-25 16:59:16', 1, 1),
+(13, 2, 99, 98, -1, 'Sale #9', 4, '2026-04-26 17:30:17', 1, 1);
 
 -- --------------------------------------------------------
 
@@ -808,7 +847,7 @@ CREATE TABLE `user_permissions` (
 INSERT INTO `user_permissions` (`id`, `user_id`, `pos`, `courts`, `inventory`, `sales`, `members`, `users`, `settings`, `stockAdj`, `refunds`, `shifts`, `purchaseOrders`, `analytics`, `kds`, `giftCards`) VALUES
 (2, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1),
 (3, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0),
-(4, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0),
+(4, 4, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0),
 (5, 5, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0),
 (6, 6, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
 
@@ -1010,7 +1049,16 @@ ALTER TABLE `products`
   ADD PRIMARY KEY (`id`),
   ADD KEY `category_id` (`category_id`),
   ADD KEY `idx_products_business_id` (`business_id`),
-  ADD KEY `idx_products_branch_id` (`branch_id`);
+  ADD KEY `idx_products_branch_id` (`branch_id`),
+  ADD KEY `idx_products_product_unit_id` (`product_unit_id`);
+
+--
+-- Indexes for table `product_units`
+--
+ALTER TABLE `product_units`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `uniq_product_units_name_per_business` (`business_id`,`name`),
+  ADD KEY `idx_product_units_business_id` (`business_id`);
 
 --
 -- Indexes for table `purchase_orders`
@@ -1139,7 +1187,7 @@ ALTER TABLE `categories`
 -- AUTO_INCREMENT for table `clock_events`
 --
 ALTER TABLE `clock_events`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=42;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=49;
 
 --
 -- AUTO_INCREMENT for table `courts`
@@ -1163,7 +1211,7 @@ ALTER TABLE `customer_order_items`
 -- AUTO_INCREMENT for table `customer_order_status_logs`
 --
 ALTER TABLE `customer_order_status_logs`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=15;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=17;
 
 --
 -- AUTO_INCREMENT for table `gift_cards`
@@ -1193,7 +1241,7 @@ ALTER TABLE `members`
 -- AUTO_INCREMENT for table `membership_tiers`
 --
 ALTER TABLE `membership_tiers`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
 
 --
 -- AUTO_INCREMENT for table `modifier_groups`
@@ -1226,6 +1274,12 @@ ALTER TABLE `products`
   MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
 
 --
+-- AUTO_INCREMENT for table `product_units`
+--
+ALTER TABLE `product_units`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
+
+--
 -- AUTO_INCREMENT for table `purchase_orders`
 --
 ALTER TABLE `purchase_orders`
@@ -1241,13 +1295,13 @@ ALTER TABLE `purchase_order_items`
 -- AUTO_INCREMENT for table `sales`
 --
 ALTER TABLE `sales`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=8;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=10;
 
 --
 -- AUTO_INCREMENT for table `sale_items`
 --
 ALTER TABLE `sale_items`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=14;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=16;
 
 --
 -- AUTO_INCREMENT for table `settings`
@@ -1265,7 +1319,7 @@ ALTER TABLE `shifts`
 -- AUTO_INCREMENT for table `stock_history`
 --
 ALTER TABLE `stock_history`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=13;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=14;
 
 --
 -- AUTO_INCREMENT for table `users`
@@ -1351,7 +1405,8 @@ ALTER TABLE `pending_cart_items`
 -- Constraints for table `products`
 --
 ALTER TABLE `products`
-  ADD CONSTRAINT `products_ibfk_1` FOREIGN KEY (`category_id`) REFERENCES `categories` (`id`) ON DELETE SET NULL;
+  ADD CONSTRAINT `products_ibfk_1` FOREIGN KEY (`category_id`) REFERENCES `categories` (`id`) ON DELETE SET NULL,
+  ADD CONSTRAINT `products_ibfk_product_unit` FOREIGN KEY (`product_unit_id`) REFERENCES `product_units` (`id`) ON DELETE SET NULL;
 
 --
 -- Constraints for table `purchase_orders`

@@ -23,6 +23,7 @@ const ICONS = {
   POS: <FiShoppingCart />,
   Sales: <FiTrendingUp />,
   Inventory: <FiLayers />,
+  "Unit Hierarchy": <FiBox />,
   Courts: <FiMap />,
   Users: <FiUserCheck />,
   Settings: <FiSettings />,
