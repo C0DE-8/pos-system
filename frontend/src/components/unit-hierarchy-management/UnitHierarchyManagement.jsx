@@ -18,6 +18,7 @@ function buildInitialLevels() {
 export default function UnitHierarchyManagement() {
   const [products, setProducts] = useState([]);
   const [units, setUnits] = useState([]);
+  const [productSearch, setProductSearch] = useState("");
   const [selectedProductId, setSelectedProductId] = useState("");
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [hierarchy, setHierarchy] = useState([]);
@@ -70,6 +71,22 @@ export default function UnitHierarchyManagement() {
       })
       .join(" -> ");
   }, [hierarchy]);
+
+  const filteredProducts = useMemo(() => {
+    const query = String(productSearch || "").trim().toLowerCase();
+    if (!query) return products;
+
+    return products.filter((product) => {
+      return [
+        product.name,
+        product.category_name,
+        product.type,
+        product.icon
+      ]
+        .filter(Boolean)
+        .some((value) => String(value).toLowerCase().includes(query));
+    });
+  }, [products, productSearch]);
 
   const loadProductDetails = async (productId) => {
     const [productRes, hierarchyRes] = await Promise.all([
@@ -252,7 +269,15 @@ export default function UnitHierarchyManagement() {
 
       <section className={styles.panel}>
         <div className={styles.selectorRow}>
-          <label htmlFor="unit-hierarchy-product">Product</label>
+          <label htmlFor="unit-hierarchy-product-search">Product</label>
+          <input
+            id="unit-hierarchy-product-search"
+            type="text"
+            value={productSearch}
+            onChange={(event) => setProductSearch(event.target.value)}
+            placeholder="Search product by name, category, or type"
+            disabled={loading || saving}
+          />
           <select
             id="unit-hierarchy-product"
             value={selectedProductId}
@@ -260,13 +285,20 @@ export default function UnitHierarchyManagement() {
             disabled={loading || saving}
           >
             <option value="">Select a product</option>
-            {products.map((product) => (
+            {filteredProducts.map((product) => (
               <option key={product.id} value={product.id}>
                 {product.icon} {product.name}
                 {Number(product.has_unit_hierarchy) === 1 ? " [configured]" : ""}
               </option>
             ))}
           </select>
+          {productSearch && !filteredProducts.length ? (
+            <small className={styles.searchHint}>No products match your search.</small>
+          ) : (
+            <small className={styles.searchHint}>
+              {filteredProducts.length} product(s) available
+            </small>
+          )}
         </div>
 
         {selectedProduct ? (

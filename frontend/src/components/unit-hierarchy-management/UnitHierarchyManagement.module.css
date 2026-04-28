@@ -74,6 +74,7 @@
 }
 
 .selectorRow select,
+.selectorRow input,
 .formGroup select,
 .formGroup input {
   width: 100%;
@@ -84,6 +85,11 @@
   background: #fff;
   font-size: 0.98rem;
   color: #0f172a;
+}
+
+.searchHint {
+  font-size: 0.82rem;
+  color: #64748b;
 }
 
 .productCard,
