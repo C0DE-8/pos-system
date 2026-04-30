@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: localhost
--- Generation Time: Apr 28, 2026 at 05:02 PM
+-- Generation Time: Apr 30, 2026 at 09:41 AM
 -- Server version: 10.4.28-MariaDB
 -- PHP Version: 8.2.4
 
@@ -170,7 +170,9 @@ INSERT INTO `clock_events` (`id`, `user_id`, `event_type`, `event_time`, `create
 (45, 4, 'out', '2026-04-26 17:13:31', '2026-04-26 17:13:31'),
 (46, 2, 'in', '2026-04-26 17:13:40', '2026-04-26 17:13:40'),
 (47, 2, 'out', '2026-04-26 17:14:07', '2026-04-26 17:14:07'),
-(48, 4, 'in', '2026-04-26 17:14:13', '2026-04-26 17:14:13');
+(48, 4, 'in', '2026-04-26 17:14:13', '2026-04-26 17:14:13'),
+(49, 2, 'in', '2026-04-28 08:08:04', '2026-04-28 08:08:04'),
+(50, 2, 'in', '2026-04-29 17:04:38', '2026-04-29 17:04:38');
 
 -- --------------------------------------------------------
 
@@ -528,6 +530,7 @@ CREATE TABLE `products` (
   `is_active` tinyint(1) DEFAULT 1,
   `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
   `is_unlimited` tinyint(1) NOT NULL DEFAULT 0,
+  `has_unit_hierarchy` tinyint(1) NOT NULL DEFAULT 0,
   `consumable_type` enum('food','drink','other') DEFAULT NULL,
   `has_expiry` tinyint(1) NOT NULL DEFAULT 0,
   `expiry_date` date DEFAULT NULL,
@@ -540,10 +543,10 @@ CREATE TABLE `products` (
 -- Dumping data for table `products`
 --
 
-INSERT INTO `products` (`id`, `name`, `icon`, `category_id`, `product_unit_id`, `type`, `hourly_rate`, `price`, `cost`, `stock`, `low_stock`, `modifier_group_id`, `is_active`, `created_at`, `is_unlimited`, `consumable_type`, `has_expiry`, `expiry_date`, `shelf_life_days`, `business_id`, `branch_id`) VALUES
-(1, ' Snooker Table', '🎱', 1, NULL, 'timed', 1000.00, 1000.00, 0.00, NULL, 0, NULL, 1, '2026-03-10 12:21:19', 1, NULL, 0, NULL, NULL, 1, 1),
-(2, 'rice', '📦', 5, NULL, 'fixed', 0.00, 100.00, 2000.00, 98, 5, NULL, 1, '2026-03-16 15:36:26', 0, 'food', 1, '2026-04-07', 4, 1, 1),
-(3, 'meat', '📦', 5, 1, 'food', 0.00, 100.00, 2000.00, 99, 5, NULL, 1, '2026-03-16 15:36:26', 0, 'food', 1, '2026-04-30', 4, 1, 1);
+INSERT INTO `products` (`id`, `name`, `icon`, `category_id`, `product_unit_id`, `type`, `hourly_rate`, `price`, `cost`, `stock`, `low_stock`, `modifier_group_id`, `is_active`, `created_at`, `is_unlimited`, `has_unit_hierarchy`, `consumable_type`, `has_expiry`, `expiry_date`, `shelf_life_days`, `business_id`, `branch_id`) VALUES
+(1, ' Snooker Table', '🎱', 1, NULL, 'timed', 1000.00, 1000.00, 0.00, NULL, 0, NULL, 1, '2026-03-10 12:21:19', 1, 0, NULL, 0, NULL, NULL, 1, 1),
+(2, 'rice', '📦', 5, NULL, 'fixed', 0.00, 100.00, 2000.00, 97, 5, NULL, 1, '2026-03-16 15:36:26', 0, 0, 'food', 1, '2026-04-07', 4, 1, 1),
+(3, 'meat', '📦', 5, 1, 'food', 0.00, 100.00, 2000.00, 111, 5, NULL, 1, '2026-03-16 15:36:26', 0, 1, 'food', 1, '2026-04-30', 4, 1, 1);
 
 -- --------------------------------------------------------
 
@@ -568,6 +571,32 @@ INSERT INTO `product_units` (`id`, `name`, `short_name`, `business_id`, `created
 (1, 'Piece', 'pc', 1, '2026-04-25 17:42:21', '2026-04-25 17:42:21'),
 (2, 'Pack', 'pack', 1, '2026-04-25 17:42:21', '2026-04-25 17:42:21'),
 (3, 'Carton', 'ctn', 1, '2026-04-25 17:42:21', '2026-04-25 17:42:21');
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `product_unit_levels`
+--
+
+CREATE TABLE `product_unit_levels` (
+  `id` int(11) NOT NULL,
+  `product_id` int(11) NOT NULL,
+  `unit_id` int(11) NOT NULL,
+  `level` int(11) NOT NULL,
+  `parent_level_id` int(11) DEFAULT NULL,
+  `conversion_factor` int(11) NOT NULL DEFAULT 1,
+  `is_smallest_unit` tinyint(1) NOT NULL DEFAULT 0,
+  `created_at` datetime NOT NULL DEFAULT current_timestamp(),
+  `updated_at` datetime NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Dumping data for table `product_unit_levels`
+--
+
+INSERT INTO `product_unit_levels` (`id`, `product_id`, `unit_id`, `level`, `parent_level_id`, `conversion_factor`, `is_smallest_unit`, `created_at`, `updated_at`) VALUES
+(1, 3, 3, 1, NULL, 1, 0, '2026-04-28 08:32:49', '2026-04-28 08:32:49'),
+(2, 3, 2, 2, 1, 12, 1, '2026-04-28 08:32:49', '2026-04-28 08:32:49');
 
 -- --------------------------------------------------------
 
@@ -648,7 +677,8 @@ INSERT INTO `sales` (`id`, `sale_code`, `customer`, `member_id`, `membership_tie
 (6, 'SALE-1777161520438', 'Samuel Oghenchovwe', 1, 2, 'VIP', 10.00, 60.00, 2, NULL, 600.00, 0.00, 0.00, 0.00, 54.00, 594.00, 'card', 'NGN', 'completed', NULL, '2026-04-25 16:58:40', 1, 1),
 (7, 'SALE-1777161556376', 'Samuel Oghenchovwe', 1, 2, 'VIP', 10.00, 10.00, 2, NULL, 100.00, 0.00, 0.00, 0.00, 9.00, 99.00, 'card', 'NGN', 'completed', NULL, '2026-04-25 16:59:16', 1, 1),
 (8, 'SALE-1777249801497', 'Walk-in', NULL, NULL, NULL, 0.00, 0.00, 4, NULL, 500.00, 0.00, 0.00, 0.00, 50.00, 550.00, 'card', 'NGN', 'completed', NULL, '2026-04-26 17:30:01', 1, 1),
-(9, 'SALE-1777249817783', 'Walk-in', NULL, NULL, NULL, 0.00, 0.00, 4, NULL, 100.00, 0.00, 0.00, 0.00, 10.00, 110.00, 'transfer', 'NGN', 'completed', NULL, '2026-04-26 17:30:17', 1, 1);
+(9, 'SALE-1777249817783', 'Walk-in', NULL, NULL, NULL, 0.00, 0.00, 4, NULL, 100.00, 0.00, 0.00, 0.00, 10.00, 110.00, 'transfer', 'NGN', 'completed', NULL, '2026-04-26 17:30:17', 1, 1),
+(10, 'SALE-1777391251233', 'Walk-in', NULL, NULL, NULL, 0.00, 0.00, 2, NULL, 100.00, 0.00, 0.00, 0.00, 10.00, 110.00, 'transfer', 'NGN', 'completed', NULL, '2026-04-28 08:47:31', 1, 1);
 
 -- --------------------------------------------------------
 
@@ -692,7 +722,8 @@ INSERT INTO `sale_items` (`id`, `sale_id`, `product_id`, `item_name`, `icon`, `i
 (12, 6, 1, ' Snooker Table', '🎱', 'timed', 1, 1000.00, 0.00, 0.00, '2026-04-25 16:56:35', NULL, 0, 500.00),
 (13, 7, 2, 'rice', '📦', 'fixed', 1, 100.00, 2000.00, 0.00, NULL, NULL, 0, 100.00),
 (14, 8, 1, ' Snooker Table', '🎱', 'timed', 1, 1000.00, 0.00, 0.00, '2026-04-26 17:29:56', NULL, 0, 500.00),
-(15, 9, 2, 'rice', '📦', 'fixed', 1, 100.00, 2000.00, 0.00, NULL, NULL, 0, 100.00);
+(15, 9, 2, 'rice', '📦', 'fixed', 1, 100.00, 2000.00, 0.00, NULL, NULL, 0, 100.00),
+(16, 10, 2, 'rice', '📦', 'fixed', 1, 100.00, 2000.00, 0.00, NULL, NULL, 0, 100.00);
 
 -- --------------------------------------------------------
 
@@ -781,7 +812,58 @@ INSERT INTO `stock_history` (`id`, `product_id`, `before_qty`, `after_qty`, `cha
 (10, 3, 1, 0, -1, 'Sale #5', 2, '2026-04-10 07:26:10', 1, 1),
 (11, 3, 100, 99, -1, 'Sale #6', 2, '2026-04-25 16:58:40', 1, 1),
 (12, 2, 100, 99, -1, 'Sale #7', 2, '2026-04-25 16:59:16', 1, 1),
-(13, 2, 99, 98, -1, 'Sale #9', 4, '2026-04-26 17:30:17', 1, 1);
+(13, 2, 99, 98, -1, 'Sale #9', 4, '2026-04-26 17:30:17', 1, 1),
+(14, 2, 98, 97, -1, 'Sale #10', 2, '2026-04-28 08:47:31', 1, 1);
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `unit_inventory`
+--
+
+CREATE TABLE `unit_inventory` (
+  `id` int(11) NOT NULL,
+  `product_id` int(11) NOT NULL,
+  `unit_level_id` int(11) NOT NULL,
+  `qty` int(11) NOT NULL DEFAULT 0,
+  `branch_id` int(11) DEFAULT NULL,
+  `created_at` datetime NOT NULL DEFAULT current_timestamp(),
+  `updated_at` datetime NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Dumping data for table `unit_inventory`
+--
+
+INSERT INTO `unit_inventory` (`id`, `product_id`, `unit_level_id`, `qty`, `branch_id`, `created_at`, `updated_at`) VALUES
+(1, 3, 2, 99, 1, '2026-04-28 08:32:49', '2026-04-28 08:32:49'),
+(2, 3, 1, 1, 1, '2026-04-28 08:33:33', '2026-04-28 08:33:33');
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `unit_inventory_history`
+--
+
+CREATE TABLE `unit_inventory_history` (
+  `id` int(11) NOT NULL,
+  `product_id` int(11) NOT NULL,
+  `unit_level_id` int(11) NOT NULL,
+  `before_qty` int(11) NOT NULL DEFAULT 0,
+  `after_qty` int(11) NOT NULL DEFAULT 0,
+  `change_qty` int(11) NOT NULL DEFAULT 0,
+  `reason` varchar(255) DEFAULT NULL,
+  `by_user_id` int(11) DEFAULT NULL,
+  `branch_id` int(11) DEFAULT NULL,
+  `created_at` datetime NOT NULL DEFAULT current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Dumping data for table `unit_inventory_history`
+--
+
+INSERT INTO `unit_inventory_history` (`id`, `product_id`, `unit_level_id`, `before_qty`, `after_qty`, `change_qty`, `reason`, `by_user_id`, `branch_id`, `created_at`) VALUES
+(1, 3, 1, 0, 1, 1, 'Manual adjustment', 2, 1, '2026-04-28 08:33:33');
 
 -- --------------------------------------------------------
 
@@ -1050,7 +1132,8 @@ ALTER TABLE `products`
   ADD KEY `category_id` (`category_id`),
   ADD KEY `idx_products_business_id` (`business_id`),
   ADD KEY `idx_products_branch_id` (`branch_id`),
-  ADD KEY `idx_products_product_unit_id` (`product_unit_id`);
+  ADD KEY `idx_products_product_unit_id` (`product_unit_id`),
+  ADD KEY `idx_products_has_unit_hierarchy` (`has_unit_hierarchy`);
 
 --
 -- Indexes for table `product_units`
@@ -1059,6 +1142,17 @@ ALTER TABLE `product_units`
   ADD PRIMARY KEY (`id`),
   ADD UNIQUE KEY `uniq_product_units_name_per_business` (`business_id`,`name`),
   ADD KEY `idx_product_units_business_id` (`business_id`);
+
+--
+-- Indexes for table `product_unit_levels`
+--
+ALTER TABLE `product_unit_levels`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `uniq_product_unit_level` (`product_id`,`level`),
+  ADD UNIQUE KEY `uniq_product_unit_once` (`product_id`,`unit_id`),
+  ADD KEY `idx_product_unit_levels_product_id` (`product_id`),
+  ADD KEY `idx_product_unit_levels_unit_id` (`unit_id`),
+  ADD KEY `idx_product_unit_levels_parent_level_id` (`parent_level_id`);
 
 --
 -- Indexes for table `purchase_orders`
@@ -1131,6 +1225,24 @@ ALTER TABLE `stock_history`
   ADD KEY `idx_stock_history_created_at` (`created_at`);
 
 --
+-- Indexes for table `unit_inventory`
+--
+ALTER TABLE `unit_inventory`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `idx_unit_inventory_product_id` (`product_id`),
+  ADD KEY `idx_unit_inventory_level_id` (`unit_level_id`),
+  ADD KEY `idx_unit_inventory_branch_id` (`branch_id`);
+
+--
+-- Indexes for table `unit_inventory_history`
+--
+ALTER TABLE `unit_inventory_history`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `idx_unit_inventory_history_product_id` (`product_id`),
+  ADD KEY `idx_unit_inventory_history_level_id` (`unit_level_id`),
+  ADD KEY `idx_unit_inventory_history_created_at` (`created_at`);
+
+--
 -- Indexes for table `users`
 --
 ALTER TABLE `users`
@@ -1187,7 +1299,7 @@ ALTER TABLE `categories`
 -- AUTO_INCREMENT for table `clock_events`
 --
 ALTER TABLE `clock_events`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=49;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=51;
 
 --
 -- AUTO_INCREMENT for table `courts`
@@ -1280,6 +1392,12 @@ ALTER TABLE `product_units`
   MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
 
 --
+-- AUTO_INCREMENT for table `product_unit_levels`
+--
+ALTER TABLE `product_unit_levels`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
+
+--
 -- AUTO_INCREMENT for table `purchase_orders`
 --
 ALTER TABLE `purchase_orders`
@@ -1295,13 +1413,13 @@ ALTER TABLE `purchase_order_items`
 -- AUTO_INCREMENT for table `sales`
 --
 ALTER TABLE `sales`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=10;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=11;
 
 --
 -- AUTO_INCREMENT for table `sale_items`
 --
 ALTER TABLE `sale_items`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=16;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=17;
 
 --
 -- AUTO_INCREMENT for table `settings`
@@ -1319,7 +1437,19 @@ ALTER TABLE `shifts`
 -- AUTO_INCREMENT for table `stock_history`
 --
 ALTER TABLE `stock_history`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=14;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=15;
+
+--
+-- AUTO_INCREMENT for table `unit_inventory`
+--
+ALTER TABLE `unit_inventory`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
+
+--
+-- AUTO_INCREMENT for table `unit_inventory_history`
+--
+ALTER TABLE `unit_inventory_history`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
 
 --
 -- AUTO_INCREMENT for table `users`
@@ -1409,6 +1539,14 @@ ALTER TABLE `products`
   ADD CONSTRAINT `products_ibfk_product_unit` FOREIGN KEY (`product_unit_id`) REFERENCES `product_units` (`id`) ON DELETE SET NULL;
 
 --
+-- Constraints for table `product_unit_levels`
+--
+ALTER TABLE `product_unit_levels`
+  ADD CONSTRAINT `fk_product_unit_levels_parent` FOREIGN KEY (`parent_level_id`) REFERENCES `product_unit_levels` (`id`) ON DELETE SET NULL,
+  ADD CONSTRAINT `fk_product_unit_levels_product` FOREIGN KEY (`product_id`) REFERENCES `products` (`id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `fk_product_unit_levels_unit` FOREIGN KEY (`unit_id`) REFERENCES `product_units` (`id`);
+
+--
 -- Constraints for table `purchase_orders`
 --
 ALTER TABLE `purchase_orders`
@@ -1451,6 +1589,20 @@ ALTER TABLE `shifts`
 ALTER TABLE `stock_history`
   ADD CONSTRAINT `stock_history_ibfk_1` FOREIGN KEY (`product_id`) REFERENCES `products` (`id`),
   ADD CONSTRAINT `stock_history_ibfk_2` FOREIGN KEY (`by_user_id`) REFERENCES `users` (`id`);
+
+--
+-- Constraints for table `unit_inventory`
+--
+ALTER TABLE `unit_inventory`
+  ADD CONSTRAINT `fk_unit_inventory_level` FOREIGN KEY (`unit_level_id`) REFERENCES `product_unit_levels` (`id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `fk_unit_inventory_product` FOREIGN KEY (`product_id`) REFERENCES `products` (`id`) ON DELETE CASCADE;
+
+--
+-- Constraints for table `unit_inventory_history`
+--
+ALTER TABLE `unit_inventory_history`
+  ADD CONSTRAINT `fk_unit_inventory_history_level` FOREIGN KEY (`unit_level_id`) REFERENCES `product_unit_levels` (`id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `fk_unit_inventory_history_product` FOREIGN KEY (`product_id`) REFERENCES `products` (`id`) ON DELETE CASCADE;
 
 --
 -- Constraints for table `users`

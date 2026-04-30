@@ -21,8 +21,12 @@ async function loadHierarchy(conn, productId) {
        pul.level,
        pul.parent_level_id,
        pul.conversion_factor,
-       pul.is_smallest_unit
+       pul.price,
+       pul.is_smallest_unit,
+       pu.name AS unit_name,
+       pu.short_name AS unit_short_name
      FROM product_unit_levels pul
+     JOIN product_units pu ON pu.id = pul.unit_id
      WHERE pul.product_id = ?
      ORDER BY pul.level ASC`,
     [productId]
@@ -38,6 +42,7 @@ async function loadHierarchy(conn, productId) {
     ...row,
     level: Number(row.level),
     conversion_factor: Number(row.conversion_factor || 1),
+    price: Number(row.price || 0),
     is_smallest_unit: Number(row.is_smallest_unit || 0)
   }));
 
@@ -233,6 +238,32 @@ function breakParentUnit(hierarchy, inventoryMap, changeMap) {
   return false;
 }
 
+function breakAncestorToTarget(hierarchy, inventoryMap, changeMap, targetIndex) {
+  for (let index = targetIndex - 1; index >= 0; index -= 1) {
+    const ancestor = hierarchy[index];
+    const ancestorEntry = ensureInventoryEntry(inventoryMap, Number(ancestor.id));
+
+    if (ancestorEntry.qty <= 0) continue;
+
+    for (let currentIndex = index; currentIndex < targetIndex; currentIndex += 1) {
+      const current = hierarchy[currentIndex];
+      const child = hierarchy[currentIndex + 1];
+
+      applyQuantityDelta(inventoryMap, changeMap, Number(current.id), -1);
+      applyQuantityDelta(
+        inventoryMap,
+        changeMap,
+        Number(child.id),
+        Number(child.conversion_factor)
+      );
+    }
+
+    return true;
+  }
+
+  return false;
+}
+
 async function deductUnitInventory(conn, productId, qtyToDeduct, branchId = null) {
   const requestedQty = Number(qtyToDeduct);
 
@@ -277,6 +308,107 @@ async function deductUnitInventory(conn, productId, qtyToDeduct, branchId = null
         return {
           success: false,
           message: "Unable to roll inventory down from parent units",
+          changes: []
+        };
+      }
+    }
+
+    await persistInventoryMap(conn, productId, branchId, inventoryMap);
+    const totalAfter = await syncProductStock(conn, productId, branchId);
+
+    return {
+      success: true,
+      message: "Inventory deducted successfully",
+      total_after: totalAfter,
+      changes: formatTrackedChanges(changeMap)
+    };
+  } catch (error) {
+    return {
+      success: false,
+      message: error.message,
+      changes: []
+    };
+  }
+}
+
+async function deductUnitInventoryByLevel(
+  conn,
+  productId,
+  unitLevelId,
+  qtyToDeduct,
+  branchId = null
+) {
+  const requestedQty = Number(qtyToDeduct);
+  const targetUnitLevelId = Number(unitLevelId);
+
+  if (!Number.isInteger(targetUnitLevelId) || targetUnitLevelId <= 0) {
+    return {
+      success: false,
+      message: "A valid unit level is required",
+      changes: []
+    };
+  }
+
+  if (!Number.isInteger(requestedQty) || requestedQty <= 0) {
+    return {
+      success: false,
+      message: "Quantity must be a positive whole number",
+      changes: []
+    };
+  }
+
+  try {
+    const hierarchy = await loadHierarchy(conn, productId);
+    const inventoryMap = await loadInventoryMap(conn, productId, branchId, true);
+    const targetIndex = hierarchy.findIndex(
+      (level) => Number(level.id) === targetUnitLevelId
+    );
+
+    if (targetIndex === -1) {
+      return {
+        success: false,
+        message: "Selected unit level does not belong to this product",
+        changes: []
+      };
+    }
+
+    const targetLevel = hierarchy[targetIndex];
+    const totalAvailable = calculateTotalInSmallestUnits(hierarchy, inventoryMap);
+    const requestedSmallestUnits =
+      requestedQty * Number(targetLevel.smallest_unit_multiplier || 1);
+
+    if (totalAvailable < requestedSmallestUnits) {
+      return {
+        success: false,
+        message: `Insufficient inventory. Available ${totalAvailable}, requested ${requestedSmallestUnits} in smallest units`,
+        changes: []
+      };
+    }
+
+    const changeMap = createChangeTracker();
+    let remaining = requestedQty;
+
+    while (remaining > 0) {
+      const targetEntry = ensureInventoryEntry(inventoryMap, targetUnitLevelId);
+
+      if (targetEntry.qty > 0) {
+        const directTake = Math.min(targetEntry.qty, remaining);
+        applyQuantityDelta(inventoryMap, changeMap, targetUnitLevelId, -directTake);
+        remaining -= directTake;
+        continue;
+      }
+
+      const brokeAncestor = breakAncestorToTarget(
+        hierarchy,
+        inventoryMap,
+        changeMap,
+        targetIndex
+      );
+
+      if (!brokeAncestor) {
+        return {
+          success: false,
+          message: `Insufficient ${targetLevel.unit_name || "selected unit"} inventory`,
           changes: []
         };
       }
@@ -396,6 +528,7 @@ async function recordUnitInventoryHistory(
 
 module.exports = {
   deductUnitInventory,
+  deductUnitInventoryByLevel,
   restoreUnitInventory,
   getTotalInventoryInSmallestUnits,
   loadHierarchy,

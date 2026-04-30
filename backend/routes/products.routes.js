@@ -1,6 +1,6 @@
 const express = require("express");
 const { query, pool } = require("../config/db");
-const { authenticateToken, requirePermission } = require("../middleware/auth");
+const { authenticateToken, requirePermission, requireAnyPermission } = require("../middleware/auth");
 const { ensureBusinessContext, isAdmin } = require("../utils/tenant");
 const branchAccessMiddleware = require("../middleware/branchAccessMiddleware");
 const {
@@ -65,6 +65,18 @@ function normalizePositiveInteger(value, fieldName) {
   return parsed;
 }
 
+function normalizeCurrencyAmount(value, fieldName) {
+  const parsed = Number(value);
+
+  if (Number.isNaN(parsed) || parsed < 0) {
+    const error = new Error(`${fieldName} must be zero or greater`);
+    error.statusCode = 400;
+    throw error;
+  }
+
+  return Number(parsed.toFixed(2));
+}
+
 async function buildHierarchyPayload(units, businessId) {
   if (!Array.isArray(units) || units.length < 2) {
     const error = new Error("At least two unit levels are required");
@@ -112,6 +124,7 @@ async function buildHierarchyPayload(units, businessId) {
       unit_id: unitId,
       level: index + 1,
       conversion_factor: conversionFactor,
+      price: normalizeCurrencyAmount(entry.price, `units[${index}].price`),
       is_smallest_unit: index === units.length - 1 ? 1 : 0
     });
   }
@@ -1323,7 +1336,7 @@ router.get("/disabled/list", requirePermission("inventory"), async (req, res) =>
 
 // GET /products/unit-hierarchy/:productId
 // Get the unit hierarchy for a specific product
-router.get("/unit-hierarchy/:productId", requirePermission("inventory"), async (req, res) => {
+router.get("/unit-hierarchy/:productId", requireAnyPermission("inventory", "pos"), async (req, res) => {
   try {
     if (!ensureBusinessContext(req, res)) return;
     const { productId } = req.params;
@@ -1341,30 +1354,33 @@ router.get("/unit-hierarchy/:productId", requirePermission("inventory"), async (
       });
     }
 
-    const levels = await query(
-      `SELECT
-         pul.id,
-         pul.product_id,
-         pul.unit_id,
-         pul.level,
-         pul.parent_level_id,
-         pul.conversion_factor,
-         pul.is_smallest_unit,
-         pu.name AS unit_name,
-         pu.short_name AS unit_short_name
-       FROM product_unit_levels pul
-       JOIN product_units pu ON pu.id = pul.unit_id
-       WHERE pul.product_id = ?
-       ORDER BY pul.level ASC`,
-      [productId]
-    );
+    const levels = await loadHierarchy(pool, productId).catch(() => []);
+    const branchId = req.query.branch_id || req.user.branch_id || null;
+    let inventoryMap = new Map();
+    let totalInSmallestUnits = 0;
+
+    if (levels.length) {
+      inventoryMap = await loadInventoryMap(pool, productId, branchId, false);
+      totalInSmallestUnits = calculateTotalInSmallestUnits(levels, inventoryMap);
+    }
 
     res.json({
       success: true,
       data: {
         product_id: productId,
         has_hierarchy: productRows[0].has_unit_hierarchy === 1,
-        unit_levels: levels
+        total_in_smallest_units: totalInSmallestUnits,
+        unit_levels: levels.map((level) => {
+          const multiplier = Number(level.smallest_unit_multiplier || 1);
+          return {
+            ...level,
+            current_qty: Number(inventoryMap.get(Number(level.id))?.qty || 0),
+            available_qty:
+              multiplier > 0
+                ? Math.floor(totalInSmallestUnits / multiplier)
+                : 0
+          };
+        })
       }
     });
   } catch (error) {
@@ -1377,7 +1393,7 @@ router.get("/unit-hierarchy/:productId", requirePermission("inventory"), async (
 
 // POST /products/unit-hierarchy/:productId
 // Create or update unit hierarchy for a product
-// Body: { units: [ { unit_id, conversion_factor? }, ... ] }
+// Body: { units: [ { unit_id, conversion_factor?, price }, ... ] }
 router.post("/unit-hierarchy/:productId", requirePermission("inventory"), async (req, res) => {
   const conn = await pool.getConnection();
   try {
@@ -1422,14 +1438,15 @@ router.post("/unit-hierarchy/:productId", requirePermission("inventory"), async 
     for (const unit of preparedUnits) {
       const [result] = await conn.execute(
         `INSERT INTO product_unit_levels
-         (product_id, unit_id, level, parent_level_id, conversion_factor, is_smallest_unit)
-         VALUES (?, ?, ?, ?, ?, ?)`,
+         (product_id, unit_id, level, parent_level_id, conversion_factor, price, is_smallest_unit)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
         [
           productId,
           unit.unit_id,
           unit.level,
           previousLevelId,
           unit.conversion_factor,
+          unit.price,
           unit.is_smallest_unit
         ]
       );

@@ -9,10 +9,17 @@ import {
 } from "../../api/unitHierarchyApi";
 import styles from "./UnitHierarchyManagement.module.css";
 
-const EMPTY_LEVEL = { unit_id: "", conversion_factor: "" };
+const EMPTY_LEVEL = { unit_id: "", conversion_factor: "", price: "" };
 
 function buildInitialLevels() {
-  return [{ ...EMPTY_LEVEL }, { ...EMPTY_LEVEL, conversion_factor: 1 }];
+  return [
+    { ...EMPTY_LEVEL },
+    { ...EMPTY_LEVEL, conversion_factor: 1 }
+  ];
+}
+
+function formatPrice(value) {
+  return Number(value || 0).toFixed(2);
 }
 
 export default function UnitHierarchyManagement() {
@@ -106,7 +113,8 @@ export default function UnitHierarchyManagement() {
       setLevels(
         unitLevels.map((level, index) => ({
           unit_id: Number(level.unit_id),
-          conversion_factor: index === 0 ? "" : Number(level.conversion_factor)
+          conversion_factor: index === 0 ? "" : Number(level.conversion_factor),
+          price: Number(level.price || 0)
         }))
       );
     } else {
@@ -181,7 +189,8 @@ export default function UnitHierarchyManagement() {
 
       const payload = levels.map((level, index) => ({
         unit_id: Number(level.unit_id),
-        conversion_factor: index === 0 ? 1 : Number(level.conversion_factor)
+        conversion_factor: index === 0 ? 1 : Number(level.conversion_factor),
+        price: Number(level.price || 0)
       }));
 
       await createProductUnitHierarchy(selectedProductId, payload);
@@ -383,6 +392,20 @@ export default function UnitHierarchyManagement() {
                           />
                         </div>
 
+                        <div className={styles.formGroup}>
+                          <label>Selling price</label>
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={level.price}
+                            onChange={(event) =>
+                              handleLevelChange(index, "price", event.target.value)
+                            }
+                            placeholder="0.00"
+                          />
+                        </div>
+
                         <button
                           type="button"
                           className={styles.removeBtn}
@@ -424,6 +447,7 @@ export default function UnitHierarchyManagement() {
                                 ? "Largest unit"
                                 : `${level.conversion_factor} per parent`}
                             </span>
+                            <span>Price: {formatPrice(level.price)}</span>
                           </div>
                         ))}
                       </div>

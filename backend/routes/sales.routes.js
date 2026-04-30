@@ -149,7 +149,7 @@ function buildSalesAggregateSql(whereSql) {
         SUM(
           CASE
             WHEN LOWER(COALESCE(s.status, 'paid')) = 'refunded' THEN 0
-            ELSE COALESCE(s.total_amount, s.total, 0)
+            ELSE COALESCE(s.total, 0)
           END
         ),
         0
@@ -401,7 +401,7 @@ router.get("/summary", requirePermission("sales"), branchAccessMiddleware, async
                 SUM(
                   CASE
                     WHEN LOWER(COALESCE(s.status, 'paid')) = 'refunded' THEN 0
-                    ELSE COALESCE(s.total_amount, s.total, 0)
+                    ELSE COALESCE(s.total, 0)
                   END
                 ),
                 0

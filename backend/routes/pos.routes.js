@@ -6,6 +6,7 @@ const { ensureBusinessContext, isAdmin } = require("../utils/tenant");
 const branchAccessMiddleware = require("../middleware/branchAccessMiddleware");
 const {
   deductUnitInventory,
+  deductUnitInventoryByLevel,
   recordUnitInventoryHistory
 } = require("../utils/unitHierarchy");
 
@@ -563,11 +564,14 @@ router.post("/pending", requirePermission("pos"), branchAccessMiddleware, async 
     for (const item of items) {
       await conn.execute(
         `INSERT INTO pending_cart_items
-	        (pending_cart_id, product_id, item_name, icon, item_type, qty, unit_price, cost, item_discount_pct, session_start, session_end, elapsed_seconds, final_price, manage_stock)
-	        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+	        (pending_cart_id, product_id, unit_level_id, unit_label, unit_short_name, item_name, icon, item_type, qty, unit_price, cost, item_discount_pct, session_start, session_end, elapsed_seconds, final_price, manage_stock)
+	        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           pendingCartId,
           item.product_id || null,
+          item.unit_level_id || null,
+          item.unit_label || null,
+          item.unit_short_name || null,
           item.item_name,
           item.icon || null,
           normalizeItemType(item.item_type),
@@ -831,11 +835,14 @@ router.put("/pending/:id", requirePermission("pos"), branchAccessMiddleware, asy
     for (const item of items) {
       await conn.execute(
         `INSERT INTO pending_cart_items
-	        (pending_cart_id, product_id, item_name, icon, item_type, qty, unit_price, cost, item_discount_pct, session_start, session_end, elapsed_seconds, final_price, manage_stock)
-	        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+	        (pending_cart_id, product_id, unit_level_id, unit_label, unit_short_name, item_name, icon, item_type, qty, unit_price, cost, item_discount_pct, session_start, session_end, elapsed_seconds, final_price, manage_stock)
+	        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           id,
           item.product_id || null,
+          item.unit_level_id || null,
+          item.unit_label || null,
+          item.unit_short_name || null,
           item.item_name,
           item.icon || null,
           normalizeItemType(item.item_type),
@@ -1006,11 +1013,14 @@ router.post("/pending/:id/checkout", requirePermission("pos"), branchAccessMiddl
     for (const item of items) {
       await conn.execute(
         `INSERT INTO sale_items
-	        (sale_id, product_id, item_name, icon, item_type, qty, unit_price, cost, item_discount_pct, session_start, session_end, elapsed_seconds, final_price)
-	        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+	        (sale_id, product_id, unit_level_id, unit_label, unit_short_name, item_name, icon, item_type, qty, unit_price, cost, item_discount_pct, session_start, session_end, elapsed_seconds, final_price)
+	        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           saleId,
           item.product_id || null,
+          item.unit_level_id || null,
+          item.unit_label || null,
+          item.unit_short_name || null,
           item.item_name,
           item.icon || null,
           normalizeItemType(item.item_type),
@@ -1044,12 +1054,20 @@ router.post("/pending/:id/checkout", requirePermission("pos"), branchAccessMiddl
 
         // Handle unit hierarchy products
         if (Number(product.has_unit_hierarchy) === 1) {
-          const deductResult = await deductUnitInventory(
-            conn,
-            item.product_id,
-            item.qty,
-            cart.branch_id || req.user.branch_id || null
-          );
+          const deductResult = item.unit_level_id
+            ? await deductUnitInventoryByLevel(
+                conn,
+                item.product_id,
+                item.unit_level_id,
+                item.qty,
+                cart.branch_id || req.user.branch_id || null
+              )
+            : await deductUnitInventory(
+                conn,
+                item.product_id,
+                item.qty,
+                cart.branch_id || req.user.branch_id || null
+              );
 
           if (!deductResult.success) {
             await conn.rollback();
@@ -1214,11 +1232,14 @@ router.post("/checkout", requirePermission("pos"), branchAccessMiddleware, async
     for (const item of items) {
       await conn.execute(
         `INSERT INTO sale_items
-	        (sale_id, product_id, item_name, icon, item_type, qty, unit_price, cost, item_discount_pct, session_start, session_end, elapsed_seconds, final_price)
-	        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+	        (sale_id, product_id, unit_level_id, unit_label, unit_short_name, item_name, icon, item_type, qty, unit_price, cost, item_discount_pct, session_start, session_end, elapsed_seconds, final_price)
+	        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           saleId,
           item.product_id || null,
+          item.unit_level_id || null,
+          item.unit_label || null,
+          item.unit_short_name || null,
           item.item_name,
           item.icon || null,
           normalizeItemType(item.item_type),
@@ -1251,12 +1272,20 @@ router.post("/checkout", requirePermission("pos"), branchAccessMiddleware, async
 
         // Handle unit hierarchy products
         if (Number(product.has_unit_hierarchy) === 1) {
-          const deductResult = await deductUnitInventory(
-            conn,
-            item.product_id,
-            item.qty,
-            req.user.branch_id || null
-          );
+          const deductResult = item.unit_level_id
+            ? await deductUnitInventoryByLevel(
+                conn,
+                item.product_id,
+                item.unit_level_id,
+                item.qty,
+                req.user.branch_id || null
+              )
+            : await deductUnitInventory(
+                conn,
+                item.product_id,
+                item.qty,
+                req.user.branch_id || null
+              );
 
           if (!deductResult.success) {
             await conn.rollback();

@@ -27,6 +27,7 @@ import {
 } from "react-icons/fi";
 
 import { getProducts } from "../../api/productsApi";
+import { getProductUnitHierarchy } from "../../api/unitHierarchyApi";
 import {
   checkoutSale,
   splitItemPrice,
@@ -71,6 +72,21 @@ const DEFAULT_SETTINGS = {
 };
 
 const HALF_PRICE_DISCOUNT_PCT = 50;
+
+const buildSellUnitOptions = (product, unitLevels = []) => {
+  return unitLevels.map((level, index) => ({
+    unit_level_id: Number(level.id),
+    unit_label: level.unit_name || `Unit ${index + 1}`,
+    unit_short_name: level.unit_short_name || "",
+    unit_price: Number(level.price || product.price || 0),
+    current_qty: Number(level.current_qty || 0),
+    available_qty: Number(level.available_qty || 0),
+    level: Number(level.level || index + 1),
+    conversion_factor: Number(level.conversion_factor || 1),
+    smallest_unit_multiplier: Number(level.smallest_unit_multiplier || 1),
+    is_smallest_unit: Number(level.is_smallest_unit || 0) === 1
+  }));
+};
 
 const currencySymbols = {
   NGN: "₦",
@@ -143,6 +159,7 @@ export default function POSManagement() {
     getInitialSalesDockPosition
   );
   const salesDockRef = useRef(null);
+  const cartPanelRef = useRef(null);
   const salesLongPressTimerRef = useRef(null);
   const suppressSalesFabClickRef = useRef(false);
   const salesDragStateRef = useRef({
@@ -155,6 +172,11 @@ export default function POSManagement() {
   });
 
   const [cart, setCart] = useState([]);
+  const [unitOptionsCache, setUnitOptionsCache] = useState({});
+  const [unitPickerProduct, setUnitPickerProduct] = useState(null);
+  const [unitPickerOptions, setUnitPickerOptions] = useState([]);
+  const [loadingUnitPicker, setLoadingUnitPicker] = useState(false);
+  const [unitPickerError, setUnitPickerError] = useState("");
   const [customer, setCustomer] = useState("Walk-in");
   const [memberSearch, setMemberSearch] = useState("");
   const [selectedMember, setSelectedMember] = useState(null);
@@ -222,6 +244,21 @@ export default function POSManagement() {
     return date.toLocaleString("en-NG");
   };
 
+  const formatUnitLabel = (item) => {
+    if (!item?.unit_label) return "";
+    return item.unit_short_name
+      ? `${item.unit_label} (${item.unit_short_name})`
+      : item.unit_label;
+  };
+
+  const formatAvailableUnitStock = (item) => {
+    if (!item) return "";
+    const unitLabel = formatUnitLabel(item);
+    if (!unitLabel) return "";
+    const availableQty = Number(item.available_qty ?? item.available_unit_stock ?? 0);
+    return `${availableQty} ${unitLabel}`;
+  };
+
   useEffect(() => {
     loadInitialData();
     loadPendingCarts();
@@ -238,6 +275,14 @@ export default function POSManagement() {
     const timer = setInterval(() => {
       loadSalesSummary({ silent: true });
     }, 30000);
+
+    return () => clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      loadProductsData({ silent: true });
+    }, 15000);
 
     return () => clearInterval(timer);
   }, []);
@@ -271,6 +316,26 @@ export default function POSManagement() {
   useEffect(() => {
     localStorage.setItem("checkout_customer_order_ids", JSON.stringify(checkoutCustomerIds));
   }, [checkoutCustomerIds]);
+
+  const loadProductsData = async ({ silent = false } = {}) => {
+    try {
+      if (!silent) {
+        setLoadingProducts(true);
+        setError("");
+      }
+
+      const productsRes = await getProducts();
+      setProducts(productsRes?.data || []);
+    } catch (err) {
+      if (!silent) {
+        setError(err?.response?.data?.message || "Failed to load products");
+      }
+    } finally {
+      if (!silent) {
+        setLoadingProducts(false);
+      }
+    }
+  };
 
   const loadInitialData = async () => {
     try {
@@ -327,6 +392,21 @@ export default function POSManagement() {
       setLoadingProducts(false);
       setLoadingSettings(false);
     }
+  };
+
+  const openCurrentOrderOnMobile = () => {
+    if (typeof window === "undefined" || window.innerWidth > 860) return;
+
+    setMobileCartOpen(true);
+    setMobileSummaryOpen(true);
+    setMobileProductsOpen(false);
+
+    window.setTimeout(() => {
+      cartPanelRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "start"
+      });
+    }, 120);
   };
 
   const loadPendingCarts = async () => {
@@ -579,16 +659,81 @@ export default function POSManagement() {
     return Number(item.unit_price || 0) * Number(qty || 1) * discountMultiplier;
   };
 
-  const addToCart = (product) => {
+  const closeUnitPicker = () => {
+    setUnitPickerProduct(null);
+    setUnitPickerOptions([]);
+    setUnitPickerError("");
+    setLoadingUnitPicker(false);
+  };
+
+  const openUnitPicker = async (product) => {
+    setUnitPickerProduct(product);
+    setUnitPickerError("");
+
+    const cachedOptions = unitOptionsCache[product.id];
+    if (cachedOptions?.length) {
+      setUnitPickerOptions(cachedOptions);
+      return;
+    }
+
+    try {
+      setLoadingUnitPicker(true);
+      const res = await getProductUnitHierarchy(product.id);
+      const options = buildSellUnitOptions(
+        product,
+        Array.isArray(res?.data?.unit_levels) ? res.data.unit_levels : []
+      );
+
+      if (!options.length) {
+        setUnitPickerError("No unit hierarchy has been configured for this product yet.");
+        setUnitPickerOptions([]);
+        return;
+      }
+
+      setUnitOptionsCache((current) => ({
+        ...current,
+        [product.id]: options
+      }));
+      setUnitPickerOptions(options);
+    } catch (err) {
+      setUnitPickerError(
+        err?.response?.data?.message || "Failed to load product unit options"
+      );
+      setUnitPickerOptions([]);
+    } finally {
+      setLoadingUnitPicker(false);
+    }
+  };
+
+  const addToCart = (product, sellUnit = null) => {
     setCart((prev) => {
+      const availableUnitStock = Number(
+        sellUnit?.available_qty ?? product.stock ?? 0
+      );
+
+      if (!product.is_unlimited && product.type !== "timed" && availableUnitStock <= 0) {
+        setError(
+          sellUnit?.unit_label
+            ? `No ${formatUnitLabel(sellUnit)} stock available`
+            : "This product is out of stock"
+        );
+        return prev;
+      }
+
       const existing = prev.find(
         (item) =>
           item.product_id === product.id &&
+          Number(item.unit_level_id || 0) === Number(sellUnit?.unit_level_id || 0) &&
           item.item_type !== "timed" &&
           Number(item.item_discount_pct || 0) === 0
       );
 
       if (existing) {
+        if (existing.manage_stock && existing.qty >= Number(existing.available_unit_stock || 0)) {
+          setError(`Only ${formatAvailableUnitStock(existing)} available`);
+          return prev;
+        }
+
         return prev.map((item) =>
           item.cart_id === existing.cart_id
             ? {
@@ -603,11 +748,15 @@ export default function POSManagement() {
       const unitPrice =
         product.type === "timed"
           ? Number(product.hourly_rate || 0)
-          : Number(product.price || 0);
+          : Number(sellUnit?.unit_price ?? product.price ?? 0);
 
       const item = {
         cart_id: `${product.id}-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
         product_id: product.id,
+        unit_level_id: sellUnit?.unit_level_id || null,
+        unit_label: sellUnit?.unit_label || null,
+        unit_short_name: sellUnit?.unit_short_name || null,
+        available_unit_stock: availableUnitStock,
         item_name: product.name,
         icon: product.icon || "📦",
         item_type: product.type || "fixed",
@@ -619,27 +768,44 @@ export default function POSManagement() {
         session_end: null,
         elapsed_seconds: 0,
         final_price: product.type === "timed" ? 0 : unitPrice,
-        manage_stock: !product.is_unlimited && Number(product.stock || 0) > 0
+        manage_stock: !product.is_unlimited && availableUnitStock > 0
       };
 
       return [...prev, item];
     });
+
+    setError("");
+    openCurrentOrderOnMobile();
+  };
+
+  const handleProductSelection = async (product) => {
+    if (Number(product.has_unit_hierarchy) === 1 && product.type !== "timed") {
+      await openUnitPicker(product);
+      return;
+    }
+
+    addToCart(product);
   };
 
   const increaseQty = (cartId) => {
     setCart((prev) =>
-      prev.map((item) =>
-        item.cart_id === cartId
-          ? {
-              ...item,
-              qty: item.qty + 1,
-              final_price:
-                item.item_type === "timed"
-                  ? item.final_price
-                  : getLineFinalPrice(item, item.qty + 1)
-            }
-          : item
-      )
+      prev.map((item) => {
+        if (item.cart_id !== cartId) return item;
+
+        if (item.manage_stock && item.qty >= Number(item.available_unit_stock || 0)) {
+          setError(`Only ${formatAvailableUnitStock(item)} available`);
+          return item;
+        }
+
+        return {
+          ...item,
+          qty: item.qty + 1,
+          final_price:
+            item.item_type === "timed"
+              ? item.final_price
+              : getLineFinalPrice(item, item.qty + 1)
+        };
+      })
     );
   };
 
@@ -804,6 +970,9 @@ export default function POSManagement() {
   const payloadItems = useMemo(() => {
     return computedCart.map((item) => ({
       product_id: item.product_id,
+      unit_level_id: item.unit_level_id,
+      unit_label: item.unit_label,
+      unit_short_name: item.unit_short_name,
       item_name: item.item_name,
       icon: item.icon,
       item_type: item.item_type,
@@ -903,6 +1072,9 @@ export default function POSManagement() {
     const mapped = activeCustomerOrder.items.map((item, index) => ({
       cart_id: `customer-${activeCustomerOrder.order.id}-${item.id || index}-${Date.now()}`,
       product_id: item.product_id,
+      unit_level_id: item.unit_level_id || null,
+      unit_label: item.unit_label || null,
+      unit_short_name: item.unit_short_name || null,
       item_name: item.item_name,
       icon: item.icon || "🍽️",
       item_type: "fixed",
@@ -1078,6 +1250,9 @@ export default function POSManagement() {
         (data.items || []).map((item, index) => ({
           cart_id: `pending-${data.id}-${item.id || index}-${Date.now()}`,
           product_id: item.product_id,
+          unit_level_id: item.unit_level_id || null,
+          unit_label: item.unit_label || null,
+          unit_short_name: item.unit_short_name || null,
           item_name: item.item_name,
           icon: item.icon,
           item_type: item.item_type || "fixed",
@@ -1169,6 +1344,9 @@ export default function POSManagement() {
     return (items || []).map((item, index) => ({
       cart_id: item.cart_id || item.id || `receipt-${index}`,
       product_id: item.product_id,
+      unit_level_id: item.unit_level_id || null,
+      unit_label: item.unit_label || null,
+      unit_short_name: item.unit_short_name || null,
       item_name: item.item_name,
       icon: item.icon || "📦",
       item_type: item.item_type || "fixed",
@@ -1279,8 +1457,12 @@ export default function POSManagement() {
       );
 
       resetCartState();
-      await loadPendingCarts();
-      await loadSalesSummary({ silent: true });
+      await Promise.all([
+        loadProductsData({ silent: true }),
+        loadPendingCarts(),
+        loadCustomerOrders(),
+        loadSalesSummary({ silent: true })
+      ]);
     } catch (err) {
       setError(err?.response?.data?.message || "Checkout failed");
     } finally {
@@ -2227,7 +2409,7 @@ export default function POSManagement() {
                             type="button"
                             key={product.id}
                             className={styles.productCard}
-                            onClick={() => addToCart(product)}
+                            onClick={() => handleProductSelection(product)}
                           >
                             <div className={styles.productTop}>
                               <span className={styles.productIcon}>
@@ -2245,8 +2427,15 @@ export default function POSManagement() {
                             <div className={styles.productPrice}>
                               {product.type === "timed"
                                 ? `${formatMoney(price)}/hr`
+                                : Number(product.has_unit_hierarchy) === 1
+                                ? `From ${formatMoney(price)}`
                                 : formatMoney(price)}
                             </div>
+                            {Number(product.has_unit_hierarchy) === 1 ? (
+                              <div className={styles.productUnitHint}>
+                                Choose unit to see stock and price
+                              </div>
+                            ) : null}
                             <div className={styles.productStock}>
                               Stock:{" "}
                               {product.is_unlimited
@@ -2313,7 +2502,7 @@ export default function POSManagement() {
           </div>
         </section>
 
-        <aside className={styles.cartPanel}>
+        <aside ref={cartPanelRef} className={styles.cartPanel}>
           <button
             type="button"
             className={styles.mobileCollapseBtn}
@@ -2483,8 +2672,16 @@ export default function POSManagement() {
                       <div className={styles.cartItemMeta}>
                         {item.item_type === "timed" && item.session_start
                           ? `Started: ${formatDateTimeLocal(item.session_start)}`
+                          : item.unit_label
+                          ? `${item.item_type} • Unit: ${formatUnitLabel(item)}`
                           : item.item_type}
                       </div>
+
+                      {item.unit_label ? (
+                        <div className={styles.cartItemMeta}>
+                          Available stock: {formatAvailableUnitStock(item)}
+                        </div>
+                      ) : null}
 
                       <div className={styles.cartItemPrice}>
                         {item.item_type === "timed"
@@ -2812,6 +3009,71 @@ export default function POSManagement() {
         </aside>
       </div>
 
+      {unitPickerProduct ? (
+        <div className={styles.unitPickerOverlay}>
+          <button
+            type="button"
+            className={styles.unitPickerBackdrop}
+            onClick={closeUnitPicker}
+            aria-label="Close unit picker"
+          />
+          <div className={styles.unitPickerModal}>
+            <div className={styles.unitPickerHeader}>
+              <div>
+                <p className={styles.unitPickerEyebrow}>Select Sell Unit</p>
+                <h3>{unitPickerProduct.icon || "📦"} {unitPickerProduct.name}</h3>
+                <small>
+                  Choose the unit value and selling price for this item before adding it to the cart.
+                </small>
+              </div>
+              <button type="button" onClick={closeUnitPicker}>
+                <FiX />
+              </button>
+            </div>
+
+            {loadingUnitPicker ? (
+              <div className={styles.unitPickerState}>Loading unit options...</div>
+            ) : unitPickerError ? (
+              <div className={styles.unitPickerError}>{unitPickerError}</div>
+            ) : (
+              <div className={styles.unitOptionGrid}>
+                {unitPickerOptions.map((option) => (
+                  <button
+                    type="button"
+                    key={option.unit_level_id}
+                    className={styles.unitOptionCard}
+                    disabled={option.available_qty <= 0}
+                    onClick={() => {
+                      addToCart(unitPickerProduct, option);
+                      closeUnitPicker();
+                    }}
+                  >
+                    <div className={styles.unitOptionTop}>
+                      <strong>{formatUnitLabel(option)}</strong>
+                      <span>{formatMoney(option.unit_price)}</span>
+                    </div>
+                    <div className={styles.unitOptionMeta}>
+                      {option.level === 1
+                        ? "Largest unit"
+                        : `${option.conversion_factor} per parent`}
+                    </div>
+                    <div className={styles.unitOptionMeta}>
+                      {option.smallest_unit_multiplier} smallest-unit value
+                    </div>
+                    <div className={styles.unitOptionMeta}>
+                      Available stock: {option.available_qty} {formatUnitLabel(option)}
+                    </div>
+                    {option.available_qty <= 0 ? (
+                      <div className={styles.unitOptionMeta}>Out of stock</div>
+                    ) : null}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      ) : null}
+
       {receipt ? (
         <div className={styles.receiptOverlay}>
           <div className={styles.receiptModal}>
@@ -2929,7 +3191,8 @@ export default function POSManagement() {
                 .map((item, index) => (
                   <div key={item.cart_id || index} className={styles.rRow}>
                     <span>
-                      {item.icon} {item.item_name} ×{item.qty}
+                      {item.icon} {item.item_name}
+                      {item.unit_label ? ` (${formatUnitLabel(item)})` : ""} ×{item.qty}
                       {Number(item.item_discount_pct || 0) > 0
                         ? ` (${Number(item.item_discount_pct || 0)}% off)`
                         : ""}
