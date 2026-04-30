@@ -207,6 +207,32 @@ const getProductImageLabel = (product) => {
   return name ? name.charAt(0).toUpperCase() : "P";
 };
 
+const getSearchableProductText = (product) => {
+  return [
+    product?.name,
+    product?.category_name,
+    product?.category_type,
+    product?.type,
+    product?.consumable_type,
+    product?.product_unit_name,
+    product?.product_unit_short_name
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+};
+
+const INVENTORY_SECTION_KEYS = [
+  "productForm",
+  "stockTools",
+  "categories",
+  "units",
+  "inventoryList",
+  "lowStock",
+  "stockHistory",
+  "disabledProducts"
+];
+
 function SectionToggle({
   title,
   subtitle,
@@ -444,7 +470,7 @@ function ProductListModal({
   );
 }
 
-export default function InventoryManagement() {
+export default function InventoryManagement({ activeSection = null }) {
   const [products, setProducts] = useState([]);
   const [disabledProducts, setDisabledProducts] = useState([]);
   const [categories, setCategories] = useState([]);
@@ -472,6 +498,7 @@ export default function InventoryManagement() {
   const [unitForm, setUnitForm] = useState(initialUnitForm);
   const [restockForm, setRestockForm] = useState(initialRestockForm);
   const [adjustForm, setAdjustForm] = useState(initialAdjustForm);
+  const [stockToolSearch, setStockToolSearch] = useState("");
 
   const [editingId, setEditingId] = useState(null);
   const [editingCategoryId, setEditingCategoryId] = useState(null);
@@ -508,6 +535,7 @@ export default function InventoryManagement() {
     stockHistory: false,
     disabledProducts: false
   });
+  const [focusedSection, setFocusedSection] = useState(activeSection || null);
 
   const [currentPage, setCurrentPage] = useState(1);
   const ITEMS_PER_PAGE = 8;
@@ -592,10 +620,31 @@ export default function InventoryManagement() {
   };
 
   const toggleSection = (key) => {
+    if (focusedSection) {
+      setOpenSections((prev) => ({
+        ...prev,
+        [key]: true
+      }));
+      return;
+    }
+
     setOpenSections((prev) => ({
       ...prev,
       [key]: !prev[key]
     }));
+  };
+
+  const showSection = (sectionKey) => {
+    setFocusedSection(sectionKey);
+    setOpenSections((prev) =>
+      Object.keys(prev).reduce(
+        (acc, key) => ({
+          ...acc,
+          [key]: key === sectionKey
+        }),
+        {}
+      )
+    );
   };
 
   const loadProducts = async () => {
@@ -703,6 +752,15 @@ export default function InventoryManagement() {
   useEffect(() => {
     loadAll();
   }, []);
+
+  useEffect(() => {
+    if (activeSection && INVENTORY_SECTION_KEYS.includes(activeSection)) {
+      showSection(activeSection);
+      return;
+    }
+
+    setFocusedSection(null);
+  }, [activeSection]);
 
   const selectedCategory = useMemo(() => {
     return categories.find((item) => String(item.id) === String(form.category_id));
@@ -916,6 +974,7 @@ export default function InventoryManagement() {
         ...prev,
         productForm: true
       }));
+      setFocusedSection("productForm");
 
       window.scrollTo({ top: 0, behavior: "smooth" });
     } catch (err) {
@@ -1058,6 +1117,7 @@ export default function InventoryManagement() {
       ...prev,
       categories: true
     }));
+    setFocusedSection("categories");
 
     clearAlerts();
   };
@@ -1139,6 +1199,7 @@ export default function InventoryManagement() {
       ...prev,
       units: true
     }));
+    setFocusedSection("units");
 
     clearAlerts();
   };
@@ -1265,6 +1326,17 @@ export default function InventoryManagement() {
     });
   }, [products, search]);
 
+  const stockToolProducts = useMemo(() => {
+    const keyword = stockToolSearch.toLowerCase().trim();
+
+    return products
+      .filter((item) => !Number(item.is_unlimited))
+      .filter((product) => {
+        if (!keyword) return true;
+        return getSearchableProductText(product).includes(keyword);
+      });
+  }, [products, stockToolSearch]);
+
   const totalPages = Math.max(1, Math.ceil(filteredProducts.length / ITEMS_PER_PAGE));
 
   const paginatedProducts = useMemo(() => {
@@ -1299,6 +1371,18 @@ export default function InventoryManagement() {
   const expiringCount = products.filter(
     (item) => Number(item.has_expiry || 0) === 1
   ).length;
+  const isFocusedMode = !!focusedSection;
+  const isSectionVisible = (sectionKey) =>
+    !isFocusedMode || focusedSection === sectionKey;
+  const hasLeftPanelContent = ["productForm", "stockTools", "categories", "units"].some(
+    isSectionVisible
+  );
+  const hasRightPanelContent = [
+    "inventoryList",
+    "lowStock",
+    "stockHistory",
+    "disabledProducts"
+  ].some(isSectionVisible);
 
   return (
     <div className={styles.inventoryPage}>
@@ -1463,8 +1547,14 @@ export default function InventoryManagement() {
         </button>
       </section>
 
-      <section className={styles.mainGrid}>
+      <section
+        className={`${styles.mainGrid} ${
+          isFocusedMode ? styles.mainGridSingleColumn : ""
+        }`}
+      >
+        {hasLeftPanelContent ? (
         <div className={styles.leftPanel}>
+          {isSectionVisible("productForm") ? (
           <div className={styles.panelCard}>
             <SectionToggle
               title={editingId ? "Edit Product" : "Add Product"}
@@ -1818,7 +1908,9 @@ export default function InventoryManagement() {
               </form>
             ) : null}
           </div>
+          ) : null}
 
+          {isSectionVisible("stockTools") ? (
           <div className={styles.panelCard}>
             <SectionToggle
               title="Stock Tools"
@@ -1837,6 +1929,16 @@ export default function InventoryManagement() {
                   </div>
 
                   <div className={styles.field}>
+                    <label>Search Product</label>
+                    <input
+                      type="text"
+                      value={stockToolSearch}
+                      onChange={(e) => setStockToolSearch(e.target.value)}
+                      placeholder="Search by product, category, type, or unit"
+                    />
+                  </div>
+
+                  <div className={styles.field}>
                     <label>Product</label>
                     <select
                       value={restockForm.productId}
@@ -1845,13 +1947,12 @@ export default function InventoryManagement() {
                       }
                     >
                       <option value="">Select product</option>
-                      {products
-                        .filter((item) => !Number(item.is_unlimited))
-                        .map((product) => (
-                          <option key={product.id} value={product.id}>
-                            {product.name}
-                          </option>
-                        ))}
+                      {stockToolProducts.map((product) => (
+                        <option key={product.id} value={product.id}>
+                          {product.name}
+                          {product.category_name ? ` • ${product.category_name}` : ""}
+                        </option>
+                      ))}
                     </select>
                   </div>
 
@@ -1921,6 +2022,16 @@ export default function InventoryManagement() {
                   </div>
 
                   <div className={styles.field}>
+                    <label>Search Product</label>
+                    <input
+                      type="text"
+                      value={stockToolSearch}
+                      onChange={(e) => setStockToolSearch(e.target.value)}
+                      placeholder="Search by product, category, type, or unit"
+                    />
+                  </div>
+
+                  <div className={styles.field}>
                     <label>Product</label>
                     <select
                       value={adjustForm.productId}
@@ -1929,13 +2040,12 @@ export default function InventoryManagement() {
                       }
                     >
                       <option value="">Select product</option>
-                      {products
-                        .filter((item) => !Number(item.is_unlimited))
-                        .map((product) => (
-                          <option key={product.id} value={product.id}>
-                            {product.name}
-                          </option>
-                        ))}
+                      {stockToolProducts.map((product) => (
+                        <option key={product.id} value={product.id}>
+                          {product.name}
+                          {product.category_name ? ` • ${product.category_name}` : ""}
+                        </option>
+                      ))}
                     </select>
                   </div>
 
@@ -1977,7 +2087,9 @@ export default function InventoryManagement() {
               </div>
             ) : null}
           </div>
+          ) : null}
 
+          {isSectionVisible("categories") ? (
           <div className={styles.panelCard}>
             <SectionToggle
               title={editingCategoryId ? "Edit Category" : "Categories"}
@@ -2070,7 +2182,9 @@ export default function InventoryManagement() {
               </>
             ) : null}
           </div>
+          ) : null}
 
+          {isSectionVisible("units") ? (
           <div className={styles.panelCard}>
             <SectionToggle
               title={editingUnitId ? "Edit Unit Type" : "Product Units"}
@@ -2159,9 +2273,13 @@ export default function InventoryManagement() {
               </>
             ) : null}
           </div>
+          ) : null}
         </div>
+        ) : null}
 
+        {hasRightPanelContent ? (
         <div className={styles.rightPanel}>
+          {isSectionVisible("inventoryList") ? (
           <div className={styles.panelCard}>
             <SectionToggle
               title="Inventory List"
@@ -2185,8 +2303,33 @@ export default function InventoryManagement() {
             ) : openSections.inventoryList ? (
               filteredProducts.length ? (
                 <>
+                  <div className={styles.inventoryListFrame}>
+                  <div className={styles.inventoryListToolbar}>
+                    <div className={styles.inventoryListMeta}>
+                      <span className={styles.metaChip}>
+                        {filteredProducts.length} listed
+                      </span>
+                      <span className={styles.metaChip}>
+                        Page {currentPage} of {totalPages}
+                      </span>
+                    </div>
+                  </div>
+
                   <div className={styles.tableWrapper}>
                     <table className={styles.table}>
+                      <colgroup>
+                        <col className={styles.colId} />
+                        <col className={styles.colProduct} />
+                        <col className={styles.colCategory} />
+                        <col className={styles.colType} />
+                        <col className={styles.colUnit} />
+                        <col className={styles.colPrice} />
+                        <col className={styles.colCost} />
+                        <col className={styles.colStock} />
+                        <col className={styles.colExpiry} />
+                        <col className={styles.colStatus} />
+                        <col className={styles.colActions} />
+                      </colgroup>
                       <thead>
                         <tr>
                           <th>ID</th>
@@ -2335,6 +2478,7 @@ export default function InventoryManagement() {
                         })}
                       </tbody>
                     </table>
+                  </div>
                   </div>
 
                   <div className={styles.mobileCards}>
@@ -2516,7 +2660,9 @@ export default function InventoryManagement() {
               )
             ) : null}
           </div>
+          ) : null}
 
+          {isSectionVisible("lowStock") ? (
           <div className={styles.panelCard}>
             <SectionToggle
               title="Low Stock Products"
@@ -2548,7 +2694,9 @@ export default function InventoryManagement() {
               )
             ) : null}
           </div>
+          ) : null}
 
+          {isSectionVisible("stockHistory") ? (
           <div className={styles.panelCard}>
             <SectionToggle
               title="Stock History"
@@ -2583,7 +2731,9 @@ export default function InventoryManagement() {
               )
             ) : null}
           </div>
+          ) : null}
 
+          {isSectionVisible("disabledProducts") ? (
           <div className={styles.panelCard}>
             <SectionToggle
               title="Disabled Products"
@@ -2619,7 +2769,9 @@ export default function InventoryManagement() {
               )
             ) : null}
           </div>
+          ) : null}
         </div>
+        ) : null}
       </section>
     </div>
   );

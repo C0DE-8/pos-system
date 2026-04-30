@@ -146,6 +146,10 @@
   align-items: start;
 }
 
+.mainGridSingleColumn {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 .leftPanel,
 .rightPanel {
   display: flex;
@@ -538,9 +542,38 @@
   flex-wrap: wrap;
 }
 
+.tableActions {
+  justify-content: flex-start;
+}
+
 .searchInput {
   width: 320px;
   max-width: 100%;
+}
+
+.inventoryListFrame {
+  border: 1px solid #e2e8f0;
+  border-radius: 20px;
+  background: linear-gradient(180deg, #ffffff, #fbfdff);
+  overflow: hidden;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.72);
+}
+
+.inventoryListToolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  border-bottom: 1px solid #edf2f7;
+  background: #f8fbff;
+}
+
+.inventoryListMeta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 
 .emptyMini {
@@ -554,7 +587,7 @@
 .tableWrapper {
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
-  border-radius: 16px;
+  border-radius: 0;
 }
 
 .tableWrapper::-webkit-scrollbar {
@@ -568,27 +601,46 @@
 
 .table {
   width: 100%;
-  min-width: 1280px;
+  min-width: 1160px;
   table-layout: fixed;
   border-collapse: collapse;
 }
+
+.colId { width: 72px; }
+.colProduct { width: 320px; }
+.colCategory { width: 150px; }
+.colType { width: 120px; }
+.colUnit { width: 140px; }
+.colPrice,
+.colCost { width: 120px; }
+.colStock { width: 96px; }
+.colExpiry { width: 150px; }
+.colStatus { width: 110px; }
+.colActions { width: 196px; }
 
 .table thead th {
   text-align: left;
   font-size: 13px;
   color: #475569;
-  padding: 14px 12px;
+  padding: 15px 14px;
   border-bottom: 1px solid #e2e8f0;
-  background: #f8fafc;
+  background: #f8fbff;
   white-space: nowrap;
+  letter-spacing: 0.01em;
+  text-transform: uppercase;
 }
 
 .table tbody td {
-  padding: 12px;
+  padding: 15px 14px;
   border-bottom: 1px solid #f1f5f9;
   font-size: 14px;
   color: #0f172a;
   vertical-align: middle;
+  line-height: 1.45;
+}
+
+.table tbody tr:hover {
+  background: #f8fbff;
 }
 
 .productCell {
@@ -615,7 +667,7 @@
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 6px;
 }
 
 .productCellTop {
@@ -658,7 +710,7 @@
 .cellStack {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 6px;
 }
 
 .cellStack small {
@@ -935,7 +987,7 @@
 
 .stockToolsGrid {
   display: grid;
-  grid-template-columns: 1fr;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 16px;
 }
 
@@ -996,8 +1048,7 @@
   align-items: center;
   gap: 14px;
   margin-top: 16px;
-  padding-top: 14px;
-  border-top: 1px solid #e2e8f0;
+  padding-top: 4px;
   flex-wrap: wrap;
 }
 
@@ -1242,6 +1293,13 @@
     display: block;
   }
 
+  .inventoryListFrame {
+    border: none;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+  }
+
   .statCard {
     padding: 16px;
     border-radius: 18px;
@@ -1254,6 +1312,12 @@
 
   .searchInput {
     width: 100%;
+  }
+
+  .inventoryListToolbar {
+    padding: 0 0 12px;
+    border-bottom: none;
+    background: transparent;
   }
 
   .stockToolsGrid {

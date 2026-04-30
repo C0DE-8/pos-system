@@ -1,4 +1,5 @@
 // src/components/sidebar/Sidebar.jsx
+import { useEffect, useState } from "react";
 import {
   FiGrid,
   FiBox,
@@ -11,10 +12,24 @@ import {
   FiSettings,
   FiBarChart2,
   FiEye,
+  FiArchive,
+  FiGitBranch,
   FiChevronLeft,
-  FiChevronRight
+  FiChevronRight,
+  FiChevronDown
 } from "react-icons/fi";
 import styles from "./Sidebar.module.css";
+
+const INVENTORY_SUBMENU_LABELS = [
+  "Add Product",
+  "Stock Tools",
+  "Categories",
+  "Product Units",
+  "Inventory List",
+  "Low Stock Products",
+  "Stock History",
+  "Disabled Products"
+];
 
 const ICONS = {
   Overview: <FiGrid />,
@@ -23,13 +38,21 @@ const ICONS = {
   POS: <FiShoppingCart />,
   Sales: <FiTrendingUp />,
   Inventory: <FiLayers />,
-  "Unit Hierarchy": <FiBox />,
+  "Unit Hierarchy": <FiGitBranch />,
   Courts: <FiMap />,
   Users: <FiUserCheck />,
   Settings: <FiSettings />,
   Reports: <FiBarChart2 />,
   Viewer: <FiEye />,
-  Warehouse: <FiBox />
+  Warehouse: <FiArchive />,
+  "Add Product": <FiBox />,
+  "Stock Tools": <FiBox />,
+  Categories: <FiBox />,
+  "Product Units": <FiBox />,
+  "Inventory List": <FiBox />,
+  "Low Stock Products": <FiBox />,
+  "Stock History": <FiBox />,
+  "Disabled Products": <FiBox />
 };
 
 export default function Sidebar({
@@ -40,6 +63,21 @@ export default function Sidebar({
   collapsed = false,
   onToggleCollapse
 }) {
+  const inventoryChildren = menu.filter((item) =>
+    INVENTORY_SUBMENU_LABELS.includes(item.label)
+  );
+  const topLevelItems = menu.filter(
+    (item) => !INVENTORY_SUBMENU_LABELS.includes(item.label)
+  );
+  const isInventoryActive = INVENTORY_SUBMENU_LABELS.includes(activeMenu);
+  const [inventoryOpen, setInventoryOpen] = useState(isInventoryActive);
+
+  useEffect(() => {
+    if (isInventoryActive) {
+      setInventoryOpen(true);
+    }
+  }, [isInventoryActive]);
+
   return (
     <aside className={`${styles.sidebar} ${collapsed ? styles.collapsed : ""}`}>
       <div className={styles.topArea}>
@@ -60,17 +98,73 @@ export default function Sidebar({
       </div>
 
       <nav className={styles.navMenu}>
-        {menu.map((item) => (
-          <button
-            key={item}
-            className={`${styles.navItem} ${activeMenu === item ? styles.activeNavItem : ""}`}
-            onClick={() => setActiveMenu(item)}
-            title={collapsed ? item : ""}
-          >
-            <span className={styles.icon}>{ICONS[item] || <FiGrid />}</span>
-            {!collapsed && <span className={styles.label}>{item}</span>}
-          </button>
-        ))}
+        {topLevelItems.map((item) => {
+          if (item.label === "Inventory" && inventoryChildren.length) {
+            return (
+              <div key={item.label} className={styles.navGroup}>
+                <button
+                  className={`${styles.navItem} ${
+                    isInventoryActive ? styles.activeNavItem : ""
+                  }`}
+                  onClick={() => {
+                    if (collapsed) {
+                      setActiveMenu(inventoryChildren[0].label);
+                      return;
+                    }
+
+                    setInventoryOpen((prev) => !prev);
+                  }}
+                  title={collapsed ? item.label : ""}
+                >
+                  <span className={styles.icon}>{ICONS[item.label] || <FiGrid />}</span>
+                  {!collapsed ? (
+                    <>
+                      <span className={styles.label}>{item.label}</span>
+                      <span
+                        className={`${styles.groupChevron} ${
+                          inventoryOpen ? styles.groupChevronOpen : ""
+                        }`}
+                      >
+                        <FiChevronDown />
+                      </span>
+                    </>
+                  ) : null}
+                </button>
+
+                {!collapsed && inventoryOpen ? (
+                  <div className={styles.submenu}>
+                    {inventoryChildren.map((child) => (
+                      <button
+                        key={child.label}
+                        className={`${styles.submenuItem} ${
+                          activeMenu === child.label ? styles.activeSubmenuItem : ""
+                        }`}
+                        onClick={() => setActiveMenu(child.label)}
+                      >
+                        <span className={styles.submenuDot} />
+                        <span className={styles.submenuLabel}>{child.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+            );
+          }
+
+          return (
+            <button
+              key={item.label}
+              className={`${styles.navItem} ${
+                activeMenu === item.label ? styles.activeNavItem : ""
+              }`}
+              onClick={() => setActiveMenu(item.label)}
+              title={collapsed ? item.label : ""}
+            >
+              <span className={styles.icon}>{ICONS[item.label] || <FiGrid />}</span>
+              {!collapsed && <span className={styles.label}>{item.label}</span>}
+            </button>
+          );
+        })}
       </nav>
     </aside>
   );

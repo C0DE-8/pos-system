@@ -12,6 +12,8 @@ import {
   FiTrendingUp,
   FiBarChart2,
   FiGrid,
+  FiGitBranch,
+  FiArchive,
   FiBell,
   FiAlertTriangle,
   FiX
@@ -54,13 +56,35 @@ const STAT_ICONS = {
   Courts: <FiMapPin />
 };
 
+const INVENTORY_SUBMENU_ITEMS = [
+  { label: "Add Product", sectionKey: "productForm" },
+  { label: "Stock Tools", sectionKey: "stockTools" },
+  { label: "Categories", sectionKey: "categories" },
+  { label: "Product Units", sectionKey: "units" },
+  { label: "Inventory List", sectionKey: "inventoryList" },
+  { label: "Low Stock Products", sectionKey: "lowStock" },
+  { label: "Stock History", sectionKey: "stockHistory" },
+  { label: "Disabled Products", sectionKey: "disabledProducts" }
+];
+
+const INVENTORY_SUBMENU_LABELS = INVENTORY_SUBMENU_ITEMS.map((item) => item.label);
+const INVENTORY_SECTION_BY_LABEL = Object.fromEntries(
+  INVENTORY_SUBMENU_ITEMS.map((item) => [item.label, item.sectionKey])
+);
+const DEFAULT_INVENTORY_MENU = INVENTORY_SUBMENU_ITEMS[0].label;
+
 const MENU_ITEMS = [
   { label: "Overview", permission: null, icon: <FiHome /> },
   { label: "POS", permission: "pos", icon: <FiCreditCard /> },
   { label: "Courts", permission: "courts", icon: <FiMapPin /> },
   { label: "Inventory", permission: "inventory", icon: <FiBox /> },
-  { label: "Unit Hierarchy", permission: "inventory", icon: <FiBox /> },
-  { label: "Warehouse", permission: "inventory", icon: <FiBox /> },
+  ...INVENTORY_SUBMENU_ITEMS.map((item) => ({
+    label: item.label,
+    permission: "inventory",
+    icon: <FiBox />
+  })),
+  { label: "Unit Hierarchy", permission: "inventory", icon: <FiGitBranch /> },
+  { label: "Warehouse", permission: "inventory", icon: <FiArchive /> },
   { label: "Sales", permission: "sales", icon: <FiTrendingUp /> },
   { label: "Reports", permission: "analytics", icon: <FiBarChart2 /> },
   { label: "Members", permission: "members", icon: <FiUsers /> },
@@ -95,6 +119,14 @@ const getExpiryStatusClass = (daysLeft) => {
   if (daysLeft <= 1) return styles.expiryBadgeDanger;
   if (daysLeft <= 3) return styles.expiryBadgeWarning;
   return styles.expiryBadgeInfo;
+};
+
+const normalizeMenuLabel = (label) => {
+  if (label === "Inventory") {
+    return DEFAULT_INVENTORY_MENU;
+  }
+
+  return label;
 };
 
 export default function Dashboard() {
@@ -187,10 +219,13 @@ export default function Dashboard() {
 
     let nextMenu = "";
 
-    if (savedMenu && menuLabels.includes(savedMenu)) {
-      nextMenu = savedMenu;
-    } else if (menuLabels.includes(defaultMenu)) {
-      nextMenu = defaultMenu;
+    const normalizedSavedMenu = normalizeMenuLabel(savedMenu);
+    const normalizedDefaultMenu = normalizeMenuLabel(defaultMenu);
+
+    if (normalizedSavedMenu && menuLabels.includes(normalizedSavedMenu)) {
+      nextMenu = normalizedSavedMenu;
+    } else if (menuLabels.includes(normalizedDefaultMenu)) {
+      nextMenu = normalizedDefaultMenu;
     } else {
       nextMenu = menuLabels[0];
     }
@@ -220,8 +255,8 @@ export default function Dashboard() {
     if (!currentUser || !menuLabels.length || !activeMenu) return;
 
     if (!menuLabels.includes(activeMenu)) {
-      const fallbackMenu = menuLabels.includes(getDefaultMenuByRole(role))
-        ? getDefaultMenuByRole(role)
+      const fallbackMenu = menuLabels.includes(normalizeMenuLabel(getDefaultMenuByRole(role)))
+        ? normalizeMenuLabel(getDefaultMenuByRole(role))
         : menuLabels[0];
 
       setActiveMenu(fallbackMenu);
@@ -390,14 +425,15 @@ export default function Dashboard() {
   };
 
   const handleMenuChange = (label) => {
-    setActiveMenu(label);
+    const normalizedLabel = normalizeMenuLabel(label);
+    setActiveMenu(normalizedLabel);
 
     if (currentUser) {
       const userStorageKey = getMenuStorageKey(currentUser);
-      localStorage.setItem(userStorageKey, label);
+      localStorage.setItem(userStorageKey, normalizedLabel);
     }
 
-    localStorage.setItem("dashboardActiveMenu", label);
+    localStorage.setItem("dashboardActiveMenu", normalizedLabel);
     setSidebarOpen(false);
   };
 
@@ -489,10 +525,13 @@ export default function Dashboard() {
       );
     }
 
-    if (activeMenu === "Inventory" && hasPermission(currentUser, currentPermissions, "inventory")) {
+    if (
+      INVENTORY_SECTION_BY_LABEL[activeMenu] &&
+      hasPermission(currentUser, currentPermissions, "inventory")
+    ) {
       return (
         <section className={styles.fullSection}>
-          <InventoryManagement />
+          <InventoryManagement activeSection={INVENTORY_SECTION_BY_LABEL[activeMenu]} />
         </section>
       );
     }
@@ -564,7 +603,7 @@ export default function Dashboard() {
 
         <Sidebar
           role={role}
-          menu={menuLabels}
+          menu={menu}
           activeMenu={activeMenu}
           setActiveMenu={handleMenuChange}
           collapsed={sidebarCollapsed}
@@ -680,7 +719,10 @@ export default function Dashboard() {
             key={item.label}
             type="button"
             className={`${styles.bottomNavItem} ${
-              activeMenu === item.label ? styles.bottomNavItemActive : ""
+              activeMenu === item.label ||
+              (item.label === "Inventory" && INVENTORY_SUBMENU_LABELS.includes(activeMenu))
+                ? styles.bottomNavItemActive
+                : ""
             }`}
             onClick={() => handleMenuChange(item.label)}
           >

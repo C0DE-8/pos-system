@@ -72,6 +72,12 @@
   overscroll-behavior: contain;
 }
 
+.navGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
 .navItem {
   width: 100%;
   border: none;
@@ -98,6 +104,19 @@
   color: #ffffff;
 }
 
+.groupChevron {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  transition: transform 0.2s ease;
+}
+
+.groupChevronOpen {
+  transform: rotate(180deg);
+}
+
 .icon {
   display: inline-flex;
   font-size: 18px;
@@ -105,6 +124,56 @@
 }
 
 .label {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.submenu {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-left: 14px;
+  padding-left: 12px;
+  border-left: 1px solid rgba(148, 163, 184, 0.22);
+}
+
+.submenuItem {
+  width: 100%;
+  border: none;
+  background: transparent;
+  color: #cbd5e1;
+  text-align: left;
+  padding: 10px 12px;
+  border-radius: 10px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+  transition: 0.2s ease;
+}
+
+.submenuItem:hover {
+  background: rgba(255, 255, 255, 0.07);
+  color: #ffffff;
+}
+
+.activeSubmenuItem {
+  background: rgba(37, 99, 235, 0.22);
+  color: #ffffff;
+}
+
+.submenuDot {
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: currentColor;
+  opacity: 0.85;
+  flex-shrink: 0;
+}
+
+.submenuLabel {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -165,5 +234,10 @@
   .navItem {
     width: 100%;
     justify-content: flex-start;
+  }
+
+  .submenu {
+    margin-left: 12px;
+    padding-left: 10px;
   }
 }
