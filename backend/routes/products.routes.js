@@ -77,6 +77,24 @@ function normalizeCurrencyAmount(value, fieldName) {
   return Number(parsed.toFixed(2));
 }
 
+function calculateSellableQtyForLevel(hierarchy, inventoryMap, targetIndex) {
+  let total = 0;
+
+  for (let index = 0; index <= targetIndex; index += 1) {
+    const level = hierarchy[index];
+    const qty = Number(inventoryMap.get(Number(level.id))?.qty || 0);
+    const targetMultiplier = Number(hierarchy[targetIndex].smallest_unit_multiplier || 1);
+    const levelMultiplier = Number(level.smallest_unit_multiplier || 1);
+
+    if (targetMultiplier <= 0 || levelMultiplier <= 0) continue;
+
+    const convertibleQty = Math.floor((qty * levelMultiplier) / targetMultiplier);
+    total += convertibleQty;
+  }
+
+  return total;
+}
+
 async function buildHierarchyPayload(units, businessId) {
   if (!Array.isArray(units) || units.length < 2) {
     const error = new Error("At least two unit levels are required");
@@ -1371,13 +1389,13 @@ router.get("/unit-hierarchy/:productId", requireAnyPermission("inventory", "pos"
         has_hierarchy: productRows[0].has_unit_hierarchy === 1,
         total_in_smallest_units: totalInSmallestUnits,
         unit_levels: levels.map((level) => {
-          const multiplier = Number(level.smallest_unit_multiplier || 1);
+          const levelIndex = levels.findIndex((entry) => Number(entry.id) === Number(level.id));
           return {
             ...level,
             current_qty: Number(inventoryMap.get(Number(level.id))?.qty || 0),
             available_qty:
-              multiplier > 0
-                ? Math.floor(totalInSmallestUnits / multiplier)
+              levelIndex >= 0
+                ? calculateSellableQtyForLevel(levels, inventoryMap, levelIndex)
                 : 0
           };
         })
