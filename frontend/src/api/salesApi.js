@@ -12,6 +12,12 @@ export const getSalesByPaymentType = async (params = {}) => {
   return data;
 };
 
+// get sales summary and trend metrics
+export const getSalesSummary = async (params = {}) => {
+  const { data } = await API.get("/sales/summary", { params });
+  return data;
+};
+
 // get one sale details
 export const getSaleById = async (id) => {
   const { data } = await API.get(`/sales/${id}`);

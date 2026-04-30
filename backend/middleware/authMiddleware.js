@@ -12,7 +12,7 @@ async function authMiddleware(req, res, next) {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
     const rows = await query(
-      `SELECT id, role, business_id, branch_id, is_active
+      `SELECT id, name, email, avatar, role, business_id, branch_id, is_active
        FROM users
        WHERE id = ?
        LIMIT 1`,
@@ -25,6 +25,9 @@ async function authMiddleware(req, res, next) {
 
     req.user = {
       id: rows[0].id,
+      name: rows[0].name,
+      email: rows[0].email,
+      avatar: rows[0].avatar,
       business_id: rows[0].business_id,
       branch_id: rows[0].branch_id,
       role: rows[0].role
