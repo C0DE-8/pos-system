@@ -3,7 +3,7 @@
 ================================ */
 
 .dashboardPage {
-  min-height: 100vh;
+  height: 100dvh;
   display: grid;
   grid-template-columns: 260px minmax(0, 1fr);
   background:
@@ -11,6 +11,7 @@
     radial-gradient(circle at bottom right, rgba(99, 102, 241, 0.10), transparent 30%),
     linear-gradient(135deg, #eef4ff 0%, #f8fbff 46%, #eef2ff 100%);
   position: relative;
+  overflow: hidden;
   transition: grid-template-columns 0.25s ease;
 }
 
@@ -23,15 +24,15 @@
 ================================ */
 
 .sidebarShell {
-  min-height: 100vh;
+  height: 100dvh;
   background: rgba(15, 23, 42, 0.92);
   backdrop-filter: blur(18px);
   -webkit-backdrop-filter: blur(18px);
-  position: sticky;
-  top: 0;
+  position: relative;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
   z-index: 40;
   border-right: 1px solid rgba(255, 255, 255, 0.08);
   transition: width 0.25s ease;
@@ -50,11 +51,14 @@
 ================================ */
 
 .mainContent {
+  height: 100dvh;
   padding: 24px;
   display: flex;
   flex-direction: column;
   gap: 24px;
+  min-height: 0;
   overflow-x: hidden;
+  overflow-y: auto;
   min-width: 0;
 }
 
@@ -846,7 +850,10 @@
 @media (max-width: 860px) {
   .dashboardPage,
   .dashboardPageCollapsed {
+    height: auto;
+    min-height: 100dvh;
     grid-template-columns: 1fr;
+    overflow: visible;
   }
 
   .sidebarShell,
@@ -879,8 +886,10 @@
   }
 
   .mainContent {
+    height: auto;
     padding: 16px;
     padding-bottom: 92px;
+    overflow: visible;
   }
 
   .desktopNavbar {
