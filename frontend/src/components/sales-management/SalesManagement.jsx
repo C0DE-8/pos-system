@@ -23,7 +23,8 @@ import {
   getSales,
   getSaleById,
   refundSale,
-  getSalesByPaymentType
+  getSalesByPaymentType,
+  getSalesSummary
 } from "../../api/salesApi";
 import { getSettings } from "../../api/settingsApi";
 import { toast } from "../CustomToaster/toast";
@@ -48,9 +49,19 @@ const currencySymbols = {
   KES: "Ksh "
 };
 
+const EMPTY_SALES_SUMMARY = {
+  today: { totalSales: 0, completedSales: 0, refundedSales: 0, revenue: 0 },
+  week: { totalSales: 0, completedSales: 0, refundedSales: 0, revenue: 0 },
+  month: { totalSales: 0, completedSales: 0, refundedSales: 0, revenue: 0 },
+  overall: { totalSales: 0, completedSales: 0, refundedSales: 0, revenue: 0 },
+  filtered: { totalSales: 0, completedSales: 0, refundedSales: 0, revenue: 0 },
+  trend: []
+};
+
 export default function SalesManagement() {
   const [sales, setSales] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [summaryLoading, setSummaryLoading] = useState(true);
   const [detailsLoading, setDetailsLoading] = useState(false);
   const [refundLoadingId, setRefundLoadingId] = useState(null);
 
@@ -78,6 +89,7 @@ export default function SalesManagement() {
   });
   const [currentPage, setCurrentPage] = useState(1);
   const [detailItemsPage, setDetailItemsPage] = useState(1);
+  const [salesSummary, setSalesSummary] = useState(EMPTY_SALES_SUMMARY);
 
   const SALES_PER_PAGE = 10;
   const SALE_ITEMS_PER_PAGE = 8;
@@ -403,6 +415,19 @@ export default function SalesManagement() {
       .reduce((sum, sale) => sum + Number(sale.total_amount || sale.total || 0), 0);
   }, [filteredSales]);
 
+  const summaryParams = useMemo(() => {
+    const params = {};
+
+    if (search.trim()) params.search = search.trim();
+    if (statusFilter !== "all") params.status = statusFilter;
+    if (rangeFilter !== "all") params.range = rangeFilter;
+    if (dateFrom) params.date_from = dateFrom;
+    if (dateTo) params.date_to = dateTo;
+    if (paymentFilter !== "all") params.payment = paymentFilter;
+
+    return params;
+  }, [search, statusFilter, rangeFilter, dateFrom, dateTo, paymentFilter]);
+
   const totalSalesPages = useMemo(() => {
     return Math.max(1, Math.ceil(filteredSales.length / SALES_PER_PAGE));
   }, [filteredSales.length]);
@@ -412,65 +437,15 @@ export default function SalesManagement() {
     return filteredSales.slice(startIndex, startIndex + SALES_PER_PAGE);
   }, [filteredSales, currentPage]);
 
-  const buildStatsForRange = (range) => {
-    const scopedSales = sales.filter((sale) => isInRange(sale, range));
-    const paidSales = scopedSales.filter((sale) => !isRefundedSale(sale));
-    const refundedSales = scopedSales.filter((sale) => isRefundedSale(sale));
-
-    const revenue = paidSales.reduce(
-      (sum, sale) => sum + Number(sale.total_amount || sale.total || 0),
-      0
-    );
-
-    return {
-      count: scopedSales.length,
-      paidCount: paidSales.length,
-      refundedCount: refundedSales.length,
-      revenue
-    };
-  };
-
-  const todayStats = useMemo(() => buildStatsForRange("today"), [sales]);
-  const weekStats = useMemo(() => buildStatsForRange("week"), [sales]);
-  const monthStats = useMemo(() => buildStatsForRange("month"), [sales]);
-
-  const overallStats = useMemo(() => {
-    const paidSales = sales.filter((sale) => !isRefundedSale(sale));
-    const refundedSales = sales.filter((sale) => isRefundedSale(sale));
-
-    return {
-      totalSales: sales.length,
-      completedSales: paidSales.length,
-      refundedSales: refundedSales.length,
-      revenue: paidSales.reduce(
-        (sum, sale) => sum + Number(sale.total_amount || sale.total || 0),
-        0
-      )
-    };
-  }, [sales]);
-
-  const chartData = useMemo(() => {
-    const days = [...Array(7)].map((_, index) =>
-      moment().subtract(6 - index, "days")
-    );
-
-    return days.map((day) => {
-      const daySales = sales.filter((sale) => {
-        const saleDate = getSaleDate(sale);
-        return saleDate && moment(saleDate).isSame(day, "day") && !isRefundedSale(sale);
-      });
-
-      const total = daySales.reduce(
-        (sum, sale) => sum + Number(sale.total_amount || sale.total || 0),
-        0
-      );
-
-      return {
-        label: day.format("ddd"),
-        total
-      };
-    });
-  }, [sales]);
+  const todayStats = salesSummary.today || EMPTY_SALES_SUMMARY.today;
+  const weekStats = salesSummary.week || EMPTY_SALES_SUMMARY.week;
+  const monthStats = salesSummary.month || EMPTY_SALES_SUMMARY.month;
+  const overallStats = salesSummary.overall || EMPTY_SALES_SUMMARY.overall;
+  const filteredStats = salesSummary.filtered || EMPTY_SALES_SUMMARY.filtered;
+  const chartData = (salesSummary.trend || []).map((item) => ({
+    label: item.label,
+    total: Number(item.revenue || 0)
+  }));
 
   const chartMax = Math.max(...chartData.map((item) => item.total), 1);
 
@@ -728,6 +703,36 @@ export default function SalesManagement() {
   useEffect(() => {
     setCurrentPage(1);
   }, [search, statusFilter, rangeFilter, dateFrom, dateTo, paymentFilter, sales]);
+
+  useEffect(() => {
+    let active = true;
+    const timeoutId = window.setTimeout(async () => {
+      try {
+        setSummaryLoading(true);
+        const res = await getSalesSummary(summaryParams);
+
+        if (active) {
+          setSalesSummary(res?.data || EMPTY_SALES_SUMMARY);
+        }
+      } catch (err) {
+        if (active) {
+          setSalesSummary(EMPTY_SALES_SUMMARY);
+          toast.error(
+            err?.response?.data?.message || "Failed to load sales summary"
+          );
+        }
+      } finally {
+        if (active) {
+          setSummaryLoading(false);
+        }
+      }
+    }, 250);
+
+    return () => {
+      active = false;
+      window.clearTimeout(timeoutId);
+    };
+  }, [summaryParams]);
 
   useEffect(() => {
     if (currentPage > totalSalesPages) {
@@ -1090,8 +1095,8 @@ export default function SalesManagement() {
                 <div className={styles.analyticsIcon}><FiDollarSign /></div>
                 <div>
                   <h4>Today Revenue</h4>
-                  <p>{formatMoney(todayStats.revenue)}</p>
-                  <span>{todayStats.count} sale(s) today</span>
+                  <p>{summaryLoading ? "..." : formatMoney(todayStats.revenue)}</p>
+                  <span>{todayStats.totalSales} sale(s) today</span>
                 </div>
               </div>
 
@@ -1099,8 +1104,8 @@ export default function SalesManagement() {
                 <div className={styles.analyticsIcon}><FiTrendingUp /></div>
                 <div>
                   <h4>This Week</h4>
-                  <p>{formatMoney(weekStats.revenue)}</p>
-                  <span>{weekStats.count} sale(s) this week</span>
+                  <p>{summaryLoading ? "..." : formatMoney(weekStats.revenue)}</p>
+                  <span>{weekStats.totalSales} sale(s) this week</span>
                 </div>
               </div>
 
@@ -1108,8 +1113,8 @@ export default function SalesManagement() {
                 <div className={styles.analyticsIcon}><FiBarChart2 /></div>
                 <div>
                   <h4>This Month</h4>
-                  <p>{formatMoney(monthStats.revenue)}</p>
-                  <span>{monthStats.count} sale(s) this month</span>
+                  <p>{summaryLoading ? "..." : formatMoney(monthStats.revenue)}</p>
+                  <span>{monthStats.totalSales} sale(s) this month</span>
                 </div>
               </div>
 
@@ -1117,7 +1122,7 @@ export default function SalesManagement() {
                 <div className={styles.analyticsIcon}><FiShoppingBag /></div>
                 <div>
                   <h4>Overall Revenue</h4>
-                  <p>{formatMoney(overallStats.revenue)}</p>
+                  <p>{summaryLoading ? "..." : formatMoney(overallStats.revenue)}</p>
                   <span>{overallStats.totalSales} total record(s)</span>
                 </div>
               </div>
@@ -1126,25 +1131,25 @@ export default function SalesManagement() {
             <div className={styles.topGrid}>
               <div className={styles.statCard}>
                 <h3>Total Sales</h3>
-                <p>{overallStats.totalSales}</p>
+                <p>{summaryLoading ? "..." : overallStats.totalSales}</p>
                 <span>All sales records</span>
               </div>
 
               <div className={styles.statCard}>
                 <h3>Completed</h3>
-                <p>{overallStats.completedSales}</p>
+                <p>{summaryLoading ? "..." : overallStats.completedSales}</p>
                 <span>Non-refunded sales</span>
               </div>
 
               <div className={styles.statCard}>
                 <h3>Refunded</h3>
-                <p>{overallStats.refundedSales}</p>
+                <p>{summaryLoading ? "..." : overallStats.refundedSales}</p>
                 <span>Refunded transactions</span>
               </div>
 
               <div className={styles.statCard}>
                 <h3>Filtered Revenue</h3>
-                <p>{formatMoney(filteredSalesTotal)}</p>
+                <p>{summaryLoading ? "..." : formatMoney(filteredStats.revenue)}</p>
                 <span>Based on current filters</span>
               </div>
             </div>
@@ -1212,8 +1217,12 @@ export default function SalesManagement() {
           <div className={styles.sectionBody}>
             <div className={styles.cardHeader}>
               <div className={styles.resultsMeta}>
-                <span className={styles.metaChip}>{filteredSales.length} filtered sales</span>
-                <span className={styles.metaChip}>{formatMoney(filteredSalesTotal)} revenue</span>
+                <span className={styles.metaChip}>
+                  {summaryLoading ? "..." : filteredStats.totalSales} filtered sales
+                </span>
+                <span className={styles.metaChip}>
+                  {summaryLoading ? "..." : formatMoney(filteredStats.revenue)} revenue
+                </span>
                 <span className={styles.metaChip}>{getPaymentFilterLabel()}</span>
               </div>
 

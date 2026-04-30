@@ -2,14 +2,13 @@
 import { FiRefreshCw, FiLogOut } from "react-icons/fi";
 import styles from "./Navbar.module.css";
 
-export default function Navbar({ user, role, title, subtitle, onRefresh, onLogout, refreshing }) {
+export default function Navbar({ user, title, onRefresh, onLogout, refreshing }) {
+  const displayName = user?.name || user?.username || user?.email || "Account";
+
   return (
     <header className={styles.topbar}>
       <div className={styles.left}>
         <h1>{title}</h1>
-        <p>
-          Welcome back, <strong>{user?.name || "User"}</strong> — {subtitle}
-        </p>
       </div>
 
       <div className={styles.right}>
@@ -19,12 +18,9 @@ export default function Navbar({ user, role, title, subtitle, onRefresh, onLogou
         </button>
 
         <div className={styles.userBadge}>
-          <div className={styles.avatar}>
-            {user?.name?.charAt(0)?.toUpperCase() || "U"}
-          </div>
+          <div className={styles.avatar}>{displayName.charAt(0).toUpperCase()}</div>
           <div>
-            <strong>{user?.name || "User"}</strong>
-            <small>{role}</small>
+            <strong>{displayName}</strong>
           </div>
         </div>
 

@@ -10,15 +10,9 @@
 }
 
 .left h1 {
-  margin: 0 0 6px;
+  margin: 0;
   color: #0f172a;
   font-size: 28px;
-}
-
-.left p {
-  margin: 0;
-  color: #64748b;
-  line-height: 1.5;
 }
 
 .right {
@@ -82,11 +76,6 @@
 .userBadge strong {
   display: block;
   color: #0f172a;
-}
-
-.userBadge small {
-  color: #64748b;
-  text-transform: capitalize;
 }
 
 .spin {

@@ -622,13 +622,7 @@ export default function Dashboard() {
         <div className={styles.desktopNavbar}>
           <Navbar
             user={currentUser}
-            role={role}
             title={isAdmin(currentUser) ? "Admin Dashboard" : "Staff Dashboard"}
-            subtitle={
-              isAdmin(currentUser)
-                ? "Manage everything in one place"
-                : "Access the tools available to you"
-            }
             onRefresh={() => refetch(true)}
             onLogout={handleLogout}
             refreshing={refreshing}

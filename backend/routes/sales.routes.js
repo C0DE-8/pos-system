@@ -12,6 +12,180 @@ const router = express.Router();
 
 router.use(authenticateToken);
 
+const DATE_ONLY_REGEX = /^\d{4}-\d{2}-\d{2}$/;
+
+function normalizeDateInput(value) {
+  if (!value || typeof value !== "string") return null;
+  const trimmed = value.trim();
+  return DATE_ONLY_REGEX.test(trimmed) ? trimmed : null;
+}
+
+function getDateRangeBounds(queryParams = {}) {
+  const fromDate =
+    normalizeDateInput(queryParams.date_from) ||
+    normalizeDateInput(queryParams.dateFrom);
+  const toDate =
+    normalizeDateInput(queryParams.date_to) ||
+    normalizeDateInput(queryParams.dateTo);
+  const range = String(queryParams.range || "all").toLowerCase();
+
+  if (fromDate || toDate) {
+    const startDate = fromDate || toDate;
+    const endDate = toDate || fromDate;
+    const [start, end] =
+      startDate <= endDate ? [startDate, endDate] : [endDate, startDate];
+
+    return {
+      start: `${start} 00:00:00`,
+      end: `${end} 23:59:59`
+    };
+  }
+
+  if (range === "today") {
+    return {
+      start: "CURDATE()",
+      end: "DATE_ADD(CURDATE(), INTERVAL 1 DAY)"
+    };
+  }
+
+  if (range === "week") {
+    return {
+      start: "DATE_SUB(CURDATE(), INTERVAL WEEKDAY(CURDATE()) DAY)",
+      end:
+        "DATE_ADD(DATE_SUB(CURDATE(), INTERVAL WEEKDAY(CURDATE()) DAY), INTERVAL 7 DAY)"
+    };
+  }
+
+  if (range === "month") {
+    return {
+      start: "DATE_FORMAT(CURDATE(), '%Y-%m-01')",
+      end:
+        "DATE_ADD(LAST_DAY(CURDATE()), INTERVAL 1 DAY)"
+    };
+  }
+
+  return null;
+}
+
+function buildSalesWhere(req, options = {}) {
+  const where = ["s.business_id = ?"];
+  const params = [req.user.business_id];
+  const branchId = req.query.branch_id;
+  const searchValue =
+    typeof req.query.search === "string" ? req.query.search.trim() : "";
+  const status =
+    typeof req.query.status === "string" ? req.query.status.trim().toLowerCase() : "";
+  const payment =
+    typeof req.query.payment === "string"
+      ? req.query.payment.trim().toLowerCase()
+      : "";
+  const dateBounds =
+    options.includeDateRange === false ? null : getDateRangeBounds(req.query);
+
+  if (!isAdmin(req.user)) {
+    where.push("s.branch_id = ?");
+    params.push(req.user.branch_id);
+  } else if (branchId) {
+    where.push("s.branch_id = ?");
+    params.push(branchId);
+  }
+
+  if (dateBounds) {
+    if (DATE_ONLY_REGEX.test(dateBounds.start.slice(0, 10))) {
+      where.push("s.sale_date BETWEEN ? AND ?");
+      params.push(dateBounds.start, dateBounds.end);
+    } else {
+      where.push(`s.sale_date >= ${dateBounds.start}`);
+      where.push(`s.sale_date < ${dateBounds.end}`);
+    }
+  }
+
+  if (options.includeStatus !== false && status && status !== "all") {
+    where.push("LOWER(COALESCE(s.status, 'paid')) = ?");
+    params.push(status);
+  }
+
+  if (options.includePayment !== false && payment && payment !== "all") {
+    if (["cash", "card", "transfer", "split"].includes(payment)) {
+      where.push("LOWER(COALESCE(s.payment_method, '')) = ?");
+      params.push(payment);
+    } else if (payment === "split-cash") {
+      where.push("LOWER(COALESCE(s.payment_method, '')) = 'split'");
+      where.push("COALESCE(s.split_cash_amount, 0) > 0");
+    } else if (payment === "split-card") {
+      where.push("LOWER(COALESCE(s.payment_method, '')) = 'split'");
+      where.push("COALESCE(s.split_card_amount, 0) > 0");
+    } else if (payment === "split-transfer") {
+      where.push("LOWER(COALESCE(s.payment_method, '')) = 'split'");
+      where.push("COALESCE(s.split_transfer_amount, 0) > 0");
+    }
+  }
+
+  if (options.includeSearch !== false && searchValue) {
+    where.push(`(
+      CAST(s.id AS CHAR) LIKE ?
+      OR COALESCE(s.sale_code, '') LIKE ?
+      OR COALESCE(s.customer, '') LIKE ?
+      OR COALESCE(u.name, '') LIKE ?
+      OR COALESCE(s.payment_method, '') LIKE ?
+    )`);
+    const likeValue = `%${searchValue}%`;
+    params.push(likeValue, likeValue, likeValue, likeValue, likeValue);
+  }
+
+  return {
+    sql: where.length ? `WHERE ${where.join(" AND ")}` : "",
+    params
+  };
+}
+
+function buildSalesAggregateSql(whereSql) {
+  return `
+    SELECT
+      COUNT(*) AS total_sales,
+      COALESCE(SUM(CASE WHEN LOWER(COALESCE(s.status, 'paid')) = 'refunded' THEN 1 ELSE 0 END), 0) AS refunded_sales,
+      COALESCE(SUM(CASE WHEN LOWER(COALESCE(s.status, 'paid')) = 'refunded' THEN 0 ELSE 1 END), 0) AS completed_sales,
+      COALESCE(
+        SUM(
+          CASE
+            WHEN LOWER(COALESCE(s.status, 'paid')) = 'refunded' THEN 0
+            ELSE COALESCE(s.total_amount, s.total, 0)
+          END
+        ),
+        0
+      ) AS revenue
+    FROM sales s
+    LEFT JOIN users u ON u.id = s.cashier_id
+    ${whereSql}
+  `;
+}
+
+function formatAggregateRow(row = {}) {
+  return {
+    totalSales: Number(row.total_sales || 0),
+    completedSales: Number(row.completed_sales || 0),
+    refundedSales: Number(row.refunded_sales || 0),
+    revenue: Number(row.revenue || 0)
+  };
+}
+
+function buildRecentDayEntries() {
+  const days = [];
+
+  for (let index = 6; index >= 0; index -= 1) {
+    const date = new Date();
+    date.setHours(0, 0, 0, 0);
+    date.setDate(date.getDate() - index);
+
+    const key = date.toISOString().slice(0, 10);
+    const label = date.toLocaleDateString("en-US", { weekday: "short" });
+
+    days.push({ key, label });
+  }
+
+  return days;
+}
+
 // sales/ all sales
 router.get("/", requirePermission("sales"), branchAccessMiddleware, async (req, res) => {
   try {
@@ -118,6 +292,155 @@ router.get("/payment-types", requirePermission("sales"), branchAccessMiddleware,
       },
       count: formatted.length,
       data: formatted
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+});
+
+router.get("/summary", requirePermission("sales"), branchAccessMiddleware, async (req, res) => {
+  try {
+    if (!ensureBusinessContext(req, res)) return;
+
+    const filteredWhere = buildSalesWhere(req);
+    const overviewBaseOptions = {
+      includeDateRange: false,
+      includeSearch: false,
+      includeStatus: false,
+      includePayment: false
+    };
+    const overallWhere = buildSalesWhere(req, overviewBaseOptions);
+    const recentDays = buildRecentDayEntries();
+    const trendKeys = recentDays.map((entry) => entry.key);
+    const trendWhere = buildSalesWhere(
+      {
+        ...req,
+        query: {
+          ...req.query,
+          date_from: trendKeys[0],
+          date_to: trendKeys[trendKeys.length - 1]
+        }
+      },
+      {
+        includeSearch: false,
+        includeStatus: false,
+        includePayment: false
+      }
+    );
+    const todayWhere = buildSalesWhere(
+      {
+        ...req,
+        query: {
+          ...req.query,
+          range: "today",
+          date_from: "",
+          date_to: "",
+          dateFrom: "",
+          dateTo: ""
+        }
+      },
+      {
+        includeSearch: false,
+        includeStatus: false,
+        includePayment: false
+      }
+    );
+    const weekWhere = buildSalesWhere(
+      {
+        ...req,
+        query: {
+          ...req.query,
+          range: "week",
+          date_from: "",
+          date_to: "",
+          dateFrom: "",
+          dateTo: ""
+        }
+      },
+      {
+        includeSearch: false,
+        includeStatus: false,
+        includePayment: false
+      }
+    );
+    const monthWhere = buildSalesWhere(
+      {
+        ...req,
+        query: {
+          ...req.query,
+          range: "month",
+          date_from: "",
+          date_to: "",
+          dateFrom: "",
+          dateTo: ""
+        }
+      },
+      {
+        includeSearch: false,
+        includeStatus: false,
+        includePayment: false
+      }
+    );
+
+    const [todayRows, weekRows, monthRows, overallRows, filteredRows, trendRows] =
+      await Promise.all([
+        query(buildSalesAggregateSql(todayWhere.sql), todayWhere.params),
+        query(buildSalesAggregateSql(weekWhere.sql), weekWhere.params),
+        query(buildSalesAggregateSql(monthWhere.sql), monthWhere.params),
+        query(buildSalesAggregateSql(overallWhere.sql), overallWhere.params),
+        query(buildSalesAggregateSql(filteredWhere.sql), filteredWhere.params),
+        query(
+          `
+            SELECT
+              DATE(s.sale_date) AS sale_day,
+              COUNT(*) AS total_sales,
+              COALESCE(
+                SUM(
+                  CASE
+                    WHEN LOWER(COALESCE(s.status, 'paid')) = 'refunded' THEN 0
+                    ELSE COALESCE(s.total_amount, s.total, 0)
+                  END
+                ),
+                0
+              ) AS revenue
+            FROM sales s
+            LEFT JOIN users u ON u.id = s.cashier_id
+            ${trendWhere.sql}
+            GROUP BY DATE(s.sale_date)
+            ORDER BY sale_day ASC
+          `,
+          trendWhere.params
+        )
+      ]);
+
+    const trendMap = new Map(
+      trendRows.map((row) => [
+        String(row.sale_day).slice(0, 10),
+        {
+          totalSales: Number(row.total_sales || 0),
+          revenue: Number(row.revenue || 0)
+        }
+      ])
+    );
+
+    res.json({
+      success: true,
+      data: {
+        today: formatAggregateRow(todayRows[0]),
+        week: formatAggregateRow(weekRows[0]),
+        month: formatAggregateRow(monthRows[0]),
+        overall: formatAggregateRow(overallRows[0]),
+        filtered: formatAggregateRow(filteredRows[0]),
+        trend: recentDays.map((entry) => ({
+          label: entry.label,
+          date: entry.key,
+          totalSales: trendMap.get(entry.key)?.totalSales || 0,
+          revenue: trendMap.get(entry.key)?.revenue || 0
+        }))
+      }
     });
   } catch (error) {
     res.status(500).json({
