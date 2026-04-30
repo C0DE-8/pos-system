@@ -1,6 +1,10 @@
 import styles from "./CurrentView.module.css";
 
-export default function CurrentView({ activeMenu, role, permissions }) {
+export default function CurrentView({ activeMenu, permissions }) {
+  const enabledPermissions = Object.keys(permissions || {}).filter(
+    (key) => permissions[key]
+  );
+
   return (
     <div className={styles.panel}>
       <div className={styles.panelHeader}>
@@ -10,19 +14,15 @@ export default function CurrentView({ activeMenu, role, permissions }) {
       <div className={styles.currentViewBox}>
         <h4>{activeMenu}</h4>
         <p>
-          This section is visible because your role is <strong>{role}</strong>.
+          This section reflects the workspace you are currently viewing.
         </p>
         <p>
-          Access is controlled by users permissions from the listes functions, not hardcoded
-          frontend role menus.
+          Access is controlled by assigned permissions from the available
+          system functions, not hardcoded frontend role menus.
         </p>
         <p>
           Active permissions:{" "}
-          <strong>
-            {role === "admin"
-              ? "Full Access"
-              : Object.keys(permissions || {}).filter((key) => permissions[key]).join(", ") || "None"}
-          </strong>
+          <strong>{enabledPermissions.join(", ") || "None"}</strong>
         </p>
       </div>
     </div>

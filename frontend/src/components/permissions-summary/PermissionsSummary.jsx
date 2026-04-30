@@ -33,11 +33,6 @@ export default function PermissionsSummary({ user, permissions = {} }) {
 
       <div className={styles.permissionsTable}>
         <div className={styles.permissionRow}>
-          <span>Role</span>
-          <span>{user?.role || "Unknown"}</span>
-        </div>
-
-        <div className={styles.permissionRow}>
           <span>Access</span>
           <span>
             {enabledPermissions.length > 0

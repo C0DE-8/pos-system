@@ -20,9 +20,7 @@ import {
 import Sidebar from "../../components/sidebar/Sidebar";
 import Navbar from "../../components/navbar/Navbar";
 import StatCard from "../../components/stat-card/StatCard";
-import QuickActions from "../../components/quick-actions/QuickActions";
 import CurrentView from "../../components/current-view/CurrentView";
-import PermissionsSummary from "../../components/permissions-summary/PermissionsSummary";
 import DashboardLoader from "../../components/dashboard-loader/DashboardLoader";
 import UsersManagement from "../../components/users-management/UsersManagement";
 import InventoryManagement from "../../components/inventory-management/InventoryManagement";
@@ -279,22 +277,6 @@ export default function Dashboard() {
     loadExpiryAlerts();
   }, [currentUser, currentPermissions]);
 
-  const quickActions = useMemo(() => {
-    const actions = [];
-
-    if (hasPermission(currentUser, currentPermissions, "pos")) actions.push("Open POS");
-    if (hasPermission(currentUser, currentPermissions, "courts")) actions.push("Manage Courts");
-    if (hasPermission(currentUser, currentPermissions, "inventory")) actions.push("Check Inventory");
-    if (hasPermission(currentUser, currentPermissions, "inventory")) actions.push("Open Warehouse");
-    if (hasPermission(currentUser, currentPermissions, "members")) actions.push("Find Member");
-    if (hasPermission(currentUser, currentPermissions, "sales")) actions.push("View Sales");
-    if (hasPermission(currentUser, currentPermissions, "analytics")) actions.push("Open Reports");
-    if (hasPermission(currentUser, currentPermissions, "users")) actions.push("Manage Users");
-    if (hasPermission(currentUser, currentPermissions, "settings")) actions.push("System Settings");
-
-    return actions.length ? actions : ["View Dashboard"];
-  }, [currentUser, currentPermissions]);
-
   const stats = useMemo(() => {
     if (!dashboardData?.data) return [];
     const data = dashboardData.data;
@@ -445,33 +427,17 @@ export default function Dashboard() {
   const renderMainContent = () => {
     if (activeMenu === "Overview") {
       return (
-        <>
-          <section className={styles.cardsGrid}>
-            {stats.map((card) => (
-              <StatCard
-                key={card.title}
-                title={card.title}
-                value={card.value}
-                note={card.note}
-                icon={STAT_ICONS[card.title] || <FiGrid />}
-              />
-            ))}
-          </section>
-
-          <section className={styles.sectionGrid}>
-            <QuickActions actions={quickActions} />
-            <CurrentView
-              activeMenu={activeMenu}
-              role={role}
-              permissions={currentPermissions}
+        <section className={styles.cardsGrid}>
+          {stats.map((card) => (
+            <StatCard
+              key={card.title}
+              title={card.title}
+              value={card.value}
+              note={card.note}
+              icon={STAT_ICONS[card.title] || <FiGrid />}
             />
-          </section>
-
-          <PermissionsSummary
-            user={currentUser}
-            permissions={currentPermissions}
-          />
-        </>
+          ))}
+        </section>
       );
     }
 
@@ -559,7 +525,6 @@ export default function Dashboard() {
       <section className={styles.sectionGrid}>
         <CurrentView
           activeMenu={activeMenu}
-          role={role}
           permissions={currentPermissions}
         />
       </section>
