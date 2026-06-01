@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import moment from "moment";
 import * as XLSX from "xlsx";
 import {
@@ -57,30 +57,121 @@ const EMPTY_SALES_SUMMARY = {
   trend: []
 };
 
-const buildSevenDayTrend = (sales) => {
-  const dailyMap = new Map();
+const EXPORT_PAGE_SIZE = 100;
 
-  for (let index = 6; index >= 0; index -= 1) {
-    const day = moment().startOf("day").subtract(index, "days");
-    dailyMap.set(day.format("YYYY-MM-DD"), {
-      label: day.format("ddd"),
-      total: 0
+const TREND_OPTIONS = [
+  { value: "days", label: "Days" },
+  { value: "weeks", label: "Weeks" },
+  { value: "months", label: "Months" }
+];
+
+const getSaleAmount = (sale) => Number(sale?.total_amount || sale?.total || 0);
+
+const isSaleRefunded = (sale) =>
+  String(sale?.status || "").toLowerCase() === "refunded";
+
+const normalizeTrendBounds = (sales, params = {}, interval = "days") => {
+  const from = params.date_from ? moment(params.date_from).startOf("day") : null;
+  const to = params.date_to ? moment(params.date_to).endOf("day") : null;
+
+  if (from?.isValid() || to?.isValid()) {
+    let start = from?.isValid() ? from.clone() : to.clone();
+    let end = to?.isValid() ? to.clone() : from.clone();
+
+    if (start.isAfter(end)) {
+      [start, end] = [end, start];
+    }
+
+    return { start, end };
+  }
+
+  const range = String(params.range || "all").toLowerCase();
+  if (range === "today") {
+    return { start: moment().startOf("day"), end: moment().endOf("day") };
+  }
+  if (range === "week") {
+    return { start: moment().startOf("isoWeek"), end: moment().endOf("isoWeek") };
+  }
+  if (range === "month") {
+    return { start: moment().startOf("month"), end: moment().endOf("month") };
+  }
+
+  const validSaleDates = sales
+    .map((sale) => moment(sale?.sale_date || sale?.created_at))
+    .filter((date) => date.isValid());
+
+  if (validSaleDates.length) {
+    const minDate = moment.min(validSaleDates).startOf("day");
+    const maxDate = moment.max(validSaleDates).endOf("day");
+    return { start: minDate, end: maxDate };
+  }
+
+  const fallbackAmount = interval === "months" ? 5 : interval === "weeks" ? 7 : 6;
+  const unit = interval === "months" ? "months" : interval === "weeks" ? "weeks" : "days";
+
+  return {
+    start: moment().startOf(unit === "weeks" ? "isoWeek" : unit.slice(0, -1)).subtract(fallbackAmount, unit),
+    end: moment().endOf(unit === "weeks" ? "isoWeek" : unit.slice(0, -1))
+  };
+};
+
+const getTrendKey = (date, interval) => {
+  if (interval === "months") return date.format("YYYY-MM");
+  if (interval === "weeks") return date.clone().startOf("isoWeek").format("GGGG-[W]WW");
+  return date.format("YYYY-MM-DD");
+};
+
+const getTrendLabel = (date, interval) => {
+  if (interval === "months") return date.format("MMM YYYY");
+  if (interval === "weeks") return date.clone().startOf("isoWeek").format("DD MMM");
+  return date.format("DD MMM");
+};
+
+const buildSalesTrend = (sales, interval, params = {}) => {
+  const unit = interval === "months" ? "month" : interval === "weeks" ? "week" : "day";
+  const { start, end } = normalizeTrendBounds(sales, params, interval);
+  const first = start.clone().startOf(interval === "weeks" ? "isoWeek" : unit);
+  const last = end.clone().endOf(interval === "weeks" ? "isoWeek" : unit);
+  const trendMap = new Map();
+
+  for (
+    let cursor = first.clone();
+    cursor.isSameOrBefore(last, unit);
+    cursor.add(1, unit)
+  ) {
+    const key = getTrendKey(cursor, interval);
+    trendMap.set(key, {
+      key,
+      label: getTrendLabel(cursor, interval),
+      total: 0,
+      totalSales: 0
     });
   }
 
   sales.forEach((sale) => {
-    const saleDate = sale?.sale_date || sale?.created_at;
-    if (!saleDate) return;
-    if (String(sale?.status || "").toLowerCase() === "refunded") return;
+    if (isSaleRefunded(sale)) return;
 
-    const key = moment(saleDate).format("YYYY-MM-DD");
-    if (!dailyMap.has(key)) return;
+    const saleDate = moment(sale?.sale_date || sale?.created_at);
+    if (!saleDate.isValid()) return;
 
-    const current = dailyMap.get(key);
-    current.total += Number(sale.total_amount || sale.total || 0);
+    const key = getTrendKey(saleDate, interval);
+    const current = trendMap.get(key);
+    if (!current) return;
+
+    current.total += getSaleAmount(sale);
+    current.totalSales += 1;
   });
 
-  return Array.from(dailyMap.values());
+  return Array.from(trendMap.values());
+};
+
+const escapeHtml = (value) => {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
 };
 
 function SalesResultsFallback() {
@@ -124,6 +215,8 @@ export default function SalesManagement() {
   const [sales, setSales] = useState([]);
   const [loading, setLoading] = useState(true);
   const [summaryLoading, setSummaryLoading] = useState(true);
+  const [trendLoading, setTrendLoading] = useState(true);
+  const [exportLoading, setExportLoading] = useState(false);
   const [detailsLoading, setDetailsLoading] = useState(false);
   const [refundLoadingId, setRefundLoadingId] = useState(null);
 
@@ -138,6 +231,8 @@ export default function SalesManagement() {
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [paymentFilter, setPaymentFilter] = useState("all");
+  const [trendInterval, setTrendInterval] = useState("days");
+  const [trendSales, setTrendSales] = useState([]);
 
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [showRefundModal, setShowRefundModal] = useState(false);
@@ -259,8 +354,7 @@ export default function SalesManagement() {
     return moment(value).format("DD MMM YYYY, hh:mm A");
   };
 
-  const isRefundedSale = (sale) =>
-    String(sale?.status || "").toLowerCase() === "refunded";
+  const isRefundedSale = isSaleRefunded;
 
   const getReadablePaymentMethod = (sale) => {
     if (!sale) return "—";
@@ -384,6 +478,30 @@ export default function SalesManagement() {
     return params;
   }, [salesQueryParams]);
 
+  const fetchAllFilteredSales = useCallback(async (baseParams = {}) => {
+    const firstPage = await getSales({
+      ...baseParams,
+      page: 1,
+      per_page: EXPORT_PAGE_SIZE
+    });
+
+    const firstRows = Array.isArray(firstPage?.data) ? firstPage.data : [];
+    const totalPages = Number(firstPage?.pagination?.total_pages || 1);
+    const allRows = [...firstRows];
+
+    for (let page = 2; page <= totalPages; page += 1) {
+      const pageRes = await getSales({
+        ...baseParams,
+        page,
+        per_page: EXPORT_PAGE_SIZE
+      });
+      const pageRows = Array.isArray(pageRes?.data) ? pageRes.data : [];
+      allRows.push(...pageRows);
+    }
+
+    return allRows;
+  }, []);
+
   const todayStats = salesSummary.today || EMPTY_SALES_SUMMARY.today;
   const weekStats = salesSummary.week || EMPTY_SALES_SUMMARY.week;
   const monthStats = salesSummary.month || EMPTY_SALES_SUMMARY.month;
@@ -400,8 +518,8 @@ export default function SalesManagement() {
   }, [filteredStats.totalSales, salesPagination.fromServer, salesPagination.totalPages]);
 
   const chartData = useMemo(() => {
-    return buildSevenDayTrend(sales);
-  }, [sales]);
+    return buildSalesTrend(trendSales, trendInterval, summaryParams);
+  }, [summaryParams, trendInterval, trendSales]);
 
   const chartMax = Math.max(...chartData.map((item) => item.total), 1);
   const paginatedSales = useMemo(() => {
@@ -453,12 +571,22 @@ export default function SalesManagement() {
   const buildReportRows = (list) => {
     return list.map((sale) => ({
       "Sale ID": sale.id,
+      "Sale Code": sale.sale_code || "",
+      "Sold Date": getSaleDate(sale)
+        ? moment(getSaleDate(sale)).format("DD MMM YYYY")
+        : "",
+      "Time Sold": getSaleDate(sale)
+        ? moment(getSaleDate(sale)).format("hh:mm A")
+        : "",
       Cashier: sale.cashier_name || "",
-      Customer: sale.customer_name || "Walk-in",
+      Customer: sale.customer_name || sale.customer || "Walk-in",
       "Payment Method": getReadablePaymentMethod(sale),
-      Total: Number(sale.total_amount || sale.total || 0),
+      Subtotal: Number(sale.subtotal || sale.sub || 0),
+      Discount: Number(sale.discount || sale.total_discount || 0),
+      Tax: Number(sale.tax || sale.tax_amount || 0),
+      Total: getSaleAmount(sale),
       Status: sale.status || "paid",
-      Date: formatDateTime(getSaleDate(sale)),
+      "Refund Reason": sale.refund_reason || "",
       Business: settings.business_name,
       Address: settings.business_address,
       Phone: settings.business_phone
@@ -492,13 +620,14 @@ export default function SalesManagement() {
     return "All Payments";
   };
 
-  const downloadExcel = () => {
+  const downloadExcel = async () => {
     try {
+      setExportLoading(true);
       const workbook = XLSX.utils.book_new();
-      const exportRows = paginatedSales;
+      const exportRows = await fetchAllFilteredSales(summaryParams);
       const exportTotal = exportRows
-        .filter((sale) => !isRefundedSale(sale))
-        .reduce((sum, sale) => sum + Number(sale.total_amount || sale.total || 0), 0);
+        .filter((sale) => !isSaleRefunded(sale))
+        .reduce((sum, sale) => sum + getSaleAmount(sale), 0);
 
       const reportMeta = [
         { Field: "Business Name", Value: settings.business_name },
@@ -508,16 +637,18 @@ export default function SalesManagement() {
         { Field: "Generated On", Value: formatDateTime(new Date()) },
         { Field: "Date Filter", Value: getActiveDateLabel() },
         { Field: "Payment Filter", Value: getPaymentFilterLabel() },
-        { Field: "Current Page", Value: currentPage },
-        { Field: "Rows On Page", Value: exportRows.length },
+        { Field: "Export Scope", Value: "All rows matching the active filters" },
+        { Field: "Exported Rows", Value: exportRows.length },
         { Field: "Filtered Records", Value: Number(filteredStats.totalSales || 0) },
         { Field: "Filtered Revenue", Value: Number(filteredStats.revenue || 0) },
-        { Field: "Page Revenue", Value: Number(exportTotal) }
+        { Field: "Export Revenue", Value: Number(exportTotal) },
+        { Field: "Trend Grouping", Value: TREND_OPTIONS.find((option) => option.value === trendInterval)?.label || "Days" }
       ];
 
       const dataSheet = buildReportRows(exportRows);
       const trendSheet = chartData.map((item) => ({
-        Day: item.label,
+        Period: item.label,
+        "Sales Count": Number(item.totalSales || 0),
         Revenue: Number(item.total || 0)
       }));
 
@@ -528,21 +659,27 @@ export default function SalesManagement() {
       workbookMeta["!cols"] = [{ wch: 20 }, { wch: 40 }];
       workbookSales["!cols"] = [
         { wch: 10 },
+        { wch: 18 },
+        { wch: 16 },
+        { wch: 14 },
         { wch: 20 },
         { wch: 22 },
         { wch: 32 },
         { wch: 14 },
         { wch: 14 },
+        { wch: 14 },
+        { wch: 14 },
+        { wch: 24 },
         { wch: 24 },
         { wch: 28 },
         { wch: 34 },
         { wch: 20 }
       ];
-      workbookTrend["!cols"] = [{ wch: 14 }, { wch: 18 }];
+      workbookTrend["!cols"] = [{ wch: 18 }, { wch: 14 }, { wch: 18 }];
 
       XLSX.utils.book_append_sheet(workbook, workbookMeta, "Report Info");
-      XLSX.utils.book_append_sheet(workbook, workbookSales, `Sales Page ${currentPage}`);
-      XLSX.utils.book_append_sheet(workbook, workbookTrend, "7-Day Trend");
+      XLSX.utils.book_append_sheet(workbook, workbookSales, "Filtered Sales");
+      XLSX.utils.book_append_sheet(workbook, workbookTrend, "Sales Trend");
 
       XLSX.writeFile(
         workbook,
@@ -550,27 +687,36 @@ export default function SalesManagement() {
       );
     } catch {
       toast.error("Failed to download Excel file");
+    } finally {
+      setExportLoading(false);
     }
   };
 
-  const downloadWordDoc = () => {
+  const downloadWordDoc = async () => {
     try {
-      const exportRows = paginatedSales;
+      setExportLoading(true);
+      const exportRows = await fetchAllFilteredSales(summaryParams);
       const exportTotal = exportRows
-        .filter((sale) => !isRefundedSale(sale))
-        .reduce((sum, sale) => sum + Number(sale.total_amount || sale.total || 0), 0);
+        .filter((sale) => !isSaleRefunded(sale))
+        .reduce((sum, sale) => sum + getSaleAmount(sale), 0);
 
       const rowsHtml = exportRows
         .map(
           (sale) => `
             <tr>
-              <td>${sale.id}</td>
-              <td>${sale.cashier_name || ""}</td>
-              <td>${sale.customer_name || "Walk-in"}</td>
-              <td>${getReadablePaymentMethod(sale)}</td>
-              <td>${formatMoney(sale.total_amount || sale.total)}</td>
-              <td>${sale.status || "paid"}</td>
-              <td>${formatDateTime(getSaleDate(sale))}</td>
+              <td>${escapeHtml(sale.id)}</td>
+              <td>${escapeHtml(sale.sale_code || "")}</td>
+              <td>${escapeHtml(getSaleDate(sale) ? moment(getSaleDate(sale)).format("DD MMM YYYY") : "")}</td>
+              <td>${escapeHtml(getSaleDate(sale) ? moment(getSaleDate(sale)).format("hh:mm A") : "")}</td>
+              <td>${escapeHtml(sale.cashier_name || "")}</td>
+              <td>${escapeHtml(sale.customer_name || sale.customer || "Walk-in")}</td>
+              <td>${escapeHtml(getReadablePaymentMethod(sale))}</td>
+              <td>${escapeHtml(formatMoney(sale.subtotal || sale.sub || 0))}</td>
+              <td>${escapeHtml(formatMoney(sale.discount || sale.total_discount || 0))}</td>
+              <td>${escapeHtml(formatMoney(sale.tax || sale.tax_amount || 0))}</td>
+              <td>${escapeHtml(formatMoney(getSaleAmount(sale)))}</td>
+              <td>${escapeHtml(sale.status || "paid")}</td>
+              <td>${escapeHtml(sale.refund_reason || "")}</td>
             </tr>
           `
         )
@@ -609,47 +755,54 @@ export default function SalesManagement() {
             </style>
           </head>
           <body>
-            <h1>${settings.business_name} - Sales Report</h1>
+            <h1>${escapeHtml(settings.business_name)} - Sales Report</h1>
             <p class="muted">Generated on ${formatDateTime(new Date())}</p>
 
             <div class="metaBox">
-              <p><strong>Address:</strong> ${settings.business_address}</p>
-              <p><strong>Phone:</strong> ${settings.business_phone}</p>
-              <p><strong>Date Filter:</strong> ${getActiveDateLabel()}</p>
-              <p><strong>Payment Filter:</strong> ${getPaymentFilterLabel()}</p>
-              <p><strong>Current Page:</strong> ${currentPage}</p>
-              <p><strong>Rows On Page:</strong> ${exportRows.length}</p>
+              <p><strong>Address:</strong> ${escapeHtml(settings.business_address)}</p>
+              <p><strong>Phone:</strong> ${escapeHtml(settings.business_phone)}</p>
+              <p><strong>Date Filter:</strong> ${escapeHtml(getActiveDateLabel())}</p>
+              <p><strong>Payment Filter:</strong> ${escapeHtml(getPaymentFilterLabel())}</p>
+              <p><strong>Export Scope:</strong> All rows matching the active filters</p>
+              <p><strong>Exported Rows:</strong> ${exportRows.length}</p>
               <p><strong>Filtered Records:</strong> ${Number(filteredStats.totalSales || 0)}</p>
               <p><strong>Filtered Revenue:</strong> ${formatMoney(filteredStats.revenue || 0)}</p>
-              <p><strong>Page Revenue:</strong> ${formatMoney(exportTotal)}</p>
+              <p><strong>Export Revenue:</strong> ${formatMoney(exportTotal)}</p>
+              <p><strong>Trend Grouping:</strong> ${escapeHtml(TREND_OPTIONS.find((option) => option.value === trendInterval)?.label || "Days")}</p>
             </div>
 
             <table>
               <thead>
                 <tr>
                   <th>Sale ID</th>
+                  <th>Sale Code</th>
+                  <th>Sold Date</th>
+                  <th>Time Sold</th>
                   <th>Cashier</th>
                   <th>Customer</th>
                   <th>Payment Method</th>
+                  <th>Subtotal</th>
+                  <th>Discount</th>
+                  <th>Tax</th>
                   <th>Total</th>
                   <th>Status</th>
-                  <th>Date</th>
+                  <th>Refund Reason</th>
                 </tr>
               </thead>
               <tbody>
                 ${rowsHtml}
                 <tr class="totalRow">
-                  <td colspan="4">Page Total</td>
+                  <td colspan="10">Filtered Total</td>
                   <td>${formatMoney(exportTotal)}</td>
                   <td colspan="2"></td>
                 </tr>
               </tbody>
             </table>
 
-            <h2>7-Day Sales Trend</h2>
+            <h2>Sales Trend</h2>
             <ul class="trendList">
               ${chartData
-                .map((item) => `<li><strong>${item.label}:</strong> ${formatMoney(item.total)}</li>`)
+                .map((item) => `<li><strong>${escapeHtml(item.label)}:</strong> ${item.totalSales} sale(s), ${formatMoney(item.total)}</li>`)
                 .join("")}
             </ul>
           </body>
@@ -667,6 +820,8 @@ export default function SalesManagement() {
       URL.revokeObjectURL(url);
     } catch {
       toast.error("Failed to download Word document");
+    } finally {
+      setExportLoading(false);
     }
   };
 
@@ -757,6 +912,36 @@ export default function SalesManagement() {
       window.clearTimeout(timeoutId);
     };
   }, [summaryParams]);
+
+  useEffect(() => {
+    let active = true;
+    const timeoutId = window.setTimeout(async () => {
+      try {
+        setTrendLoading(true);
+        const rows = await fetchAllFilteredSales(summaryParams);
+
+        if (active) {
+          setTrendSales(rows);
+        }
+      } catch (err) {
+        if (active) {
+          setTrendSales([]);
+          toast.error(
+            err?.response?.data?.message || "Failed to load sales trend"
+          );
+        }
+      } finally {
+        if (active) {
+          setTrendLoading(false);
+        }
+      }
+    }, 250);
+
+    return () => {
+      active = false;
+      window.clearTimeout(timeoutId);
+    };
+  }, [fetchAllFilteredSales, summaryParams]);
 
   useEffect(() => {
     if (currentPage > totalSalesPages) {
@@ -1188,9 +1373,9 @@ export default function SalesManagement() {
           onClick={() => toggleSection("trend")}
         >
           <div>
-            <h2 className={styles.title}>7-Day Sales Trend</h2>
+            <h2 className={styles.title}>Sales Trend</h2>
             <p className={styles.subtitle}>
-              Quick visual of the last seven days non-refunded revenue
+              Revenue grouped from the same filters used by Sales Results
             </p>
           </div>
           <span className={styles.sectionToggleIcon}>
@@ -1200,22 +1385,58 @@ export default function SalesManagement() {
 
         {sectionsOpen.trend ? (
           <div className={styles.sectionBody}>
-            <div className={styles.chartWrap}>
-              {chartData.map((item) => (
-                <div key={item.label} className={styles.chartBarItem}>
-                  <div className={styles.chartValue}>{formatMoney(item.total)}</div>
-                  <div className={styles.chartTrack}>
-                    <div
-                      className={styles.chartBar}
-                      style={{
-                        height: `${Math.max((item.total / chartMax) * 180, item.total > 0 ? 16 : 6)}px`
-                      }}
-                    />
-                  </div>
-                  <div className={styles.chartLabel}>{item.label}</div>
-                </div>
-              ))}
+            <div className={styles.trendHeader}>
+              <div className={styles.resultsMeta}>
+                <span className={styles.metaChip}>{getActiveDateLabel()}</span>
+                <span className={styles.metaChip}>
+                  {trendLoading ? "..." : trendSales.length} matching sales
+                </span>
+              </div>
+
+              <div className={styles.segmentedControl} aria-label="Trend grouping">
+                {TREND_OPTIONS.map((option) => (
+                  <button
+                    key={option.value}
+                    type="button"
+                    className={`${styles.segmentButton} ${
+                      trendInterval === option.value ? styles.segmentButtonActive : ""
+                    }`}
+                    onClick={() => setTrendInterval(option.value)}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
             </div>
+
+            {trendLoading ? (
+              <div className={styles.emptyStateSmall}>Loading trend...</div>
+            ) : (
+              <div className={styles.chartScroll}>
+                <div
+                  className={styles.chartWrap}
+                  style={{ "--trend-columns": Math.max(chartData.length, 7) }}
+                >
+                  {chartData.map((item) => (
+                    <div key={item.key} className={styles.chartBarItem}>
+                      <div className={styles.chartValue}>
+                        <strong>{formatMoney(item.total)}</strong>
+                        <span>{item.totalSales} sale(s)</span>
+                      </div>
+                      <div className={styles.chartTrack}>
+                        <div
+                          className={styles.chartBar}
+                          style={{
+                            height: `${Math.max((item.total / chartMax) * 180, item.total > 0 ? 16 : 6)}px`
+                          }}
+                        />
+                      </div>
+                      <div className={styles.chartLabel}>{item.label}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         ) : null}
       </section>
@@ -1254,19 +1475,19 @@ export default function SalesManagement() {
                 <button
                   className={styles.secondaryBtn}
                   onClick={downloadExcel}
-                  disabled={loading || paginatedSales.length === 0}
+                  disabled={loading || exportLoading || Number(filteredStats.totalSales || 0) === 0}
                 >
                   <FiDownload />
-                  Excel
+                  {exportLoading ? "Preparing..." : "Excel"}
                 </button>
 
                 <button
                   className={styles.secondaryBtn}
                   onClick={downloadWordDoc}
-                  disabled={loading || paginatedSales.length === 0}
+                  disabled={loading || exportLoading || Number(filteredStats.totalSales || 0) === 0}
                 >
                   <FiDownload />
-                  Doc
+                  {exportLoading ? "Preparing..." : "Doc"}
                 </button>
 
                 <button
