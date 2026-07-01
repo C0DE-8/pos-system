@@ -1038,7 +1038,7 @@ router.post("/pending/:id/checkout", requirePermission("pos"), branchAccessMiddl
       // 🔥 stock protection stays intact - support both traditional and unit hierarchy
       if (item.product_id && item.manage_stock && item.qty > 0) {
         const [productRows] = await conn.execute(
-          `SELECT stock, has_unit_hierarchy FROM products WHERE id = ? LIMIT 1`,
+          `SELECT stock, is_unlimited, has_unit_hierarchy FROM products WHERE id = ? LIMIT 1`,
           [item.product_id]
         );
 
@@ -1051,6 +1051,7 @@ router.post("/pending/:id/checkout", requirePermission("pos"), branchAccessMiddl
         }
 
         const product = productRows[0];
+        if (Number(product.is_unlimited) === 1) continue;
 
         // Handle unit hierarchy products
         if (Number(product.has_unit_hierarchy) === 1) {
@@ -1256,7 +1257,7 @@ router.post("/checkout", requirePermission("pos"), branchAccessMiddleware, async
 
       if (item.product_id && item.manage_stock && item.qty > 0) {
         const [productRows] = await conn.execute(
-          `SELECT stock, has_unit_hierarchy FROM products WHERE id = ? LIMIT 1`,
+          `SELECT stock, is_unlimited, has_unit_hierarchy FROM products WHERE id = ? LIMIT 1`,
           [item.product_id]
         );
 
@@ -1269,6 +1270,7 @@ router.post("/checkout", requirePermission("pos"), branchAccessMiddleware, async
         }
 
         const product = productRows[0];
+        if (Number(product.is_unlimited) === 1) continue;
 
         // Handle unit hierarchy products
         if (Number(product.has_unit_hierarchy) === 1) {

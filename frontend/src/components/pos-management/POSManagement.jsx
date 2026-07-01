@@ -710,8 +710,9 @@ export default function POSManagement() {
       const availableUnitStock = Number(
         sellUnit?.available_qty ?? product.stock ?? 0
       );
+      const isUnlimited = Number(product.is_unlimited || 0) === 1;
 
-      if (!product.is_unlimited && product.type !== "timed" && availableUnitStock <= 0) {
+      if (!isUnlimited && product.type !== "timed" && availableUnitStock <= 0) {
         setError(
           sellUnit?.unit_label
             ? `No ${formatUnitLabel(sellUnit)} stock available`
@@ -768,7 +769,7 @@ export default function POSManagement() {
         session_end: null,
         elapsed_seconds: 0,
         final_price: product.type === "timed" ? 0 : unitPrice,
-        manage_stock: !product.is_unlimited && availableUnitStock > 0
+        manage_stock: !isUnlimited && availableUnitStock > 0
       };
 
       return [...prev, item];
@@ -1247,25 +1248,34 @@ export default function POSManagement() {
       }
 
       setCart(
-        (data.items || []).map((item, index) => ({
-          cart_id: `pending-${data.id}-${item.id || index}-${Date.now()}`,
-          product_id: item.product_id,
-          unit_level_id: item.unit_level_id || null,
-          unit_label: item.unit_label || null,
-          unit_short_name: item.unit_short_name || null,
-          item_name: item.item_name,
-          icon: item.icon,
-          item_type: item.item_type || "fixed",
-          qty: Number(item.qty || 1),
-          unit_price: Number(item.unit_price || 0),
-          cost: Number(item.cost || 0),
-          item_discount_pct: Number(item.item_discount_pct || 0),
-          session_start: item.session_start,
-          session_end: item.session_end,
-          elapsed_seconds: Number(item.elapsed_seconds || 0),
-          final_price: Number(item.final_price || 0),
-          manage_stock: !!item.manage_stock
-        }))
+        (data.items || []).map((item, index) => {
+          const product = products.find(
+            (entry) => Number(entry.id) === Number(item.product_id)
+          );
+          const isUnlimited = Number(product?.is_unlimited || 0) === 1;
+          const availableUnitStock = Number(product?.stock ?? 0);
+
+          return {
+            cart_id: `pending-${data.id}-${item.id || index}-${Date.now()}`,
+            product_id: item.product_id,
+            unit_level_id: item.unit_level_id || null,
+            unit_label: item.unit_label || null,
+            unit_short_name: item.unit_short_name || null,
+            available_unit_stock: availableUnitStock,
+            item_name: item.item_name,
+            icon: item.icon,
+            item_type: item.item_type || "fixed",
+            qty: Number(item.qty || 1),
+            unit_price: Number(item.unit_price || 0),
+            cost: Number(item.cost || 0),
+            item_discount_pct: Number(item.item_discount_pct || 0),
+            session_start: item.session_start,
+            session_end: item.session_end,
+            elapsed_seconds: Number(item.elapsed_seconds || 0),
+            final_price: Number(item.final_price || 0),
+            manage_stock: !isUnlimited && !!item.manage_stock
+          };
+        })
       );
 
       setMobileCartOpen(true);
@@ -2438,7 +2448,7 @@ export default function POSManagement() {
                             ) : null}
                             <div className={styles.productStock}>
                               Stock:{" "}
-                              {product.is_unlimited
+                              {Number(product.is_unlimited || 0) === 1
                                 ? "∞"
                                 : Number(product.stock || 0)}
                             </div>
