@@ -40,6 +40,20 @@ const toAmount = (value) => {
   return amount;
 };
 const roundMoney = (value) => Number(toAmount(value).toFixed(2));
+const getItemLineTotal = (item) => {
+  const finalPrice = Number(item?.final_price);
+  if (Number.isFinite(finalPrice) && finalPrice >= 0) {
+    return roundMoney(finalPrice);
+  }
+
+  const qty = Number(item?.qty || 1);
+  const unitPrice = Number(item?.unit_price || 0);
+  const itemDiscountPct = Number(item?.item_discount_pct || 0);
+  const gross = qty * unitPrice;
+  const discountAmount = gross * (Math.max(0, Math.min(100, itemDiscountPct)) / 100);
+
+  return roundMoney(Math.max(0, gross - discountAmount));
+};
 const buildRecentSalesDates = () => {
   return [0, 1, 2].map((daysAgo) => {
     const date = moment().subtract(daysAgo, "days");
@@ -71,8 +85,11 @@ const buildSalesSummaryWhere = (req, dateKeys) => {
   return { sql, params };
 };
 
-async function resolveMembershipContext(conn, businessId, memberId, fallbackCustomer, subtotal) {
-  const normalizedSubtotal = roundMoney(subtotal);
+async function resolveMembershipContext(conn, businessId, memberId, fallbackCustomer, items = []) {
+  const normalizedItems = Array.isArray(items) ? items : [];
+  const normalizedSubtotal = roundMoney(
+    normalizedItems.reduce((sum, item) => sum + getItemLineTotal(item), 0)
+  );
   const fallbackName = String(fallbackCustomer || "Walk-in").trim() || "Walk-in";
 
   if (!memberId) {
@@ -92,7 +109,7 @@ async function resolveMembershipContext(conn, businessId, memberId, fallbackCust
        m.name,
        m.membership_tier_id,
        COALESCE(mt.name, m.tier) AS membership_tier_name,
-       COALESCE(mt.discount_pct, 0) AS membership_discount_pct
+       COALESCE(mt.discount_pct, 0) AS fallback_discount_pct
      FROM members m
      LEFT JOIN membership_tiers mt ON mt.id = m.membership_tier_id
      WHERE m.id = ? AND m.business_id = ?
@@ -107,15 +124,67 @@ async function resolveMembershipContext(conn, businessId, memberId, fallbackCust
   }
 
   const member = memberRows[0];
-  const membershipDiscountPct = roundMoney(member.membership_discount_pct || 0);
-  const membershipDiscountAmount = roundMoney(
-    normalizedSubtotal * (membershipDiscountPct / 100)
+  const fallbackDiscountPct = roundMoney(member.fallback_discount_pct || 0);
+  const tierId = member.membership_tier_id || null;
+  let discountByCategory = new Map();
+  let productCategoryById = new Map();
+
+  if (tierId) {
+    const [discountRows] = await conn.execute(
+      `SELECT category_id, discount_pct
+       FROM membership_tier_category_discounts
+       WHERE membership_tier_id = ? AND business_id = ?`,
+      [tierId, businessId]
+    );
+
+    discountByCategory = new Map(
+      discountRows.map((row) => [Number(row.category_id), Number(row.discount_pct || 0)])
+    );
+  }
+
+  const productIds = Array.from(
+    new Set(
+      normalizedItems
+        .map((item) => Number(item.product_id))
+        .filter((productId) => Number.isInteger(productId) && productId > 0)
+    )
   );
+
+  if (productIds.length) {
+    const placeholders = productIds.map(() => "?").join(", ");
+    const [productRows] = await conn.execute(
+      `SELECT id, category_id
+       FROM products
+       WHERE business_id = ? AND id IN (${placeholders})`,
+      [businessId, ...productIds]
+    );
+
+    productCategoryById = new Map(
+      productRows.map((row) => [Number(row.id), row.category_id ? Number(row.category_id) : null])
+    );
+  }
+
+  const membershipDiscountAmount = roundMoney(
+    normalizedItems.reduce((sum, item) => {
+      const productId = Number(item.product_id);
+      const categoryId = productCategoryById.get(productId) || null;
+      const categoryDiscountPct =
+        categoryId && discountByCategory.has(categoryId)
+          ? discountByCategory.get(categoryId)
+          : fallbackDiscountPct;
+
+      return sum + getItemLineTotal(item) * (categoryDiscountPct / 100);
+    }, 0)
+  );
+  const membershipDiscountPct =
+    normalizedSubtotal > 0
+      ? roundMoney((membershipDiscountAmount / normalizedSubtotal) * 100)
+      : 0;
 
   return {
     customerName: String(member.name || fallbackName).trim() || fallbackName,
     memberId: member.id,
-    membershipTierId: member.membership_tier_id || null,
+    membershipTierId: tierId,
     membershipTierName: member.membership_tier_name || null,
     membershipDiscountPct,
     membershipDiscountAmount
@@ -519,7 +588,7 @@ router.post("/pending", requirePermission("pos"), branchAccessMiddleware, async 
       req.user.business_id,
       member_id,
       customer,
-      subtotal
+      items
     );
     const totals = buildCheckoutTotals({
       subtotal,
@@ -778,7 +847,7 @@ router.put("/pending/:id", requirePermission("pos"), branchAccessMiddleware, asy
       req.user.business_id,
       member_id,
       customer,
-      subtotal
+      items
     );
     const totals = buildCheckoutTotals({
       subtotal,
@@ -1188,7 +1257,7 @@ router.post("/checkout", requirePermission("pos"), branchAccessMiddleware, async
       req.user.business_id,
       member_id,
       customer,
-      subtotal
+      items
     );
     const totals = buildCheckoutTotals({
       subtotal,

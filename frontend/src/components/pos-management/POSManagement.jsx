@@ -41,7 +41,7 @@ import {
 } from "../../api/posApi";
 import { getSettings } from "../../api/settingsApi";
 import { getMe } from "../../api/authApi";
-import { getMembers } from "../../api/membersApi";
+import { getMembers, getMembershipTiers } from "../../api/membersApi";
 import {
   checkoutCustomerOrder,
   getCustomerOrderById,
@@ -135,6 +135,7 @@ const clampSalesDockPosition = (position, dockWidth = 280, dockHeight = 58) => {
 export default function POSManagement() {
   const [products, setProducts] = useState([]);
   const [members, setMembers] = useState([]);
+  const [membershipTiers, setMembershipTiers] = useState([]);
   const [loadingProducts, setLoadingProducts] = useState(true);
   const [loadingSettings, setLoadingSettings] = useState(true);
 
@@ -343,15 +344,17 @@ export default function POSManagement() {
       setLoadingSettings(true);
       setError("");
 
-      const [productsRes, settingsRes, meRes, membersRes] = await Promise.all([
+      const [productsRes, settingsRes, meRes, membersRes, tiersRes] = await Promise.all([
         getProducts(),
         getSettings(),
         getMe().catch(() => null),
-        getMembers().catch(() => ({ data: [] }))
+        getMembers().catch(() => ({ data: [] })),
+        getMembershipTiers().catch(() => ({ data: [] }))
       ]);
 
       setProducts(productsRes?.data || []);
       setMembers(membersRes?.data || []);
+      setMembershipTiers(tiersRes?.data || []);
 
       const settingsData = settingsRes?.data || {};
       setSettings({
@@ -638,9 +641,33 @@ export default function POSManagement() {
     selectedMember?.tier ||
     "";
 
-  const appliedMembershipDiscountPct = Number(
+  const activeMembershipTier = useMemo(() => {
+    const tierId =
+      memberTierSnapshot?.membership_tier_id ||
+      selectedMember?.membership_tier_id ||
+      null;
+    const tierName = appliedMembershipTierName;
+
+    return (
+      membershipTiers.find((tier) => Number(tier.id) === Number(tierId)) ||
+      membershipTiers.find(
+        (tier) =>
+          tierName &&
+          String(tier.name || "").toLowerCase() === String(tierName).toLowerCase()
+      ) ||
+      null
+    );
+  }, [
+    appliedMembershipTierName,
+    memberTierSnapshot?.membership_tier_id,
+    membershipTiers,
+    selectedMember?.membership_tier_id
+  ]);
+
+  const appliedMembershipBaseDiscountPct = Number(
     memberTierSnapshot?.membership_discount_pct ??
       selectedMember?.membership_discount_pct ??
+      activeMembershipTier?.discount_pct ??
       0
   );
 
@@ -754,6 +781,8 @@ export default function POSManagement() {
       const item = {
         cart_id: `${product.id}-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
         product_id: product.id,
+        category_id: product.category_id || null,
+        category_name: product.category_name || null,
         unit_level_id: sellUnit?.unit_level_id || null,
         unit_label: sellUnit?.unit_label || null,
         unit_short_name: sellUnit?.unit_short_name || null,
@@ -942,9 +971,29 @@ export default function POSManagement() {
     const pct = Number(discountPct || 0);
     return (subtotal * pct) / 100;
   }, [subtotal, discountPct]);
+
   const membershipDiscountAmount = useMemo(() => {
-    return (subtotal * appliedMembershipDiscountPct) / 100;
-  }, [subtotal, appliedMembershipDiscountPct]);
+    if (!appliedMembershipTierName) return 0;
+
+    return computedCart.reduce((sum, item) => {
+      const categoryDiscount = activeMembershipTier?.category_discounts?.find(
+        (discount) => Number(discount.category_id) === Number(item.category_id)
+      );
+      const discountPct = Number(
+        categoryDiscount?.discount_pct ?? appliedMembershipBaseDiscountPct ?? 0
+      );
+
+      return sum + Number(item.final_price || 0) * (discountPct / 100);
+    }, 0);
+  }, [
+    activeMembershipTier?.category_discounts,
+    appliedMembershipBaseDiscountPct,
+    appliedMembershipTierName,
+    computedCart
+  ]);
+
+  const appliedMembershipDiscountPct =
+    subtotal > 0 ? (membershipDiscountAmount / subtotal) * 100 : 0;
 
   const loyaltyAmount = Number(loyaltyDiscount || 0);
   const giftcardAmount = Number(giftcardDiscount || 0);
@@ -971,6 +1020,8 @@ export default function POSManagement() {
   const payloadItems = useMemo(() => {
     return computedCart.map((item) => ({
       product_id: item.product_id,
+      category_id: item.category_id,
+      category_name: item.category_name,
       unit_level_id: item.unit_level_id,
       unit_label: item.unit_label,
       unit_short_name: item.unit_short_name,
@@ -1073,6 +1124,16 @@ export default function POSManagement() {
     const mapped = activeCustomerOrder.items.map((item, index) => ({
       cart_id: `customer-${activeCustomerOrder.order.id}-${item.id || index}-${Date.now()}`,
       product_id: item.product_id,
+      category_id:
+        item.category_id ||
+        products.find((product) => Number(product.id) === Number(item.product_id))
+          ?.category_id ||
+        null,
+      category_name:
+        item.category_name ||
+        products.find((product) => Number(product.id) === Number(item.product_id))
+          ?.category_name ||
+        null,
       unit_level_id: item.unit_level_id || null,
       unit_label: item.unit_label || null,
       unit_short_name: item.unit_short_name || null,
@@ -1258,6 +1319,8 @@ export default function POSManagement() {
           return {
             cart_id: `pending-${data.id}-${item.id || index}-${Date.now()}`,
             product_id: item.product_id,
+            category_id: item.category_id || product?.category_id || null,
+            category_name: item.category_name || product?.category_name || null,
             unit_level_id: item.unit_level_id || null,
             unit_label: item.unit_label || null,
             unit_short_name: item.unit_short_name || null,

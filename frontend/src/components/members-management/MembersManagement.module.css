@@ -345,6 +345,75 @@
   font-size: 13px;
 }
 
+.discountMatrix {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid #e2ebf2;
+  border-radius: 16px;
+  background: #f8fbff;
+}
+
+.discountMatrixHeader {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 4px;
+}
+
+.discountMatrixHeader strong {
+  color: #0f172a;
+  font-size: 14px;
+}
+
+.discountMatrixHeader span {
+  color: #64748b;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.discountRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 92px;
+  gap: 12px;
+  align-items: center;
+  min-width: 0;
+}
+
+.discountRow > span {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+  color: #0f172a;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.discountRow small {
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: capitalize;
+}
+
+.discountRow input {
+  width: 92px;
+  height: 40px;
+  border: 1px solid #cfd9e6;
+  border-radius: 12px;
+  padding: 0 10px;
+  font-size: 13px;
+  outline: none;
+  background: #ffffff;
+}
+
+.discountRow input:focus {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.11);
+}
+
 .inlineActions {
   display: flex;
   gap: 10px;

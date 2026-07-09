@@ -4,6 +4,7 @@ import * as XLSX from "xlsx";
 import {
   getMembers,
   getMembershipTiers,
+  getMembershipDiscountCategories,
   createMembershipTier,
   updateMembershipTier,
   createMember,
@@ -26,6 +27,7 @@ const initialTierForm = {
 export default function MembersManagement() {
   const [members, setMembers] = useState([]);
   const [membershipTiers, setMembershipTiers] = useState([]);
+  const [discountCategories, setDiscountCategories] = useState([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [tierSubmitting, setTierSubmitting] = useState(false);
@@ -51,13 +53,15 @@ export default function MembersManagement() {
       setLoading(true);
       setError("");
 
-      const [membersRes, tiersRes] = await Promise.all([
+      const [membersRes, tiersRes, categoriesRes] = await Promise.all([
         getMembers(),
-        getMembershipTiers()
+        getMembershipTiers(),
+        getMembershipDiscountCategories()
       ]);
 
       setMembers(membersRes?.data || []);
       setMembershipTiers(tiersRes?.data || []);
+      setDiscountCategories(categoriesRes?.data || []);
     } catch (err) {
       setError(err?.response?.data?.message || "Failed to load members");
     } finally {
@@ -87,6 +91,16 @@ export default function MembersManagement() {
     }));
   };
 
+  const handleTierCategoryDiscountChange = (categoryId, value) => {
+    setTierForm((prev) => ({
+      ...prev,
+      category_discounts: {
+        ...(prev.category_discounts || {}),
+        [categoryId]: value
+      }
+    }));
+  };
+
   const handleEditingTierChange = (e) => {
     const { name, value } = e.target;
 
@@ -98,6 +112,42 @@ export default function MembersManagement() {
           }
         : prev
     );
+  };
+
+  const handleEditingTierCategoryDiscountChange = (categoryId, value) => {
+    setEditingTier((prev) =>
+      prev
+        ? {
+            ...prev,
+            category_discounts: {
+              ...(prev.category_discounts || {}),
+              [categoryId]: value
+            }
+          }
+        : prev
+    );
+  };
+
+  const buildCategoryDiscountPayload = (discountMap = {}, defaultDiscountPct = 0) => {
+    return discountCategories.map((category) => ({
+      category_id: category.id,
+      discount_pct: Number(discountMap[category.id] ?? defaultDiscountPct ?? 0)
+    }));
+  };
+
+  const buildTierDiscountMap = (tier) => {
+    const discountMap = {};
+
+    discountCategories.forEach((category) => {
+      const existing = (tier.category_discounts || []).find(
+        (item) => Number(item.category_id) === Number(category.id)
+      );
+      discountMap[category.id] = String(
+        Number(existing?.discount_pct ?? tier.discount_pct ?? 0)
+      );
+    });
+
+    return discountMap;
   };
 
   const handleCreateMember = async (e) => {
@@ -152,7 +202,11 @@ export default function MembersManagement() {
 
       const res = await createMembershipTier({
         name: tierForm.name.trim(),
-        discount_pct: Number(tierForm.discount_pct || 0)
+        discount_pct: Number(tierForm.discount_pct || 0),
+        category_discounts: buildCategoryDiscountPayload(
+          tierForm.category_discounts || {},
+          Number(tierForm.discount_pct || 0)
+        )
       });
 
       setSuccessMessage(
@@ -174,7 +228,8 @@ export default function MembersManagement() {
     setEditingTier({
       id: tier.id,
       name: tier.name || "",
-      discount_pct: String(Number(tier.discount_pct || 0))
+      discount_pct: String(Number(tier.discount_pct || 0)),
+      category_discounts: buildTierDiscountMap(tier)
     });
     setError("");
     setSuccessMessage("");
@@ -201,7 +256,11 @@ export default function MembersManagement() {
 
       const res = await updateMembershipTier(editingTier.id, {
         name: String(editingTier.name || "").trim(),
-        discount_pct: Number(editingTier.discount_pct || 0)
+        discount_pct: Number(editingTier.discount_pct || 0),
+        category_discounts: buildCategoryDiscountPayload(
+          editingTier.category_discounts || {},
+          Number(editingTier.discount_pct || 0)
+        )
       });
 
       setSuccessMessage(
@@ -683,7 +742,7 @@ export default function MembersManagement() {
                 <option value="">Select tier</option>
                 {membershipTiers.map((tier) => (
                   <option key={tier.id} value={tier.id}>
-                    {tier.name} ({Number(tier.discount_pct || 0)}% off)
+                    {tier.name}
                   </option>
                 ))}
               </select>
@@ -702,7 +761,7 @@ export default function MembersManagement() {
             <div>
               <h2 className={styles.title}>Create Membership Tier</h2>
               <p className={styles.subtitle}>
-                Add new tiers like VIP, Regular, or custom benefits
+                Add a tier and set default category discounts
               </p>
             </div>
           </div>
@@ -720,7 +779,7 @@ export default function MembersManagement() {
             </div>
 
             <div className={styles.formGroup}>
-              <label>Discount %</label>
+              <label>Default Discount %</label>
               <input
                 type="number"
                 min="0"
@@ -731,6 +790,37 @@ export default function MembersManagement() {
                 placeholder="0"
               />
             </div>
+
+            {discountCategories.length ? (
+              <div className={styles.discountMatrix}>
+                <div className={styles.discountMatrixHeader}>
+                  <strong>Category Discounts</strong>
+                  <span>Set the checkout discount for each product category.</span>
+                </div>
+
+                {discountCategories.map((category) => (
+                  <label key={category.id} className={styles.discountRow}>
+                    <span>
+                      {category.name}
+                      <small>{category.type || "other"}</small>
+                    </span>
+                    <input
+                      type="number"
+                      min="0"
+                      max="100"
+                      value={
+                        tierForm.category_discounts?.[category.id] ??
+                        tierForm.discount_pct ??
+                        ""
+                      }
+                      onChange={(e) =>
+                        handleTierCategoryDiscountChange(category.id, e.target.value)
+                      }
+                    />
+                  </label>
+                ))}
+              </div>
+            ) : null}
 
             <button
               type="submit"
@@ -756,7 +846,11 @@ export default function MembersManagement() {
                 <div key={tier.id} className={styles.tierItem}>
                   <div>
                     <strong>{tier.name}</strong>
-                    <span>{Number(tier.discount_pct || 0)}% discount</span>
+                    <span>
+                      {tier.category_discounts?.length
+                        ? `${tier.category_discounts.length} category discount(s)`
+                        : `${Number(tier.discount_pct || 0)}% default discount`}
+                    </span>
                   </div>
 
                   <button
@@ -779,7 +873,7 @@ export default function MembersManagement() {
                 <div>
                   <h2 className={styles.title}>Update Tier</h2>
                   <p className={styles.subtitle}>
-                    Edit the tier name and discount benefit
+                    Edit the tier name and category discount benefits
                   </p>
                 </div>
               </div>
@@ -796,7 +890,7 @@ export default function MembersManagement() {
               </div>
 
               <div className={styles.formGroup}>
-                <label>Discount %</label>
+                <label>Default Discount %</label>
                 <input
                   type="number"
                   min="0"
@@ -807,6 +901,36 @@ export default function MembersManagement() {
                   placeholder="0"
                 />
               </div>
+
+              {discountCategories.length ? (
+                <div className={styles.discountMatrix}>
+                  <div className={styles.discountMatrixHeader}>
+                    <strong>Category Discounts</strong>
+                    <span>Checkout applies these values by product category.</span>
+                  </div>
+
+                  {discountCategories.map((category) => (
+                    <label key={category.id} className={styles.discountRow}>
+                      <span>
+                        {category.name}
+                        <small>{category.type || "other"}</small>
+                      </span>
+                      <input
+                        type="number"
+                        min="0"
+                        max="100"
+                        value={editingTier.category_discounts?.[category.id] ?? ""}
+                        onChange={(e) =>
+                          handleEditingTierCategoryDiscountChange(
+                            category.id,
+                            e.target.value
+                          )
+                        }
+                      />
+                    </label>
+                  ))}
+                </div>
+              ) : null}
 
               <div className={styles.inlineActions}>
                 <button
@@ -911,7 +1035,7 @@ export default function MembersManagement() {
                       <th>Phone</th>
                       <th>Email</th>
                       <th>Tier</th>
-                      <th>Discount %</th>
+                      <th>Default Discount</th>
                       <th>Created At</th>
                       <th>Action</th>
                     </tr>

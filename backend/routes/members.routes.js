@@ -10,6 +10,13 @@ router.use(authenticateToken);
 const DEFAULT_TIER_NAMES = ["Regular", "VIP"];
 
 const normalizeTierName = (value) => String(value || "").trim();
+const normalizeDiscountPct = (value) => {
+  const discountPct = Number(value ?? 0);
+  if (!Number.isFinite(discountPct) || discountPct < 0 || discountPct > 100) {
+    return null;
+  }
+  return discountPct;
+};
 
 async function ensureDefaultMembershipTiers(businessId) {
   for (const tierName of DEFAULT_TIER_NAMES) {
@@ -34,13 +41,105 @@ async function ensureDefaultMembershipTiers(businessId) {
 async function getMembershipTiersForBusiness(businessId) {
   await ensureDefaultMembershipTiers(businessId);
 
-  return query(
+  const tiers = await query(
     `SELECT id, name, discount_pct, business_id, created_at, updated_at
      FROM membership_tiers
      WHERE business_id = ?
      ORDER BY name ASC`,
     [businessId]
   );
+
+  if (!tiers.length) return tiers;
+
+  for (const tier of tiers) {
+    await ensureTierCategoryDiscountRows(businessId, tier.id, tier.discount_pct || 0);
+  }
+
+  const discounts = await query(
+    `SELECT
+       mtcd.id,
+       mtcd.membership_tier_id,
+       mtcd.category_id,
+       mtcd.discount_pct,
+       c.name AS category_name,
+       c.type AS category_type
+     FROM membership_tier_category_discounts mtcd
+     JOIN categories c ON c.id = mtcd.category_id
+     WHERE mtcd.business_id = ?
+     ORDER BY c.name ASC`,
+    [businessId]
+  );
+
+  const discountMap = discounts.reduce((acc, row) => {
+    const key = String(row.membership_tier_id);
+    if (!acc.has(key)) acc.set(key, []);
+    acc.get(key).push(row);
+    return acc;
+  }, new Map());
+
+  return tiers.map((tier) => ({
+    ...tier,
+    category_discounts: discountMap.get(String(tier.id)) || []
+  }));
+}
+
+async function getMembershipDiscountCategories(businessId) {
+  return query(
+    `SELECT id, name, type
+     FROM categories
+     WHERE business_id = ?
+     ORDER BY name ASC`,
+    [businessId]
+  );
+}
+
+async function ensureTierCategoryDiscountRows(businessId, tierId, defaultDiscountPct = 0) {
+  await query(
+    `INSERT INTO membership_tier_category_discounts
+      (membership_tier_id, category_id, discount_pct, business_id)
+     SELECT ?, c.id, ?, c.business_id
+     FROM categories c
+     LEFT JOIN membership_tier_category_discounts mtcd
+       ON mtcd.membership_tier_id = ?
+      AND mtcd.category_id = c.id
+     WHERE c.business_id = ?
+       AND mtcd.id IS NULL`,
+    [tierId, defaultDiscountPct, tierId, businessId]
+  );
+}
+
+async function replaceTierCategoryDiscounts(businessId, tierId, categoryDiscounts) {
+  if (!Array.isArray(categoryDiscounts)) return;
+
+  const categories = await getMembershipDiscountCategories(businessId);
+  const validCategoryIds = new Set(categories.map((category) => Number(category.id)));
+
+  for (const item of categoryDiscounts) {
+    const categoryId = Number(item.category_id);
+    const discountPct = normalizeDiscountPct(item.discount_pct);
+
+    if (!Number.isInteger(categoryId) || !validCategoryIds.has(categoryId)) {
+      const error = new Error("Invalid discount category");
+      error.statusCode = 400;
+      throw error;
+    }
+
+    if (discountPct === null) {
+      const error = new Error("Category discount must be between 0 and 100");
+      error.statusCode = 400;
+      throw error;
+    }
+
+    await query(
+      `INSERT INTO membership_tier_category_discounts
+        (membership_tier_id, category_id, discount_pct, business_id)
+       VALUES (?, ?, ?, ?)
+       ON DUPLICATE KEY UPDATE
+        discount_pct = VALUES(discount_pct),
+        business_id = VALUES(business_id)`,
+      [tierId, categoryId, discountPct, businessId]
+    );
+  }
 }
 
 async function resolveMembershipTierId(businessId, membershipTierId, tierName) {
@@ -101,18 +200,31 @@ router.get("/tiers", requirePermission("members"), async (req, res) => {
   }
 });
 
+router.get("/tiers/discount-categories", requirePermission("members"), async (req, res) => {
+  try {
+    if (!ensureBusinessContext(req, res)) return;
+
+    const categories = await getMembershipDiscountCategories(req.user.business_id);
+    res.json({ success: true, data: categories });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
 router.post("/tiers", requirePermission("members"), async (req, res) => {
   try {
     if (!ensureBusinessContext(req, res)) return;
 
     const name = normalizeTierName(req.body.name);
-    const discountPct = Number(req.body.discount_pct ?? req.body.discount_value ?? 0);
+    const discountPct = normalizeDiscountPct(
+      req.body.discount_pct ?? req.body.discount_value ?? 0
+    );
 
     if (!name) {
       return res.status(400).json({ success: false, message: "Tier name is required" });
     }
 
-    if (!Number.isFinite(discountPct) || discountPct < 0 || discountPct > 100) {
+    if (discountPct === null) {
       return res.status(400).json({
         success: false,
         message: "Tier discount must be between 0 and 100"
@@ -140,6 +252,18 @@ router.post("/tiers", requirePermission("members"), async (req, res) => {
       [name, discountPct, req.user.business_id]
     );
 
+    await ensureTierCategoryDiscountRows(
+      req.user.business_id,
+      result.insertId,
+      discountPct
+    );
+
+    await replaceTierCategoryDiscounts(
+      req.user.business_id,
+      result.insertId,
+      req.body.category_discounts
+    );
+
     const created = await query(
       `SELECT id, name, discount_pct, business_id, created_at, updated_at
        FROM membership_tiers
@@ -164,7 +288,9 @@ router.put("/tiers/:id", requirePermission("members"), async (req, res) => {
 
     const tierId = Number(req.params.id);
     const name = normalizeTierName(req.body.name);
-    const discountPct = Number(req.body.discount_pct ?? req.body.discount_value ?? 0);
+    const discountPct = normalizeDiscountPct(
+      req.body.discount_pct ?? req.body.discount_value ?? 0
+    );
 
     if (!Number.isInteger(tierId) || tierId <= 0) {
       return res.status(400).json({ success: false, message: "Invalid tier id" });
@@ -174,7 +300,7 @@ router.put("/tiers/:id", requirePermission("members"), async (req, res) => {
       return res.status(400).json({ success: false, message: "Tier name is required" });
     }
 
-    if (!Number.isFinite(discountPct) || discountPct < 0 || discountPct > 100) {
+    if (discountPct === null) {
       return res.status(400).json({
         success: false,
         message: "Tier discount must be between 0 and 100"
@@ -218,6 +344,13 @@ router.put("/tiers/:id", requirePermission("members"), async (req, res) => {
       [name, discountPct, tierId, req.user.business_id]
     );
 
+    await ensureTierCategoryDiscountRows(req.user.business_id, tierId, discountPct);
+    await replaceTierCategoryDiscounts(
+      req.user.business_id,
+      tierId,
+      req.body.category_discounts
+    );
+
     await query(
       `UPDATE members
        SET tier = ?
@@ -226,10 +359,34 @@ router.put("/tiers/:id", requirePermission("members"), async (req, res) => {
     );
 
     await query(
-      `UPDATE pending_carts
-       SET membership_tier_name = ?, membership_discount_pct = ?, membership_discount = ROUND(subtotal * (? / 100), 2)
-       WHERE membership_tier_id = ? AND business_id = ? AND status = 'pending'`,
-      [name, discountPct, discountPct, tierId, req.user.business_id]
+      `UPDATE pending_carts pc
+       SET
+        pc.membership_tier_name = ?,
+        pc.membership_discount_pct = (
+          SELECT COALESCE(
+            ROUND((SUM(pci.final_price * (COALESCE(mtcd.discount_pct, mt.discount_pct, 0) / 100)) / NULLIF(pc.subtotal, 0)) * 100, 2),
+            0
+          )
+          FROM pending_cart_items pci
+          LEFT JOIN products p ON p.id = pci.product_id
+          LEFT JOIN membership_tiers mt ON mt.id = pc.membership_tier_id
+          LEFT JOIN membership_tier_category_discounts mtcd
+            ON mtcd.membership_tier_id = pc.membership_tier_id
+           AND mtcd.category_id = p.category_id
+          WHERE pci.pending_cart_id = pc.id
+        ),
+        pc.membership_discount = (
+          SELECT COALESCE(ROUND(SUM(pci.final_price * (COALESCE(mtcd.discount_pct, mt.discount_pct, 0) / 100)), 2), 0)
+          FROM pending_cart_items pci
+          LEFT JOIN products p ON p.id = pci.product_id
+          LEFT JOIN membership_tier_category_discounts mtcd
+            ON mtcd.membership_tier_id = pc.membership_tier_id
+           AND mtcd.category_id = p.category_id
+          LEFT JOIN membership_tiers mt ON mt.id = pc.membership_tier_id
+          WHERE pci.pending_cart_id = pc.id
+        )
+       WHERE pc.membership_tier_id = ? AND pc.business_id = ? AND pc.status = 'pending'`,
+      [name, tierId, req.user.business_id]
     );
 
     const updated = await query(
@@ -247,6 +404,55 @@ router.put("/tiers/:id", requirePermission("members"), async (req, res) => {
     });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+router.put("/tiers/:id/category-discounts", requirePermission("members"), async (req, res) => {
+  try {
+    if (!ensureBusinessContext(req, res)) return;
+
+    const tierId = Number(req.params.id);
+
+    if (!Number.isInteger(tierId) || tierId <= 0) {
+      return res.status(400).json({ success: false, message: "Invalid tier id" });
+    }
+
+    const existingTier = await query(
+      `SELECT id, discount_pct
+       FROM membership_tiers
+       WHERE id = ? AND business_id = ?
+       LIMIT 1`,
+      [tierId, req.user.business_id]
+    );
+
+    if (!existingTier.length) {
+      return res.status(404).json({
+        success: false,
+        message: "Membership tier not found"
+      });
+    }
+
+    await ensureTierCategoryDiscountRows(
+      req.user.business_id,
+      tierId,
+      existingTier[0].discount_pct || 0
+    );
+    await replaceTierCategoryDiscounts(
+      req.user.business_id,
+      tierId,
+      req.body.category_discounts
+    );
+
+    const tiers = await getMembershipTiersForBusiness(req.user.business_id);
+    const updatedTier = tiers.find((tier) => Number(tier.id) === tierId) || null;
+
+    res.json({
+      success: true,
+      message: "Category discounts updated",
+      data: updatedTier
+    });
+  } catch (error) {
+    res.status(error.statusCode || 500).json({ success: false, message: error.message });
   }
 });
 

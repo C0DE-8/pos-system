@@ -11,6 +11,11 @@ export const getMembershipTiers = async () => {
   return data;
 };
 
+export const getMembershipDiscountCategories = async () => {
+  const { data } = await API.get("/members/tiers/discount-categories");
+  return data;
+};
+
 export const createMembershipTier = async (payload) => {
   const { data } = await API.post("/members/tiers", payload);
   return data;
@@ -18,6 +23,11 @@ export const createMembershipTier = async (payload) => {
 
 export const updateMembershipTier = async (id, payload) => {
   const { data } = await API.put(`/members/tiers/${id}`, payload);
+  return data;
+};
+
+export const updateMembershipTierCategoryDiscounts = async (id, payload) => {
+  const { data } = await API.put(`/members/tiers/${id}/category-discounts`, payload);
   return data;
 };
 
