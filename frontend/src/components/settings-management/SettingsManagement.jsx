@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { FiRefreshCw } from "react-icons/fi";
 import { getSettings, updateSettings } from "../../api/settingsApi";
 import {
   getBusinesses,
@@ -393,11 +394,13 @@ export default function SettingsManagement() {
           <div className={styles.headerActions}>
             <button
               type="button"
-              className={styles.secondaryBtn}
+              className={`${styles.secondaryBtn} ${styles.iconOnlyBtn}`}
               onClick={fetchSettings}
               disabled={saving}
+              aria-label="Refresh settings"
+              title="Refresh settings"
             >
-              Refresh
+              <FiRefreshCw />
             </button>
 
             <button
@@ -560,8 +563,15 @@ export default function SettingsManagement() {
             <p className={styles.subtitle}>Manage businesses, logos, branches and branch status</p>
           </div>
           <div className={styles.headerActions}>
-            <button type="button" className={styles.secondaryBtn} onClick={fetchBusinesses} disabled={bizLoading}>
-              {bizLoading ? "Loading..." : "Refresh Businesses"}
+            <button
+              type="button"
+              className={`${styles.secondaryBtn} ${styles.iconOnlyBtn}`}
+              onClick={fetchBusinesses}
+              disabled={bizLoading}
+              aria-label={bizLoading ? "Refreshing businesses" : "Refresh businesses"}
+              title={bizLoading ? "Refreshing businesses" : "Refresh businesses"}
+            >
+              <FiRefreshCw />
             </button>
           </div>
         </div>

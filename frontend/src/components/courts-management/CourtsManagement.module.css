@@ -156,6 +156,11 @@
   color: #0f172a;
 }
 
+.iconOnlyBtn {
+  width: 44px;
+  padding: 0;
+}
+
 .secondaryBtn:hover {
   background: #cbd5e1;
 }

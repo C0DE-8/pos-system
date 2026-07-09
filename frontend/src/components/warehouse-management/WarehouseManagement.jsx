@@ -333,9 +333,10 @@ export default function WarehouseManagement({ activeSection = "actions" }) {
             loadHistory();
           }}
           disabled={refreshing}
+          aria-label={refreshing ? "Refreshing warehouse data" : "Refresh warehouse data"}
+          title={refreshing ? "Refreshing warehouse data" : "Refresh warehouse data"}
         >
           <FiRefreshCw className={refreshing ? styles.spin : ""} />
-          {refreshing ? "Refreshing..." : "Refresh"}
         </button>
       </div>
 

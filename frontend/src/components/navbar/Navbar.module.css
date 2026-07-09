@@ -44,6 +44,10 @@
 .refreshBtn {
   background: #e2e8f0;
   color: #0f172a;
+  width: 42px;
+  height: 42px;
+  padding: 0;
+  justify-content: center;
 }
 
 .refreshBtn:hover {

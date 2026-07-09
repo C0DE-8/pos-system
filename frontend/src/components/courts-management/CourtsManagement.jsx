@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { FiRefreshCw } from "react-icons/fi";
 import {
   getCourts,
   createCourt,
@@ -443,12 +444,14 @@ export default function CourtsManagement() {
             </div>
 
             <button
-              className={styles.secondaryBtn}
+              className={`${styles.secondaryBtn} ${styles.iconOnlyBtn}`}
               onClick={fetchCourts}
               disabled={loading}
               type="button"
+              aria-label={loading ? "Refreshing courts" : "Refresh courts"}
+              title={loading ? "Refreshing courts" : "Refresh courts"}
             >
-              {loading ? "Refreshing..." : "Refresh"}
+              <FiRefreshCw />
             </button>
           </div>
 

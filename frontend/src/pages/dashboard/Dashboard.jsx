@@ -16,6 +16,7 @@ import {
   FiArchive,
   FiBell,
   FiAlertTriangle,
+  FiRefreshCw,
   FiX
 } from "react-icons/fi";
 
@@ -778,8 +779,10 @@ export default function Dashboard() {
               className={styles.refreshBtn}
               onClick={() => refetch(true)}
               disabled={refreshing}
+              aria-label={refreshing ? "Refreshing dashboard" : "Refresh dashboard"}
+              title={refreshing ? "Refreshing dashboard" : "Refresh dashboard"}
             >
-              {refreshing ? "Refreshing..." : "Refresh"}
+              <FiRefreshCw />
             </button>
           </div>
         </div>

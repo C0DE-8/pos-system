@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { FiRefreshCw } from "react-icons/fi";
 import {
   getProducts,
   getProductById,
@@ -1429,8 +1430,14 @@ export default function InventoryManagement({ activeSection = null }) {
           </p>
         </div>
 
-        <button type="button" className={styles.refreshBtn} onClick={loadAll}>
-          Refresh
+        <button
+          type="button"
+          className={styles.refreshBtn}
+          onClick={loadAll}
+          aria-label="Refresh inventory"
+          title="Refresh inventory"
+        >
+          <FiRefreshCw />
         </button>
       </section>
 

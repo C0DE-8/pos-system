@@ -865,9 +865,10 @@ export default function ProductsPOS() {
                   type="button"
                   onClick={loadPendingCarts}
                   className={styles.pendingRefreshBtn}
+                  aria-label="Refresh pending carts"
+                  title="Refresh pending carts"
                 >
                   <FiRefreshCw />
-                  Refresh
                 </button>
               </div>
 
@@ -950,6 +951,8 @@ export default function ProductsPOS() {
                 type="button"
                 onClick={loadPendingCarts}
                 className={styles.pendingRefreshIconBtn}
+                aria-label="Refresh pending carts"
+                title="Refresh pending carts"
               >
                 <FiRefreshCw />
               </button>

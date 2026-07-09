@@ -232,12 +232,16 @@
   border: none;
   background: linear-gradient(135deg, #2563eb, #3b82f6);
   color: #ffffff;
+  width: 40px;
   height: 40px;
-  padding: 0 15px;
+  padding: 0;
   border-radius: 14px;
   font-size: 13px;
   font-weight: 700;
   cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   flex-shrink: 0;
   box-shadow: 0 12px 24px rgba(37, 99, 235, 0.22);
   transition:
@@ -963,7 +967,8 @@
 
   .refreshBtn {
     height: 38px;
-    padding: 0 12px;
+    width: 38px;
+    padding: 0;
     font-size: 12px;
   }
 

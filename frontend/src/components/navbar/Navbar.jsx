@@ -21,9 +21,13 @@ export default function Navbar({
       <div className={styles.right}>
         {actions ? <div className={styles.alertActions}>{actions}</div> : null}
 
-        <button className={styles.refreshBtn} onClick={onRefresh}>
+        <button
+          className={styles.refreshBtn}
+          onClick={onRefresh}
+          aria-label={refreshing ? "Refreshing" : "Refresh"}
+          title={refreshing ? "Refreshing" : "Refresh"}
+        >
           <FiRefreshCw className={refreshing ? styles.spin : ""} />
-          <span>{refreshing ? "Refreshing..." : "Refresh"}</span>
         </button>
 
         <div className={styles.userBadge}>

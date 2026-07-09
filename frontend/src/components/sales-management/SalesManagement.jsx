@@ -1500,12 +1500,13 @@ export default function SalesManagement() {
                 </button>
 
                 <button
-                  className={styles.secondaryBtn}
+                  className={`${styles.secondaryBtn} ${styles.iconOnlyBtn}`}
                   onClick={() => fetchSales(salesQueryParams)}
                   disabled={loading}
+                  aria-label={loading ? "Refreshing sales" : "Refresh sales"}
+                  title={loading ? "Refreshing sales" : "Refresh sales"}
                 >
                   <FiRefreshCw />
-                  {loading ? "Refreshing..." : "Refresh"}
                 </button>
               </div>
             </div>
