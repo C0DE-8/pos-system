@@ -40,3 +40,8 @@ export const getAdvancedAnalyticsDashboard = async (params = {}) => {
   const { data } = await API.get("/reports/advanced-dashboard", { params });
   return data;
 };
+
+export const getEmployeePerformanceReport = async (params = {}) => {
+  const { data } = await API.get("/reports/employee-performance", { params });
+  return data;
+};

@@ -46,6 +46,12 @@ const MEMBERS_SUBMENU_LABELS = [
   "Challenges"
 ];
 
+const REPORTS_SUBMENU_LABELS = [
+  "Reports Overview",
+  "Employee Performance",
+  "Advanced Analytics"
+];
+
 const ICONS = {
   Overview: <FiGrid />,
   Products: <FiBox />,
@@ -58,6 +64,8 @@ const ICONS = {
   Users: <FiUserCheck />,
   Settings: <FiSettings />,
   Reports: <FiBarChart2 />,
+  "Reports Overview": <FiBarChart2 />,
+  "Employee Performance": <FiBarChart2 />,
   "Advanced Analytics": <FiBarChart2 />,
   Viewer: <FiEye />,
   Warehouse: <FiArchive />,
@@ -95,18 +103,24 @@ export default function Sidebar({
   const memberChildren = menu.filter((item) =>
     MEMBERS_SUBMENU_LABELS.includes(item.label)
   );
+  const reportsChildren = menu.filter((item) =>
+    REPORTS_SUBMENU_LABELS.includes(item.label)
+  );
   const topLevelItems = menu.filter(
     (item) =>
       !INVENTORY_SUBMENU_LABELS.includes(item.label) &&
       !WAREHOUSE_SUBMENU_LABELS.includes(item.label) &&
-      !MEMBERS_SUBMENU_LABELS.includes(item.label)
+      !MEMBERS_SUBMENU_LABELS.includes(item.label) &&
+      !REPORTS_SUBMENU_LABELS.includes(item.label)
   );
   const isInventoryActive = INVENTORY_SUBMENU_LABELS.includes(activeMenu);
   const isWarehouseActive = WAREHOUSE_SUBMENU_LABELS.includes(activeMenu);
   const isMembersActive = MEMBERS_SUBMENU_LABELS.includes(activeMenu);
+  const isReportsActive = REPORTS_SUBMENU_LABELS.includes(activeMenu);
   const [inventoryOpen, setInventoryOpen] = useState(isInventoryActive);
   const [warehouseOpen, setWarehouseOpen] = useState(isWarehouseActive);
   const [membersOpen, setMembersOpen] = useState(isMembersActive);
+  const [reportsOpen, setReportsOpen] = useState(isReportsActive);
 
   useEffect(() => {
     if (isInventoryActive) {
@@ -125,6 +139,12 @@ export default function Sidebar({
       setMembersOpen(true);
     }
   }, [isMembersActive]);
+
+  useEffect(() => {
+    if (isReportsActive) {
+      setReportsOpen(true);
+    }
+  }, [isReportsActive]);
 
   return (
     <aside className={`${styles.sidebar} ${collapsed ? styles.collapsed : ""}`}>
@@ -286,6 +306,58 @@ export default function Sidebar({
                 {!collapsed && membersOpen ? (
                   <div className={styles.submenu}>
                     {memberChildren.map((child) => (
+                      <button
+                        key={child.label}
+                        className={`${styles.submenuItem} ${
+                          activeMenu === child.label ? styles.activeSubmenuItem : ""
+                        }`}
+                        onClick={() => setActiveMenu(child.label)}
+                      >
+                        <span className={styles.submenuDot} />
+                        <span className={styles.submenuLabel}>{child.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+            );
+          }
+
+          if (item.label === "Reports" && reportsChildren.length) {
+            return (
+              <div key={item.label} className={styles.navGroup}>
+                <button
+                  className={`${styles.navItem} ${
+                    isReportsActive ? styles.activeNavItem : ""
+                  }`}
+                  onClick={() => {
+                    if (collapsed) {
+                      setActiveMenu(reportsChildren[0].label);
+                      return;
+                    }
+
+                    setReportsOpen((prev) => !prev);
+                  }}
+                  title={collapsed ? item.label : ""}
+                >
+                  <span className={styles.icon}>{ICONS[item.label] || <FiGrid />}</span>
+                  {!collapsed ? (
+                    <>
+                      <span className={styles.label}>{item.label}</span>
+                      <span
+                        className={`${styles.groupChevron} ${
+                          reportsOpen ? styles.groupChevronOpen : ""
+                        }`}
+                      >
+                        <FiChevronDown />
+                      </span>
+                    </>
+                  ) : null}
+                </button>
+
+                {!collapsed && reportsOpen ? (
+                  <div className={styles.submenu}>
+                    {reportsChildren.map((child) => (
                       <button
                         key={child.label}
                         className={`${styles.submenuItem} ${

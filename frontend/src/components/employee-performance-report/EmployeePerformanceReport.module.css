@@ -1,0 +1,329 @@
+.wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  min-width: 0;
+  width: 100%;
+}
+
+.hero,
+.filterBand,
+.panel,
+.kpiCard {
+  background: #ffffff;
+  border: 1px solid #dbe5f0;
+  border-radius: 18px;
+  box-shadow: 0 14px 34px rgba(15, 23, 42, 0.06);
+}
+
+.hero {
+  align-items: center;
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.96), rgba(240, 253, 250, 0.9)),
+    radial-gradient(circle at 86% 14%, rgba(20, 184, 166, 0.2), transparent 30%);
+  display: flex;
+  gap: 18px;
+  justify-content: space-between;
+  padding: 24px;
+}
+
+.eyebrow {
+  color: #047857;
+  display: block;
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.hero h1,
+.panelHeader h2 {
+  color: #0f172a;
+  line-height: 1.15;
+  margin: 0;
+}
+
+.hero h1 {
+  font-size: 26px;
+  margin-top: 6px;
+}
+
+.hero p,
+.panelHeader p {
+  color: #64748b;
+  font-size: 13px;
+  line-height: 1.5;
+  margin: 8px 0 0;
+}
+
+.heroActions {
+  align-items: center;
+  display: flex;
+  gap: 10px;
+}
+
+.rangeTabs {
+  background: #f1f5f9;
+  border-radius: 14px;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(76px, 1fr));
+  gap: 4px;
+  padding: 4px;
+}
+
+.rangeTabs button,
+.iconBtn {
+  align-items: center;
+  border: none;
+  cursor: pointer;
+  display: inline-flex;
+  justify-content: center;
+}
+
+.rangeTabs button {
+  background: transparent;
+  border-radius: 11px;
+  color: #475569;
+  font-size: 13px;
+  font-weight: 800;
+  min-height: 38px;
+}
+
+.rangeTabs .rangeActive {
+  background: #ffffff;
+  color: #047857;
+  box-shadow: 0 6px 14px rgba(15, 23, 42, 0.08);
+}
+
+.iconBtn {
+  background: #ccfbf1;
+  border-radius: 12px;
+  color: #0f766e;
+  flex: 0 0 auto;
+  height: 42px;
+  width: 42px;
+}
+
+.filterBand {
+  align-items: end;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(180px, 220px)) minmax(220px, 1fr);
+  gap: 14px;
+  padding: 16px;
+}
+
+.filterBand span,
+.rangeLabel span {
+  color: #64748b;
+  display: block;
+  font-size: 12px;
+  font-weight: 800;
+  margin-bottom: 7px;
+}
+
+.filterBand input {
+  border: 1px solid #cbd5e1;
+  border-radius: 12px;
+  height: 42px;
+  outline: none;
+  padding: 0 12px;
+  width: 100%;
+}
+
+.rangeLabel {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  padding: 12px 14px;
+}
+
+.rangeLabel strong {
+  color: #0f172a;
+  display: block;
+  font-size: 14px;
+}
+
+.errorBox {
+  background: #fee2e2;
+  border: 1px solid #fecaca;
+  border-radius: 14px;
+  color: #991b1b;
+  font-size: 14px;
+  font-weight: 800;
+  padding: 13px 15px;
+}
+
+.kpiGrid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.kpiCard {
+  min-width: 0;
+  padding: 17px;
+}
+
+.kpiCard svg {
+  color: #0f766e;
+  height: 20px;
+  width: 20px;
+}
+
+.kpiCard span {
+  color: #64748b;
+  display: block;
+  font-size: 12px;
+  font-weight: 900;
+  margin-top: 12px;
+}
+
+.kpiCard strong {
+  color: #0f172a;
+  display: block;
+  font-size: 21px;
+  line-height: 1.2;
+  margin-top: 6px;
+  overflow-wrap: anywhere;
+}
+
+.kpiCard small {
+  color: #64748b;
+  display: block;
+  font-size: 12px;
+  margin-top: 6px;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(300px, 380px);
+  gap: 22px;
+  align-items: start;
+}
+
+.panel {
+  min-width: 0;
+  padding: 20px;
+}
+
+.panelHeader {
+  margin-bottom: 16px;
+}
+
+.tableOuter {
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  overflow-x: auto;
+  width: 100%;
+}
+
+.table {
+  border-collapse: collapse;
+  min-width: 1120px;
+  width: 100%;
+}
+
+.table th,
+.table td {
+  border-bottom: 1px solid #eef2f7;
+  color: #0f172a;
+  font-size: 13px;
+  padding: 13px 12px;
+  text-align: left;
+  vertical-align: middle;
+}
+
+.table th {
+  background: #f8fafc;
+  color: #64748b;
+  font-size: 12px;
+  text-transform: uppercase;
+}
+
+.table strong {
+  display: block;
+  font-size: 14px;
+}
+
+.table small {
+  color: #64748b;
+  display: block;
+  font-size: 12px;
+  margin-top: 4px;
+}
+
+.rankList {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.rankItem {
+  align-items: center;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  display: flex;
+  gap: 12px;
+  padding: 12px;
+}
+
+.rankItem > span {
+  align-items: center;
+  background: #ccfbf1;
+  border-radius: 12px;
+  color: #0f766e;
+  display: inline-flex;
+  flex: 0 0 auto;
+  font-size: 13px;
+  font-weight: 900;
+  height: 34px;
+  justify-content: center;
+  width: 34px;
+}
+
+.rankItem strong {
+  color: #0f172a;
+  display: block;
+  font-size: 14px;
+}
+
+.rankItem small {
+  color: #64748b;
+  display: block;
+  font-size: 12px;
+  margin-top: 4px;
+}
+
+.emptyState,
+.emptyCell {
+  color: #64748b;
+  font-weight: 800;
+  padding: 24px;
+  text-align: center;
+}
+
+@media (max-width: 1180px) {
+  .kpiGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 760px) {
+  .hero,
+  .heroActions {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .filterBand,
+  .kpiGrid,
+  .rangeTabs {
+    grid-template-columns: 1fr;
+    width: 100%;
+  }
+}

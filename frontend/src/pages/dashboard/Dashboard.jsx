@@ -40,6 +40,7 @@ import ChallengesManagement from "../../components/challenges-management/Challen
 import SettingsManagement from "../../components/settings-management/SettingsManagement";
 import ReportsManagement from "../../components/reports-management/ReportsManagement";
 import AdvancedAnalyticsDashboard from "../../components/advanced-analytics-dashboard/AdvancedAnalyticsDashboard";
+import EmployeePerformanceReport from "../../components/employee-performance-report/EmployeePerformanceReport";
 import MobileSidebarHead from "../../components/mobile-sidebar-head/MobileSidebarHead";
 
 import useDashboard from "../../hooks/useDashboard";
@@ -87,6 +88,12 @@ const MEMBERS_SUBMENU_ITEMS = [
   { label: "Challenges", sectionKey: "challenges" }
 ];
 
+const REPORTS_SUBMENU_ITEMS = [
+  { label: "Reports Overview", sectionKey: "overview" },
+  { label: "Employee Performance", sectionKey: "employeePerformance" },
+  { label: "Advanced Analytics", sectionKey: "advanced", adminOnly: true }
+];
+
 const INVENTORY_SUBMENU_LABELS = INVENTORY_SUBMENU_ITEMS.map((item) => item.label);
 const INVENTORY_SECTION_BY_LABEL = Object.fromEntries(
   INVENTORY_SUBMENU_ITEMS.map((item) => [item.label, item.sectionKey])
@@ -99,6 +106,8 @@ const WAREHOUSE_SECTION_BY_LABEL = Object.fromEntries(
 const DEFAULT_WAREHOUSE_MENU = WAREHOUSE_SUBMENU_ITEMS[0].label;
 const MEMBERS_SUBMENU_LABELS = MEMBERS_SUBMENU_ITEMS.map((item) => item.label);
 const DEFAULT_MEMBERS_MENU = MEMBERS_SUBMENU_ITEMS[0].label;
+const REPORTS_SUBMENU_LABELS = REPORTS_SUBMENU_ITEMS.map((item) => item.label);
+const DEFAULT_REPORTS_MENU = REPORTS_SUBMENU_ITEMS[0].label;
 
 const MENU_ITEMS = [
   { label: "Overview", permission: null, icon: <FiHome /> },
@@ -119,7 +128,12 @@ const MENU_ITEMS = [
   })),
   { label: "Sales", permission: "sales", icon: <FiTrendingUp /> },
   { label: "Reports", permission: "analytics", icon: <FiBarChart2 /> },
-  { label: "Advanced Analytics", permission: "analytics", adminOnly: true, icon: <FiBarChart2 /> },
+  ...REPORTS_SUBMENU_ITEMS.map((item) => ({
+    label: item.label,
+    permission: "analytics",
+    adminOnly: item.adminOnly,
+    icon: <FiBarChart2 />
+  })),
   { label: "Members", permission: "members", icon: <FiUsers /> },
   ...MEMBERS_SUBMENU_ITEMS.map((item) => ({
     label: item.label,
@@ -177,6 +191,10 @@ const getAlertDismissKey = (key) => {
 const normalizeMenuLabel = (label) => {
   if (label === "Member List") {
     return "Member Management";
+  }
+
+  if (label === "Reports") {
+    return DEFAULT_REPORTS_MENU;
   }
 
   if (label === "Inventory") {
@@ -639,6 +657,28 @@ export default function Dashboard() {
       return (
         <section className={styles.fullSection}>
           <ReportsManagement />
+        </section>
+      );
+    }
+
+    if (
+      activeMenu === "Reports Overview" &&
+      hasPermission(currentUser, currentPermissions, "analytics")
+    ) {
+      return (
+        <section className={styles.fullSection}>
+          <ReportsManagement />
+        </section>
+      );
+    }
+
+    if (
+      activeMenu === "Employee Performance" &&
+      hasPermission(currentUser, currentPermissions, "analytics")
+    ) {
+      return (
+        <section className={styles.fullSection}>
+          <EmployeePerformanceReport />
         </section>
       );
     }

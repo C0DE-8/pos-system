@@ -359,6 +359,188 @@ router.get("/branches", requirePermission("analytics"), async (req, res) => {
   }
 });
 
+router.get("/employee-performance", requirePermission("analytics"), async (req, res) => {
+  try {
+    if (!ensureBusinessContext(req, res)) return;
+
+    const { start, end } = dateRangeFromQuery(req.query);
+    const branchId = isAdmin(req.user) ? req.query.branch_id || "" : req.user.branch_id || "";
+    const salesBranch = aliasedBranchFilterSql("s", branchId);
+    const walletBranch = aliasedBranchFilterSql("mwt", branchId);
+    const pointsBranch = aliasedBranchFilterSql("mpl", branchId);
+    const challengeBranch = aliasedBranchFilterSql("mcc", branchId);
+
+    const salesRows = await query(
+      `SELECT
+         u.id AS user_id,
+         u.name,
+         u.email,
+         u.role,
+         COUNT(s.id) AS ticket_count,
+         COALESCE(SUM(s.total), 0) AS sales_total,
+         COALESCE(AVG(s.total), 0) AS average_ticket_value,
+         COALESCE(SUM(s.subtotal), 0) AS subtotal_total,
+         COALESCE(SUM(s.membership_discount + s.loyalty_discount + s.giftcard_discount), 0) AS discount_total,
+         COALESCE(SUM(s.wallet_payment), 0) AS wallet_payment_total,
+         COALESCE(SUM(s.points_earned), 0) AS points_earned_total,
+         COALESCE(SUM(s.reward_points_redeemed), 0) AS reward_points_redeemed_total,
+         COUNT(DISTINCT s.member_id) AS member_ticket_count,
+         COALESCE(SUM(CASE WHEN item_stats.item_qty > 1 OR item_stats.line_count > 1 THEN 1 ELSE 0 END), 0) AS upsell_ticket_count,
+         COALESCE(SUM(item_stats.item_qty), 0) AS item_qty_total
+       FROM users u
+       LEFT JOIN sales s
+         ON s.cashier_id = u.id
+        AND s.business_id = u.business_id
+        AND s.sale_date BETWEEN ? AND ?
+        ${branchId ? "AND s.branch_id = ?" : ""}
+       LEFT JOIN (
+         SELECT sale_id, COALESCE(SUM(qty), 0) AS item_qty, COUNT(*) AS line_count
+         FROM sale_items
+         GROUP BY sale_id
+       ) item_stats ON item_stats.sale_id = s.id
+       WHERE u.business_id = ?
+       GROUP BY u.id, u.name, u.email, u.role
+       ORDER BY sales_total DESC, ticket_count DESC, u.name ASC`,
+      [
+        start,
+        end,
+        ...(branchId ? [branchId] : []),
+        req.user.business_id
+      ]
+    );
+
+    const topupRows = await query(
+      `SELECT
+         mwt.created_by AS user_id,
+         COUNT(*) AS wallet_transaction_count,
+         SUM(CASE WHEN mwt.transaction_type = 'credit' THEN 1 ELSE 0 END) AS topup_count,
+         COALESCE(SUM(CASE WHEN mwt.transaction_type = 'credit' THEN mwt.amount ELSE 0 END), 0) AS topup_total,
+         SUM(CASE WHEN mwt.transaction_type = 'debit' THEN 1 ELSE 0 END) AS wallet_debit_count,
+         COALESCE(SUM(CASE WHEN mwt.transaction_type = 'debit' THEN mwt.amount ELSE 0 END), 0) AS wallet_debit_total
+       FROM member_wallet_transactions mwt
+       WHERE mwt.business_id = ?
+         AND mwt.created_at BETWEEN ? AND ?
+         AND mwt.created_by IS NOT NULL
+         ${walletBranch.sql}
+       GROUP BY mwt.created_by`,
+      [req.user.business_id, start, end, ...walletBranch.params]
+    );
+
+    const pointsRows = await query(
+      `SELECT
+         mpl.created_by AS user_id,
+         COUNT(*) AS points_transaction_count,
+         COALESCE(SUM(CASE WHEN mpl.transaction_type = 'earn' THEN mpl.points ELSE 0 END), 0) AS points_added,
+         COALESCE(SUM(CASE WHEN mpl.transaction_type = 'redeem' THEN mpl.points ELSE 0 END), 0) AS points_redeemed,
+         COALESCE(SUM(CASE WHEN mpl.transaction_type = 'adjust' THEN mpl.points ELSE 0 END), 0) AS points_adjusted
+       FROM member_points_ledger mpl
+       WHERE mpl.business_id = ?
+         AND mpl.created_at BETWEEN ? AND ?
+         AND mpl.created_by IS NOT NULL
+         ${pointsBranch.sql}
+       GROUP BY mpl.created_by`,
+      [req.user.business_id, start, end, ...pointsBranch.params]
+    );
+
+    const challengeRows = await query(
+      `SELECT
+         mcc.created_by AS user_id,
+         COUNT(*) AS challenges_completed
+       FROM member_challenge_completions mcc
+       WHERE mcc.business_id = ?
+         AND mcc.completed_at BETWEEN ? AND ?
+         AND mcc.created_by IS NOT NULL
+         ${challengeBranch.sql}
+       GROUP BY mcc.created_by`,
+      [req.user.business_id, start, end, ...challengeBranch.params]
+    );
+
+    const topupByUser = new Map(topupRows.map((row) => [Number(row.user_id), row]));
+    const pointsByUser = new Map(pointsRows.map((row) => [Number(row.user_id), row]));
+    const challengesByUser = new Map(challengeRows.map((row) => [Number(row.user_id), row]));
+
+    const employees = salesRows.map((row) => {
+      const userId = Number(row.user_id);
+      const topups = topupByUser.get(userId) || {};
+      const points = pointsByUser.get(userId) || {};
+      const challenges = challengesByUser.get(userId) || {};
+      const ticketCount = Number(row.ticket_count || 0);
+      const upsellTicketCount = Number(row.upsell_ticket_count || 0);
+      const salesTotal = Number(row.sales_total || 0);
+      const discountTotal = Number(row.discount_total || 0);
+      const memberTicketCount = Number(row.member_ticket_count || 0);
+
+      return {
+        ...row,
+        ticket_count: ticketCount,
+        sales_total: salesTotal,
+        average_ticket_value: Number(row.average_ticket_value || 0),
+        discount_total: discountTotal,
+        wallet_payment_total: Number(row.wallet_payment_total || 0),
+        points_earned_total: Number(row.points_earned_total || 0),
+        reward_points_redeemed_total: Number(row.reward_points_redeemed_total || 0),
+        member_ticket_count: memberTicketCount,
+        upsell_ticket_count: upsellTicketCount,
+        upsell_rate: ticketCount > 0 ? upsellTicketCount / ticketCount : 0,
+        member_attach_rate: ticketCount > 0 ? memberTicketCount / ticketCount : 0,
+        discount_rate: salesTotal > 0 ? discountTotal / salesTotal : 0,
+        item_qty_total: Number(row.item_qty_total || 0),
+        wallet_transaction_count: Number(topups.wallet_transaction_count || 0),
+        topup_count: Number(topups.topup_count || 0),
+        topup_total: Number(topups.topup_total || 0),
+        wallet_debit_count: Number(topups.wallet_debit_count || 0),
+        wallet_debit_total: Number(topups.wallet_debit_total || 0),
+        points_transaction_count: Number(points.points_transaction_count || 0),
+        points_added: Number(points.points_added || 0),
+        points_redeemed: Number(points.points_redeemed || 0),
+        points_adjusted: Number(points.points_adjusted || 0),
+        challenges_completed: Number(challenges.challenges_completed || 0)
+      };
+    });
+
+    const totals = employees.reduce(
+      (acc, employee) => {
+        acc.sales_total += employee.sales_total;
+        acc.ticket_count += employee.ticket_count;
+        acc.upsell_ticket_count += employee.upsell_ticket_count;
+        acc.topup_count += employee.topup_count;
+        acc.topup_total += employee.topup_total;
+        acc.wallet_debit_total += employee.wallet_debit_total;
+        acc.points_added += employee.points_added;
+        acc.challenges_completed += employee.challenges_completed;
+        return acc;
+      },
+      {
+        sales_total: 0,
+        ticket_count: 0,
+        upsell_ticket_count: 0,
+        topup_count: 0,
+        topup_total: 0,
+        wallet_debit_total: 0,
+        points_added: 0,
+        challenges_completed: 0
+      }
+    );
+
+    res.json({
+      success: true,
+      data: {
+        range: { start, end, branch_id: branchId || null },
+        totals: {
+          ...totals,
+          average_ticket_value:
+            totals.ticket_count > 0 ? totals.sales_total / totals.ticket_count : 0,
+          upsell_rate:
+            totals.ticket_count > 0 ? totals.upsell_ticket_count / totals.ticket_count : 0
+        },
+        employees
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
 router.get("/advanced-dashboard", requirePermission("analytics"), async (req, res) => {
   try {
     if (!requireAdminUser(req, res)) return;
