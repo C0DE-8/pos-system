@@ -36,6 +36,7 @@ import SalesManagement from "../../components/sales-management/SalesManagement";
 import MembersManagement from "../../components/members-management/MembersManagement";
 import WalletManagement from "../../components/wallet-management/WalletManagement";
 import PointsRewardsManagement from "../../components/points-rewards-management/PointsRewardsManagement";
+import ChallengesManagement from "../../components/challenges-management/ChallengesManagement";
 import SettingsManagement from "../../components/settings-management/SettingsManagement";
 import ReportsManagement from "../../components/reports-management/ReportsManagement";
 import AdvancedAnalyticsDashboard from "../../components/advanced-analytics-dashboard/AdvancedAnalyticsDashboard";
@@ -82,7 +83,8 @@ const WAREHOUSE_SUBMENU_ITEMS = [
 const MEMBERS_SUBMENU_ITEMS = [
   { label: "Member Management", sectionKey: "management" },
   { label: "Wallet Top-Up", sectionKey: "wallet" },
-  { label: "Points & Rewards", sectionKey: "rewards" }
+  { label: "Points & Rewards", sectionKey: "rewards" },
+  { label: "Challenges", sectionKey: "challenges" }
 ];
 
 const INVENTORY_SUBMENU_LABELS = INVENTORY_SUBMENU_ITEMS.map((item) => item.label);
@@ -682,6 +684,17 @@ export default function Dashboard() {
       return (
         <section className={styles.fullSection}>
           <PointsRewardsManagement />
+        </section>
+      );
+    }
+
+    if (
+      activeMenu === "Challenges" &&
+      hasPermission(currentUser, currentPermissions, "members")
+    ) {
+      return (
+        <section className={styles.fullSection}>
+          <ChallengesManagement />
         </section>
       );
     }

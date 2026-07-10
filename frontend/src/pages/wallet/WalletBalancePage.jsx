@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
-import { FiCreditCard, FiRefreshCw } from "react-icons/fi";
+import { FiAward, FiCreditCard, FiRefreshCw } from "react-icons/fi";
 import { getWalletBalanceByToken } from "../../api/membersApi";
 import styles from "./WalletBalancePage.module.css";
 
@@ -106,6 +106,39 @@ export default function WalletBalancePage() {
               <span>Wallet Token</span>
               <strong>{wallet?.wallet_token}</strong>
             </div>
+
+            {Array.isArray(wallet?.missions) && wallet.missions.length ? (
+              <div className={styles.missionPanel}>
+                <div className={styles.missionHead}>
+                  <FiAward />
+                  <div>
+                    <h2>Active Missions</h2>
+                    <p>Complete challenges to earn bonus rewards.</p>
+                  </div>
+                </div>
+                <div className={styles.missionList}>
+                  {wallet.missions.map((mission) => (
+                    <div key={mission.id} className={styles.missionCard}>
+                      <div className={styles.missionTop}>
+                        <strong>{mission.title}</strong>
+                        {mission.is_completed ? <span>Done</span> : null}
+                      </div>
+                      {mission.description ? <p>{mission.description}</p> : null}
+                      <div className={styles.missionTrack}>
+                        <span style={{ width: `${Number(mission.progress_percent || 0)}%` }} />
+                      </div>
+                      <small>
+                        {Number(mission.progress_value || 0).toLocaleString("en-NG")} /{" "}
+                        {Number(mission.target_value || 0).toLocaleString("en-NG")}
+                        {Number(mission.bonus_points || 0) > 0
+                          ? ` • +${Number(mission.bonus_points || 0).toLocaleString("en-NG")} pts`
+                          : ""}
+                      </small>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null}
           </div>
         )}
 

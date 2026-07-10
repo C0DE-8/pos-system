@@ -35,6 +35,40 @@ const normalizeWalletAmount = (value) => {
   if (!Number.isFinite(amount) || amount <= 0) return null;
   return roundMoney(amount);
 };
+const normalizeChallengeDate = (value) => {
+  const text = String(value || "").trim();
+  if (!text) return null;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(text)) return `${text} 00:00:00`;
+  if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(text)) {
+    return text.slice(0, 16).replace("T", " ") + ":00";
+  }
+  return null;
+};
+const CHALLENGE_TYPES = new Set([
+  "visit_count",
+  "spend_amount",
+  "product_count",
+  "category_count",
+  "points_earned",
+  "manual"
+]);
+const normalizeChallengePayload = (body = {}) => {
+  const challengeType = String(body.challenge_type || "visit_count").trim();
+  const targetValue = Number(body.target_value || 0);
+  const bonusPoints = Math.max(0, Math.floor(Number(body.bonus_points || 0)));
+
+  return {
+    title: String(body.title || "").trim(),
+    description: String(body.description || "").trim() || null,
+    challengeType: CHALLENGE_TYPES.has(challengeType) ? challengeType : "visit_count",
+    targetValue: Number.isFinite(targetValue) && targetValue > 0 ? targetValue : 1,
+    bonusPoints,
+    badgeName: String(body.badge_name || "").trim() || null,
+    startsAt: normalizeChallengeDate(body.starts_at),
+    endsAt: normalizeChallengeDate(body.ends_at),
+    isActive: body.is_active === false || body.is_active === 0 || body.is_active === "0" ? 0 : 1
+  };
+};
 const normalizeDiscountPct = (value) => {
   const discountPct = Number(value ?? 0);
   if (!Number.isFinite(discountPct) || discountPct < 0 || discountPct > 100) {
@@ -57,6 +91,120 @@ const normalizeMemberPayload = (body = {}) => ({
     : "active"
 });
 
+async function calculateChallengeProgress(challenge, memberId, businessId) {
+  const start = challenge.starts_at || "1970-01-01 00:00:00";
+  const end = challenge.ends_at || "2999-12-31 23:59:59";
+  const params = [businessId, memberId, start, end];
+
+  if (challenge.challenge_type === "visit_count") {
+    const rows = await query(
+      `SELECT COUNT(*) AS value
+       FROM sales
+       WHERE business_id = ? AND member_id = ? AND sale_date BETWEEN ? AND ?`,
+      params
+    );
+    return Number(rows[0]?.value || 0);
+  }
+
+  if (challenge.challenge_type === "spend_amount") {
+    const rows = await query(
+      `SELECT COALESCE(SUM(total), 0) AS value
+       FROM sales
+       WHERE business_id = ? AND member_id = ? AND sale_date BETWEEN ? AND ?`,
+      params
+    );
+    return roundMoney(rows[0]?.value || 0);
+  }
+
+  if (challenge.challenge_type === "product_count") {
+    const rows = await query(
+      `SELECT COUNT(DISTINCT si.product_id) AS value
+       FROM sale_items si
+       JOIN sales s ON s.id = si.sale_id
+       WHERE s.business_id = ? AND s.member_id = ? AND s.sale_date BETWEEN ? AND ?
+         AND si.product_id IS NOT NULL`,
+      params
+    );
+    return Number(rows[0]?.value || 0);
+  }
+
+  if (challenge.challenge_type === "category_count") {
+    const rows = await query(
+      `SELECT COUNT(DISTINCT p.category_id) AS value
+       FROM sale_items si
+       JOIN sales s ON s.id = si.sale_id
+       JOIN products p ON p.id = si.product_id
+       WHERE s.business_id = ? AND s.member_id = ? AND s.sale_date BETWEEN ? AND ?
+         AND p.category_id IS NOT NULL`,
+      params
+    );
+    return Number(rows[0]?.value || 0);
+  }
+
+  if (challenge.challenge_type === "points_earned") {
+    const rows = await query(
+      `SELECT COALESCE(SUM(points), 0) AS value
+       FROM member_points_ledger
+       WHERE business_id = ? AND member_id = ? AND created_at BETWEEN ? AND ?
+         AND transaction_type = 'earn'`,
+      params
+    );
+    return Number(rows[0]?.value || 0);
+  }
+
+  return 0;
+}
+
+async function getMemberChallengeProgress(businessId, memberId, onlyActive = true) {
+  const nowSql = new Date().toISOString().slice(0, 19).replace("T", " ");
+  const challenges = await query(
+    `SELECT *
+     FROM member_challenges
+     WHERE business_id = ?
+       ${onlyActive ? "AND is_active = 1" : ""}
+       ${onlyActive ? "AND (starts_at IS NULL OR starts_at <= ?)" : ""}
+       ${onlyActive ? "AND (ends_at IS NULL OR ends_at >= ?)" : ""}
+     ORDER BY is_active DESC, COALESCE(ends_at, '2999-12-31') ASC, id DESC`,
+    onlyActive ? [businessId, nowSql, nowSql] : [businessId]
+  );
+
+  if (!challenges.length) return [];
+
+  const completions = await query(
+    `SELECT *
+     FROM member_challenge_completions
+     WHERE business_id = ? AND member_id = ?`,
+    [businessId, memberId]
+  );
+  const completionByChallenge = new Map(
+    completions.map((completion) => [Number(completion.challenge_id), completion])
+  );
+
+  const rows = [];
+  for (const challenge of challenges) {
+    const completion = completionByChallenge.get(Number(challenge.id));
+    const measuredProgress =
+      challenge.challenge_type === "manual"
+        ? Number(completion?.progress_value || 0)
+        : await calculateChallengeProgress(challenge, memberId, businessId);
+    const progressValue = Math.max(Number(completion?.progress_value || 0), measuredProgress);
+    const targetValue = Math.max(Number(challenge.target_value || 1), 1);
+    const isCompleted = !!completion || progressValue >= targetValue;
+
+    rows.push({
+      ...challenge,
+      progress_value: progressValue,
+      target_value: targetValue,
+      progress_percent: Math.min(100, Math.round((progressValue / targetValue) * 100)),
+      is_completed: isCompleted,
+      completed_at: completion?.completed_at || null,
+      reward_awarded_at: completion?.reward_awarded_at || null
+    });
+  }
+
+  return rows;
+}
+
 router.get("/wallet/balance/:token", async (req, res) => {
   try {
     const walletToken = String(req.params.token || "").trim();
@@ -70,6 +218,7 @@ router.get("/wallet/balance/:token", async (req, res) => {
 
     const rows = await query(
       `SELECT
+         m.id,
          m.name,
          m.member_code,
          COALESCE(mt.name, m.tier) AS membership_tier_name,
@@ -78,7 +227,8 @@ router.get("/wallet/balance/:token", async (req, res) => {
          m.points,
          m.lifetime_points,
          m.reward_badge,
-         m.created_at
+         m.created_at,
+         m.business_id
        FROM members m
        LEFT JOIN membership_tiers mt ON mt.id = m.membership_tier_id
        WHERE m.wallet_token = ?
@@ -93,6 +243,8 @@ router.get("/wallet/balance/:token", async (req, res) => {
       });
     }
 
+    const missions = await getMemberChallengeProgress(rows[0].business_id, rows[0].id, true);
+
     res.json({
       success: true,
       data: {
@@ -104,7 +256,8 @@ router.get("/wallet/balance/:token", async (req, res) => {
         points: Number(rows[0].points || 0),
         lifetime_points: Number(rows[0].lifetime_points || 0),
         reward_badge: rows[0].reward_badge || getRewardBadge(rows[0].lifetime_points || 0),
-        created_at: rows[0].created_at
+        created_at: rows[0].created_at,
+        missions
       }
     });
   } catch (error) {
@@ -1049,6 +1202,320 @@ router.post("/points/ledger", requirePermission("members"), async (req, res) => 
         points: pointsAfter,
         lifetime_points: lifetimeAfter,
         reward_badge: rewardBadge
+      }
+    });
+  } catch (error) {
+    await conn.rollback();
+    res.status(500).json({ success: false, message: error.message });
+  } finally {
+    conn.release();
+  }
+});
+
+router.get("/challenges", requirePermission("members"), async (req, res) => {
+  try {
+    if (!ensureBusinessContext(req, res)) return;
+
+    const rows = await query(
+      `SELECT
+         mc.*,
+         u.name AS created_by_name,
+         (
+           SELECT COUNT(*)
+           FROM member_challenge_completions mcc
+           WHERE mcc.challenge_id = mc.id
+         ) AS completion_count
+       FROM member_challenges mc
+       LEFT JOIN users u ON u.id = mc.created_by
+       WHERE mc.business_id = ?
+       ORDER BY mc.is_active DESC, COALESCE(mc.ends_at, '2999-12-31') ASC, mc.id DESC`,
+      [req.user.business_id]
+    );
+
+    res.json({ success: true, data: rows });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+router.post("/challenges", requirePermission("members"), async (req, res) => {
+  try {
+    if (!ensureBusinessContext(req, res)) return;
+
+    const payload = normalizeChallengePayload(req.body);
+    if (!payload.title) {
+      return res.status(400).json({ success: false, message: "Challenge title is required" });
+    }
+
+    const result = await query(
+      `INSERT INTO member_challenges
+       (title, description, challenge_type, target_value, bonus_points, badge_name, starts_at, ends_at, is_active, business_id, created_by)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        payload.title,
+        payload.description,
+        payload.challengeType,
+        payload.targetValue,
+        payload.bonusPoints,
+        payload.badgeName,
+        payload.startsAt,
+        payload.endsAt,
+        payload.isActive,
+        req.user.business_id,
+        req.user.id
+      ]
+    );
+
+    const rows = await query(
+      `SELECT * FROM member_challenges WHERE id = ? AND business_id = ? LIMIT 1`,
+      [result.insertId, req.user.business_id]
+    );
+
+    res.status(201).json({
+      success: true,
+      message: "Challenge created",
+      data: rows[0] || null
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+router.put("/challenges/:id", requirePermission("members"), async (req, res) => {
+  try {
+    if (!ensureBusinessContext(req, res)) return;
+
+    const challengeId = Number(req.params.id);
+    if (!Number.isInteger(challengeId) || challengeId <= 0) {
+      return res.status(400).json({ success: false, message: "Invalid challenge" });
+    }
+
+    const payload = normalizeChallengePayload(req.body);
+    if (!payload.title) {
+      return res.status(400).json({ success: false, message: "Challenge title is required" });
+    }
+
+    const result = await query(
+      `UPDATE member_challenges
+       SET title = ?,
+           description = ?,
+           challenge_type = ?,
+           target_value = ?,
+           bonus_points = ?,
+           badge_name = ?,
+           starts_at = ?,
+           ends_at = ?,
+           is_active = ?
+       WHERE id = ? AND business_id = ?`,
+      [
+        payload.title,
+        payload.description,
+        payload.challengeType,
+        payload.targetValue,
+        payload.bonusPoints,
+        payload.badgeName,
+        payload.startsAt,
+        payload.endsAt,
+        payload.isActive,
+        challengeId,
+        req.user.business_id
+      ]
+    );
+
+    if (!result.affectedRows) {
+      return res.status(404).json({ success: false, message: "Challenge not found" });
+    }
+
+    const rows = await query(
+      `SELECT * FROM member_challenges WHERE id = ? AND business_id = ? LIMIT 1`,
+      [challengeId, req.user.business_id]
+    );
+
+    res.json({
+      success: true,
+      message: "Challenge updated",
+      data: rows[0] || null
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+router.delete("/challenges/:id", requirePermission("members"), async (req, res) => {
+  try {
+    if (!ensureBusinessContext(req, res)) return;
+
+    const challengeId = Number(req.params.id);
+    if (!Number.isInteger(challengeId) || challengeId <= 0) {
+      return res.status(400).json({ success: false, message: "Invalid challenge" });
+    }
+
+    const result = await query(
+      `DELETE FROM member_challenges WHERE id = ? AND business_id = ?`,
+      [challengeId, req.user.business_id]
+    );
+
+    if (!result.affectedRows) {
+      return res.status(404).json({ success: false, message: "Challenge not found" });
+    }
+
+    res.json({ success: true, message: "Challenge deleted" });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+router.get("/challenges/progress", requirePermission("members"), async (req, res) => {
+  try {
+    if (!ensureBusinessContext(req, res)) return;
+
+    const memberId = Number(req.query.member_id);
+    if (!Number.isInteger(memberId) || memberId <= 0) {
+      return res.status(400).json({ success: false, message: "Member is required" });
+    }
+
+    const member = await getMemberById(memberId, req.user.business_id);
+    if (!member) {
+      return res.status(404).json({ success: false, message: "Member not found" });
+    }
+
+    const rows = await getMemberChallengeProgress(req.user.business_id, memberId, false);
+    res.json({ success: true, data: rows, member });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+router.post("/challenges/:id/complete", requirePermission("members"), async (req, res) => {
+  const conn = await pool.getConnection();
+
+  try {
+    if (!ensureBusinessContext(req, res)) return;
+
+    const challengeId = Number(req.params.id);
+    const memberId = Number(req.body.member_id);
+    const note = String(req.body.note || "").trim() || null;
+
+    if (!Number.isInteger(challengeId) || challengeId <= 0) {
+      return res.status(400).json({ success: false, message: "Invalid challenge" });
+    }
+
+    if (!Number.isInteger(memberId) || memberId <= 0) {
+      return res.status(400).json({ success: false, message: "Member is required" });
+    }
+
+    await conn.beginTransaction();
+
+    const [challengeRows] = await conn.execute(
+      `SELECT *
+       FROM member_challenges
+       WHERE id = ? AND business_id = ?
+       LIMIT 1
+       FOR UPDATE`,
+      [challengeId, req.user.business_id]
+    );
+
+    if (!challengeRows.length) {
+      await conn.rollback();
+      return res.status(404).json({ success: false, message: "Challenge not found" });
+    }
+
+    const [memberRows] = await conn.execute(
+      `SELECT id, name, member_code, points, lifetime_points
+       FROM members
+       WHERE id = ? AND business_id = ?
+       LIMIT 1
+       FOR UPDATE`,
+      [memberId, req.user.business_id]
+    );
+
+    if (!memberRows.length) {
+      await conn.rollback();
+      return res.status(404).json({ success: false, message: "Member not found" });
+    }
+
+    const challenge = challengeRows[0];
+    const progressValue = Number(req.body.progress_value || challenge.target_value || 1);
+    const rewardPoints = Math.max(0, Math.floor(Number(challenge.bonus_points || 0)));
+    const now = new Date();
+    const [existingCompletionRows] = await conn.execute(
+      `SELECT reward_awarded_at
+       FROM member_challenge_completions
+       WHERE challenge_id = ? AND member_id = ? AND business_id = ?
+       LIMIT 1
+       FOR UPDATE`,
+      [challengeId, memberId, req.user.business_id]
+    );
+    const alreadyAwarded = !!existingCompletionRows[0]?.reward_awarded_at;
+
+    await conn.execute(
+      `INSERT INTO member_challenge_completions
+       (challenge_id, member_id, progress_value, completed_at, reward_awarded_at, note, business_id, branch_id, created_by)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+       ON DUPLICATE KEY UPDATE
+         progress_value = GREATEST(progress_value, VALUES(progress_value)),
+         reward_awarded_at = COALESCE(reward_awarded_at, VALUES(reward_awarded_at)),
+         completed_at = COALESCE(completed_at, VALUES(completed_at)),
+         note = COALESCE(VALUES(note), note)`,
+      [
+        challengeId,
+        memberId,
+        progressValue,
+        now,
+        rewardPoints ? now : null,
+        note,
+        req.user.business_id,
+        req.user.branch_id || null,
+        req.user.id
+      ]
+    );
+
+    let pointsAfter = Number(memberRows[0].points || 0);
+    let lifetimeAfter = Number(memberRows[0].lifetime_points || 0);
+
+    if (rewardPoints && !alreadyAwarded) {
+      const pointsBefore = Math.floor(Number(memberRows[0].points || 0));
+      pointsAfter = pointsBefore + rewardPoints;
+      lifetimeAfter = Math.floor(Number(memberRows[0].lifetime_points || 0)) + rewardPoints;
+      const rewardBadge = getRewardBadge(lifetimeAfter);
+
+      await conn.execute(
+        `UPDATE members
+         SET points = ?,
+             lifetime_points = ?,
+             reward_badge = ?
+         WHERE id = ? AND business_id = ?`,
+        [pointsAfter, lifetimeAfter, rewardBadge, memberId, req.user.business_id]
+      );
+
+      await conn.execute(
+        `INSERT INTO member_points_ledger
+         (member_id, transaction_type, points, points_before, points_after, source, reference, note, created_by, business_id, branch_id)
+         VALUES (?, 'earn', ?, ?, ?, 'challenge', ?, ?, ?, ?, ?)`,
+        [
+          memberId,
+          rewardPoints,
+          pointsBefore,
+          pointsAfter,
+          `CHALLENGE-${challengeId}`,
+          challenge.title,
+          req.user.id,
+          req.user.business_id,
+          req.user.branch_id || null
+        ]
+      );
+    }
+
+    await conn.commit();
+
+    res.status(201).json({
+      success: true,
+      message: "Challenge completed",
+      data: {
+        challenge_id: challengeId,
+        member_id: memberId,
+        points: pointsAfter,
+        lifetime_points: lifetimeAfter
       }
     });
   } catch (error) {

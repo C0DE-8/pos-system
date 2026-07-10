@@ -190,6 +190,125 @@ async function awardMemberPoints(conn, { memberId, points, source, reference, no
   return { pointsEarned: pointAmount, pointsAfter, lifetimeAfter, rewardBadge };
 }
 
+async function calculateMenuChallengeProgress(challenge, memberId, businessId) {
+  const start = challenge.starts_at || "1970-01-01 00:00:00";
+  const end = challenge.ends_at || "2999-12-31 23:59:59";
+  const params = [businessId, memberId, start, end];
+
+  if (challenge.challenge_type === "visit_count") {
+    const rows = await query(
+      `SELECT COUNT(*) AS value
+       FROM sales
+       WHERE business_id = ? AND member_id = ? AND sale_date BETWEEN ? AND ?`,
+      params
+    );
+    return Number(rows[0]?.value || 0);
+  }
+
+  if (challenge.challenge_type === "spend_amount") {
+    const rows = await query(
+      `SELECT COALESCE(SUM(total), 0) AS value
+       FROM sales
+       WHERE business_id = ? AND member_id = ? AND sale_date BETWEEN ? AND ?`,
+      params
+    );
+    return roundMoney(rows[0]?.value || 0);
+  }
+
+  if (challenge.challenge_type === "product_count") {
+    const rows = await query(
+      `SELECT COUNT(DISTINCT si.product_id) AS value
+       FROM sale_items si
+       JOIN sales s ON s.id = si.sale_id
+       WHERE s.business_id = ? AND s.member_id = ? AND s.sale_date BETWEEN ? AND ?
+         AND si.product_id IS NOT NULL`,
+      params
+    );
+    return Number(rows[0]?.value || 0);
+  }
+
+  if (challenge.challenge_type === "category_count") {
+    const rows = await query(
+      `SELECT COUNT(DISTINCT p.category_id) AS value
+       FROM sale_items si
+       JOIN sales s ON s.id = si.sale_id
+       JOIN products p ON p.id = si.product_id
+       WHERE s.business_id = ? AND s.member_id = ? AND s.sale_date BETWEEN ? AND ?
+         AND p.category_id IS NOT NULL`,
+      params
+    );
+    return Number(rows[0]?.value || 0);
+  }
+
+  if (challenge.challenge_type === "points_earned") {
+    const rows = await query(
+      `SELECT COALESCE(SUM(points), 0) AS value
+       FROM member_points_ledger
+       WHERE business_id = ? AND member_id = ? AND created_at BETWEEN ? AND ?
+         AND transaction_type = 'earn'`,
+      params
+    );
+    return Number(rows[0]?.value || 0);
+  }
+
+  return 0;
+}
+
+async function getMenuMemberMissions(businessId, memberId) {
+  const nowSql = new Date().toISOString().slice(0, 19).replace("T", " ");
+  const challenges = await query(
+    `SELECT *
+     FROM member_challenges
+     WHERE business_id = ?
+       AND is_active = 1
+       AND (starts_at IS NULL OR starts_at <= ?)
+       AND (ends_at IS NULL OR ends_at >= ?)
+     ORDER BY COALESCE(ends_at, '2999-12-31') ASC, id DESC`,
+    [businessId, nowSql, nowSql]
+  );
+
+  if (!challenges.length) return [];
+
+  const completions = await query(
+    `SELECT *
+     FROM member_challenge_completions
+     WHERE business_id = ? AND member_id = ?`,
+    [businessId, memberId]
+  );
+  const completionByChallenge = new Map(
+    completions.map((completion) => [Number(completion.challenge_id), completion])
+  );
+
+  const missions = [];
+  for (const challenge of challenges) {
+    const completion = completionByChallenge.get(Number(challenge.id));
+    const measuredProgress =
+      challenge.challenge_type === "manual"
+        ? Number(completion?.progress_value || 0)
+        : await calculateMenuChallengeProgress(challenge, memberId, businessId);
+    const progressValue = Math.max(Number(completion?.progress_value || 0), measuredProgress);
+    const targetValue = Math.max(Number(challenge.target_value || 1), 1);
+
+    missions.push({
+      id: challenge.id,
+      title: challenge.title,
+      description: challenge.description,
+      challenge_type: challenge.challenge_type,
+      target_value: targetValue,
+      progress_value: progressValue,
+      progress_percent: Math.min(100, Math.round((progressValue / targetValue) * 100)),
+      bonus_points: Number(challenge.bonus_points || 0),
+      badge_name: challenge.badge_name,
+      starts_at: challenge.starts_at,
+      ends_at: challenge.ends_at,
+      is_completed: !!completion || progressValue >= targetValue,
+      completed_at: completion?.completed_at || null
+    });
+  }
+
+  return missions;
+}
+
 router.get("/:businessSlug/:branchSlug/products", async (req, res) => {
   try {
     const resolved = await resolveBusinessBranch(req.params.businessSlug, req.params.branchSlug);
@@ -281,7 +400,8 @@ router.post("/:businessSlug/:branchSlug/members/lookup", async (req, res) => {
         phone: member.phone,
         email: member.email,
         wallet_balance: roundMoney(member.wallet_balance || 0),
-        membership_tier_name: member.membership_tier_name
+        membership_tier_name: member.membership_tier_name,
+        missions: await getMenuMemberMissions(resolved.business.id, member.id)
       }
     });
   } catch (error) {

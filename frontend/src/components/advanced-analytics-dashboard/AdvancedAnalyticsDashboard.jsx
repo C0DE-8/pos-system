@@ -54,6 +54,34 @@ function formatPercent(value) {
   return `${(Number(value || 0) * 100).toFixed(1)}%`;
 }
 
+function parseDateForDisplay(value) {
+  if (!value) return null;
+  const text = String(value);
+  const date = new Date(text.length === 10 ? `${text}T00:00:00` : text);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function formatDisplayDate(value) {
+  const date = parseDateForDisplay(value);
+  if (!date) return "-";
+
+  return new Intl.DateTimeFormat("en-NG", {
+    day: "numeric",
+    month: "short",
+    year: "numeric"
+  }).format(date);
+}
+
+function formatTrendDate(value) {
+  const date = parseDateForDisplay(value);
+  if (!date) return "-";
+
+  return new Intl.DateTimeFormat("en-NG", {
+    day: "numeric",
+    month: "short"
+  }).format(date);
+}
+
 function maxValue(rows, keys) {
   return Math.max(
     1,
@@ -216,7 +244,7 @@ export default function AdvancedAnalyticsDashboard() {
         </label>
         <div className={styles.rangeLabel}>
           <span>Viewing</span>
-          <strong>{startDate} to {endDate}</strong>
+          <strong>{formatDisplayDate(startDate)} to {formatDisplayDate(endDate)}</strong>
         </div>
       </section>
 
@@ -333,7 +361,7 @@ export default function AdvancedAnalyticsDashboard() {
                 const debits = (Number(row.debits || 0) / walletMax) * 100;
                 return (
                   <div key={row.bucket} className={styles.trendRow}>
-                    <span>{row.bucket}</span>
+                    <span title={formatDisplayDate(row.bucket)}>{formatTrendDate(row.bucket)}</span>
                     <div className={styles.stackedTrack}>
                       <b className={styles.creditBar} style={{ width: `${credits}%` }} />
                       <b className={styles.debitBar} style={{ width: `${debits}%` }} />
@@ -492,7 +520,7 @@ export default function AdvancedAnalyticsDashboard() {
                 const adjusted = (Number(row.adjusted || 0) / pointsMax) * 100;
                 return (
                   <div key={row.bucket} className={styles.trendRow}>
-                    <span>{row.bucket}</span>
+                    <span title={formatDisplayDate(row.bucket)}>{formatTrendDate(row.bucket)}</span>
                     <div className={styles.stackedTrack}>
                       <b className={styles.earnedBar} style={{ width: `${earned}%` }} />
                       <b className={styles.redeemedBar} style={{ width: `${redeemed}%` }} />

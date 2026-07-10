@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import {
   FiCalendar,
+  FiAward,
   FiCheckCircle,
   FiClock,
   FiCreditCard,
@@ -831,6 +832,35 @@ export default function MenuHome() {
                   </span>
                   <span>{activeMember.membership_tier_name || "Member"}</span>
                 </div>
+                {Array.isArray(activeMember.missions) && activeMember.missions.length ? (
+                  <div className={styles.missionList}>
+                    {activeMember.missions.map((mission) => (
+                      <div key={mission.id} className={styles.missionCard}>
+                        <div className={styles.missionTop}>
+                          <span className={styles.missionIcon}><FiAward /></span>
+                          <div>
+                            <strong>{mission.title}</strong>
+                            <small>
+                              {Number(mission.progress_value || 0).toLocaleString("en-NG")} /{" "}
+                              {Number(mission.target_value || 0).toLocaleString("en-NG")}
+                              {Number(mission.bonus_points || 0) > 0
+                                ? ` • +${Number(mission.bonus_points || 0).toLocaleString("en-NG")} pts`
+                                : ""}
+                            </small>
+                          </div>
+                        </div>
+                        {mission.description ? <p>{mission.description}</p> : null}
+                        <div className={styles.missionTrack}>
+                          <span style={{ width: `${Number(mission.progress_percent || 0)}%` }} />
+                        </div>
+                        <div className={styles.missionMeta}>
+                          <span>{Number(mission.progress_percent || 0)}% complete</span>
+                          {mission.is_completed ? <b>Completed</b> : null}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
                 <button
                   type="button"
                   className={styles.secondaryAction}

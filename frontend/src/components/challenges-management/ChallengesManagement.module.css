@@ -1,0 +1,347 @@
+.wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  width: 100%;
+  min-width: 0;
+}
+
+.hero,
+.card,
+.challengeCard {
+  background: #ffffff;
+  border: 1px solid #dbe5f0;
+  border-radius: 18px;
+  box-shadow: 0 14px 34px rgba(15, 23, 42, 0.06);
+}
+
+.hero {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 22px;
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.94), rgba(255, 251, 235, 0.9)),
+    radial-gradient(circle at 88% 14%, rgba(245, 158, 11, 0.2), transparent 28%);
+}
+
+.eyebrow {
+  color: #b45309;
+  display: block;
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.hero h1,
+.cardHeader h2,
+.tableHeader h2 {
+  color: #0f172a;
+  line-height: 1.15;
+  margin: 6px 0 0;
+}
+
+.hero p,
+.cardHeader p,
+.tableHeader p {
+  color: #64748b;
+  font-size: 13px;
+  line-height: 1.5;
+  margin: 8px 0 0;
+}
+
+.iconBtn {
+  align-items: center;
+  background: #fef3c7;
+  border: none;
+  border-radius: 12px;
+  color: #92400e;
+  cursor: pointer;
+  display: inline-flex;
+  height: 42px;
+  justify-content: center;
+  width: 42px;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(320px, 0.9fr);
+  gap: 22px;
+  align-items: start;
+}
+
+.card {
+  min-width: 0;
+  padding: 20px;
+}
+
+.cardHeader,
+.tableHeader {
+  margin-bottom: 16px;
+}
+
+.form,
+.progressList {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.formGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.formGroup {
+  border: 1px solid #cbd5e1;
+  border-radius: 12px;
+  display: block;
+  padding: 10px 12px;
+}
+
+.formGroup span,
+.toggleRow span {
+  color: #64748b;
+  display: block;
+  font-size: 12px;
+  font-weight: 800;
+  margin-bottom: 6px;
+}
+
+.formGroup input,
+.formGroup textarea,
+.formGroup select {
+  background: transparent;
+  border: none;
+  color: #0f172a;
+  font-size: 14px;
+  outline: none;
+  resize: vertical;
+  width: 100%;
+}
+
+.toggleRow {
+  align-items: center;
+  display: flex;
+  gap: 10px;
+}
+
+.toggleRow span {
+  margin: 0;
+}
+
+.actions,
+.cardActions,
+.progressMeta {
+  align-items: center;
+  display: flex;
+  gap: 10px;
+  justify-content: space-between;
+}
+
+.primaryBtn,
+.secondaryBtn,
+.completeBtn,
+.cardActions button {
+  align-items: center;
+  border: none;
+  border-radius: 12px;
+  cursor: pointer;
+  display: inline-flex;
+  font-weight: 800;
+  gap: 8px;
+  justify-content: center;
+  min-height: 42px;
+  padding: 0 14px;
+}
+
+.primaryBtn {
+  background: #d97706;
+  color: #ffffff;
+}
+
+.secondaryBtn,
+.cardActions button {
+  background: #f1f5f9;
+  color: #334155;
+}
+
+.completeBtn {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.completeBtn:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+.dangerBtn {
+  background: #fee2e2 !important;
+  color: #991b1b !important;
+}
+
+.errorBox,
+.successBox {
+  border-radius: 14px;
+  font-size: 14px;
+  font-weight: 800;
+  padding: 13px 15px;
+}
+
+.errorBox {
+  background: #fee2e2;
+  border: 1px solid #fecaca;
+  color: #991b1b;
+}
+
+.successBox {
+  background: #dcfce7;
+  border: 1px solid #bbf7d0;
+  color: #166534;
+}
+
+.progressCard {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+}
+
+.progressCard strong {
+  color: #0f172a;
+  display: block;
+}
+
+.progressCard small,
+.progressMeta span,
+.dateLine {
+  color: #64748b;
+  font-size: 12px;
+}
+
+.progressTrack {
+  background: #e2e8f0;
+  border-radius: 999px;
+  height: 10px;
+  overflow: hidden;
+}
+
+.progressTrack span {
+  background: linear-gradient(90deg, #f59e0b, #22c55e);
+  border-radius: inherit;
+  display: block;
+  height: 100%;
+}
+
+.challengeGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.challengeCard {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+}
+
+.challengeTop {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+}
+
+.challengeIcon {
+  align-items: center;
+  background: #fef3c7;
+  border-radius: 12px;
+  color: #92400e;
+  display: inline-flex;
+  height: 38px;
+  justify-content: center;
+  width: 38px;
+}
+
+.activeBadge,
+.inactiveBadge {
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 900;
+  padding: 6px 10px;
+}
+
+.activeBadge {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.inactiveBadge {
+  background: #e2e8f0;
+  color: #475569;
+}
+
+.challengeCard h3,
+.challengeCard p {
+  margin: 0;
+}
+
+.challengeCard h3 {
+  color: #0f172a;
+  font-size: 17px;
+}
+
+.challengeCard p {
+  color: #64748b;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.challengeMeta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.challengeMeta span {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 999px;
+  color: #334155;
+  font-size: 12px;
+  font-weight: 800;
+  padding: 6px 9px;
+}
+
+.emptyState {
+  color: #64748b;
+  font-weight: 800;
+  padding: 24px;
+  text-align: center;
+}
+
+@media (max-width: 1120px) {
+  .grid,
+  .challengeGrid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 620px) {
+  .hero,
+  .actions,
+  .progressMeta,
+  .cardActions {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .formGrid {
+    grid-template-columns: 1fr;
+  }
+}

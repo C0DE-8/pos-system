@@ -51,6 +51,38 @@ export const createPointsLedgerEntry = async (payload) => {
   return data;
 };
 
+export const getMemberChallenges = async () => {
+  const { data } = await API.get("/members/challenges");
+  return data;
+};
+
+export const createMemberChallenge = async (payload) => {
+  const { data } = await API.post("/members/challenges", payload);
+  return data;
+};
+
+export const updateMemberChallenge = async (id, payload) => {
+  const { data } = await API.put(`/members/challenges/${id}`, payload);
+  return data;
+};
+
+export const deleteMemberChallenge = async (id) => {
+  const { data } = await API.delete(`/members/challenges/${id}`);
+  return data;
+};
+
+export const getMemberChallengeProgress = async (memberId) => {
+  const { data } = await API.get("/members/challenges/progress", {
+    params: { member_id: memberId }
+  });
+  return data;
+};
+
+export const completeMemberChallenge = async (id, payload) => {
+  const { data } = await API.post(`/members/challenges/${id}/complete`, payload);
+  return data;
+};
+
 export const getWalletBalanceByToken = async (token) => {
   const { data } = await API.get(`/members/wallet/balance/${encodeURIComponent(token)}`);
   return data;
