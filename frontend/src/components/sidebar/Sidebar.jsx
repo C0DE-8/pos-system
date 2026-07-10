@@ -5,6 +5,7 @@ import {
   FiBox,
   FiUsers,
   FiShoppingCart,
+  FiCreditCard,
   FiTrendingUp,
   FiLayers,
   FiMap,
@@ -37,6 +38,8 @@ const WAREHOUSE_SUBMENU_LABELS = [
   "Warehouse History"
 ];
 
+const MEMBERS_SUBMENU_LABELS = ["Member List", "Wallet Top-Up"];
+
 const ICONS = {
   Overview: <FiGrid />,
   Products: <FiBox />,
@@ -51,6 +54,8 @@ const ICONS = {
   Reports: <FiBarChart2 />,
   Viewer: <FiEye />,
   Warehouse: <FiArchive />,
+  "Member List": <FiUsers />,
+  "Wallet Top-Up": <FiCreditCard />,
   "Add Product": <FiBox />,
   "Stock Tools": <FiBox />,
   Categories: <FiBox />,
@@ -78,15 +83,21 @@ export default function Sidebar({
   const warehouseChildren = menu.filter((item) =>
     WAREHOUSE_SUBMENU_LABELS.includes(item.label)
   );
+  const memberChildren = menu.filter((item) =>
+    MEMBERS_SUBMENU_LABELS.includes(item.label)
+  );
   const topLevelItems = menu.filter(
     (item) =>
       !INVENTORY_SUBMENU_LABELS.includes(item.label) &&
-      !WAREHOUSE_SUBMENU_LABELS.includes(item.label)
+      !WAREHOUSE_SUBMENU_LABELS.includes(item.label) &&
+      !MEMBERS_SUBMENU_LABELS.includes(item.label)
   );
   const isInventoryActive = INVENTORY_SUBMENU_LABELS.includes(activeMenu);
   const isWarehouseActive = WAREHOUSE_SUBMENU_LABELS.includes(activeMenu);
+  const isMembersActive = MEMBERS_SUBMENU_LABELS.includes(activeMenu);
   const [inventoryOpen, setInventoryOpen] = useState(isInventoryActive);
   const [warehouseOpen, setWarehouseOpen] = useState(isWarehouseActive);
+  const [membersOpen, setMembersOpen] = useState(isMembersActive);
 
   useEffect(() => {
     if (isInventoryActive) {
@@ -99,6 +110,12 @@ export default function Sidebar({
       setWarehouseOpen(true);
     }
   }, [isWarehouseActive]);
+
+  useEffect(() => {
+    if (isMembersActive) {
+      setMembersOpen(true);
+    }
+  }, [isMembersActive]);
 
   return (
     <aside className={`${styles.sidebar} ${collapsed ? styles.collapsed : ""}`}>
@@ -208,6 +225,58 @@ export default function Sidebar({
                 {!collapsed && warehouseOpen ? (
                   <div className={styles.submenu}>
                     {warehouseChildren.map((child) => (
+                      <button
+                        key={child.label}
+                        className={`${styles.submenuItem} ${
+                          activeMenu === child.label ? styles.activeSubmenuItem : ""
+                        }`}
+                        onClick={() => setActiveMenu(child.label)}
+                      >
+                        <span className={styles.submenuDot} />
+                        <span className={styles.submenuLabel}>{child.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+            );
+          }
+
+          if (item.label === "Members" && memberChildren.length) {
+            return (
+              <div key={item.label} className={styles.navGroup}>
+                <button
+                  className={`${styles.navItem} ${
+                    isMembersActive ? styles.activeNavItem : ""
+                  }`}
+                  onClick={() => {
+                    if (collapsed) {
+                      setActiveMenu(memberChildren[0].label);
+                      return;
+                    }
+
+                    setMembersOpen((prev) => !prev);
+                  }}
+                  title={collapsed ? item.label : ""}
+                >
+                  <span className={styles.icon}>{ICONS[item.label] || <FiGrid />}</span>
+                  {!collapsed ? (
+                    <>
+                      <span className={styles.label}>{item.label}</span>
+                      <span
+                        className={`${styles.groupChevron} ${
+                          membersOpen ? styles.groupChevronOpen : ""
+                        }`}
+                      >
+                        <FiChevronDown />
+                      </span>
+                    </>
+                  ) : null}
+                </button>
+
+                {!collapsed && membersOpen ? (
+                  <div className={styles.submenu}>
+                    {memberChildren.map((child) => (
                       <button
                         key={child.label}
                         className={`${styles.submenuItem} ${

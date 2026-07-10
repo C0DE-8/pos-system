@@ -197,6 +197,7 @@ function buildCheckoutTotals({
   loyaltyDiscount,
   giftcardDiscount,
   membershipDiscount,
+  walletPayment,
   tax
 }) {
   const normalizedSubtotal = roundMoney(subtotal);
@@ -204,6 +205,7 @@ function buildCheckoutTotals({
   const normalizedLoyaltyDiscount = roundMoney(loyaltyDiscount);
   const normalizedGiftcardDiscount = roundMoney(giftcardDiscount);
   const normalizedMembershipDiscount = roundMoney(membershipDiscount);
+  const normalizedWalletPayment = Math.max(0, roundMoney(walletPayment));
   const normalizedTax = roundMoney(tax);
 
   const taxableBase = Math.max(
@@ -215,15 +217,110 @@ function buildCheckoutTotals({
       normalizedGiftcardDiscount
   );
 
+  const preWalletTotal = roundMoney(taxableBase + normalizedTax);
+
   return {
     subtotal: normalizedSubtotal,
     discount: normalizedDiscount,
     loyalty_discount: normalizedLoyaltyDiscount,
     giftcard_discount: normalizedGiftcardDiscount,
     membership_discount: normalizedMembershipDiscount,
+    wallet_payment: normalizedWalletPayment,
     tax: normalizedTax,
-    total: roundMoney(taxableBase + normalizedTax)
+    pre_wallet_total: preWalletTotal,
+    total: roundMoney(Math.max(0, preWalletTotal - normalizedWalletPayment))
   };
+}
+
+async function debitMemberWalletForCheckout({
+  conn,
+  businessId,
+  branchId,
+  memberId,
+  amount,
+  saleCode,
+  saleId,
+  userId
+}) {
+  const walletAmount = roundMoney(amount);
+  if (walletAmount <= 0) return null;
+
+  if (!memberId) {
+    const error = new Error("Select a member before applying wallet credit");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const [memberRows] = await conn.execute(
+    `SELECT id, wallet_balance, wallet_token
+     FROM members
+     WHERE id = ? AND business_id = ?
+     LIMIT 1
+     FOR UPDATE`,
+    [memberId, businessId]
+  );
+
+  if (!memberRows.length) {
+    const error = new Error("Selected member was not found");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const member = memberRows[0];
+  const balanceBefore = roundMoney(member.wallet_balance || 0);
+  const balanceAfter = roundMoney(balanceBefore - walletAmount);
+
+  if (balanceAfter < 0) {
+    const error = new Error("Insufficient wallet balance");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  await conn.execute(
+    `UPDATE members
+     SET wallet_balance = ?
+     WHERE id = ? AND business_id = ?`,
+    [balanceAfter, memberId, businessId]
+  );
+
+  await conn.execute(
+    `INSERT INTO member_wallet_transactions
+     (member_id, wallet_token, transaction_type, amount, balance_before, balance_after, source, reference, note, created_by, business_id, branch_id)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [
+      memberId,
+      member.wallet_token,
+      "checkout",
+      walletAmount,
+      balanceBefore,
+      balanceAfter,
+      "checkout",
+      saleCode || (saleId ? `SALE-${saleId}` : null),
+      "Wallet applied at checkout",
+      userId,
+      businessId,
+      branchId || null
+    ]
+  );
+
+  return { balanceBefore, balanceAfter };
+}
+
+function validateWalletPayment({ memberId, walletPayment, preWalletTotal }) {
+  const normalizedWalletPayment = roundMoney(walletPayment);
+  if (normalizedWalletPayment <= 0) return;
+
+  if (!memberId) {
+    const error = new Error("Select a member before applying wallet credit");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  if (normalizedWalletPayment > roundMoney(preWalletTotal)) {
+    const error = new Error("Wallet payment cannot exceed the order total");
+    error.statusCode = 400;
+    throw error;
+  }
 }
 
 // pos/split-price / quote a unit price split across multiple payers
@@ -567,6 +664,7 @@ router.post("/pending", requirePermission("pos"), branchAccessMiddleware, async 
       discount = 0,
       loyalty_discount = 0,
       giftcard_discount = 0,
+      wallet_payment = 0,
       tax = 0,
       total = 0,
       currency = "NGN",
@@ -596,15 +694,21 @@ router.post("/pending", requirePermission("pos"), branchAccessMiddleware, async 
       loyaltyDiscount: loyalty_discount,
       giftcardDiscount: giftcard_discount,
       membershipDiscount: membershipContext.membershipDiscountAmount,
+      walletPayment: wallet_payment,
       tax
+    });
+    validateWalletPayment({
+      memberId: membershipContext.memberId,
+      walletPayment: totals.wallet_payment,
+      preWalletTotal: totals.pre_wallet_total
     });
 
     const cartCode = `PEND-${Date.now()}`;
 
     const [cartResult] = await conn.execute(
       `INSERT INTO pending_carts
-      (cart_code, customer, member_id, membership_tier_id, membership_tier_name, membership_discount_pct, membership_discount, cashier_id, shift_id, subtotal, discount, loyalty_discount, giftcard_discount, tax, total, currency, note, business_id, branch_id)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      (cart_code, customer, member_id, membership_tier_id, membership_tier_name, membership_discount_pct, membership_discount, cashier_id, shift_id, subtotal, discount, loyalty_discount, giftcard_discount, wallet_payment, tax, total, currency, note, business_id, branch_id)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         cartCode,
         membershipContext.customerName,
@@ -619,6 +723,7 @@ router.post("/pending", requirePermission("pos"), branchAccessMiddleware, async 
         totals.discount,
         totals.loyalty_discount,
         totals.giftcard_discount,
+        totals.wallet_payment,
         totals.tax,
         totals.total,
         currency,
@@ -694,6 +799,7 @@ router.get("/pending", requirePermission("pos"), branchAccessMiddleware, async (
         pc.membership_tier_name,
         pc.membership_discount_pct,
         pc.membership_discount,
+        pc.wallet_payment,
         pc.total,
         pc.currency,
         pc.status,
@@ -806,6 +912,7 @@ router.put("/pending/:id", requirePermission("pos"), branchAccessMiddleware, asy
       discount = 0,
       loyalty_discount = 0,
       giftcard_discount = 0,
+      wallet_payment = 0,
       tax = 0,
       total = 0,
       currency = "NGN",
@@ -855,7 +962,13 @@ router.put("/pending/:id", requirePermission("pos"), branchAccessMiddleware, asy
       loyaltyDiscount: loyalty_discount,
       giftcardDiscount: giftcard_discount,
       membershipDiscount: membershipContext.membershipDiscountAmount,
+      walletPayment: wallet_payment,
       tax
+    });
+    validateWalletPayment({
+      memberId: membershipContext.memberId,
+      walletPayment: totals.wallet_payment,
+      preWalletTotal: totals.pre_wallet_total
     });
 
     await conn.execute(
@@ -871,6 +984,7 @@ router.put("/pending/:id", requirePermission("pos"), branchAccessMiddleware, asy
         discount = ?,
         loyalty_discount = ?,
         giftcard_discount = ?,
+        wallet_payment = ?,
         tax = ?,
         total = ?,
         currency = ?,
@@ -888,6 +1002,7 @@ router.put("/pending/:id", requirePermission("pos"), branchAccessMiddleware, asy
         totals.discount,
         totals.loyalty_discount,
         totals.giftcard_discount,
+        totals.wallet_payment,
         totals.tax,
         totals.total,
         currency,
@@ -1052,8 +1167,8 @@ router.post("/pending/:id/checkout", requirePermission("pos"), branchAccessMiddl
 
     const [saleResult] = await conn.execute(
       `INSERT INTO sales
-      (sale_code, customer, member_id, membership_tier_id, membership_tier_name, membership_discount_pct, membership_discount, cashier_id, shift_id, subtotal, discount, loyalty_discount, giftcard_discount, tax, total, payment_method, currency, business_id, branch_id)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      (sale_code, customer, member_id, membership_tier_id, membership_tier_name, membership_discount_pct, membership_discount, cashier_id, shift_id, subtotal, discount, loyalty_discount, giftcard_discount, wallet_payment, tax, total, payment_method, currency, business_id, branch_id)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         saleCode,
         cart.customer,
@@ -1068,6 +1183,7 @@ router.post("/pending/:id/checkout", requirePermission("pos"), branchAccessMiddl
         cart.discount,
         cart.loyalty_discount,
         cart.giftcard_discount,
+        cart.wallet_payment || 0,
         cart.tax,
         cart.total,
         payment_method,
@@ -1078,6 +1194,17 @@ router.post("/pending/:id/checkout", requirePermission("pos"), branchAccessMiddl
     );
 
     const saleId = saleResult.insertId;
+
+    await debitMemberWalletForCheckout({
+      conn,
+      businessId: cart.business_id || req.user.business_id,
+      branchId: cart.branch_id || req.user.branch_id || null,
+      memberId: cart.member_id || null,
+      amount: cart.wallet_payment || 0,
+      saleCode,
+      saleId,
+      userId: req.user.id
+    });
 
     for (const item of items) {
       await conn.execute(
@@ -1236,6 +1363,7 @@ router.post("/checkout", requirePermission("pos"), branchAccessMiddleware, async
       discount = 0,
       loyalty_discount = 0,
       giftcard_discount = 0,
+      wallet_payment = 0,
       tax = 0,
       total = 0,
       payment_method,
@@ -1265,15 +1393,21 @@ router.post("/checkout", requirePermission("pos"), branchAccessMiddleware, async
       loyaltyDiscount: loyalty_discount,
       giftcardDiscount: giftcard_discount,
       membershipDiscount: membershipContext.membershipDiscountAmount,
+      walletPayment: wallet_payment,
       tax
+    });
+    validateWalletPayment({
+      memberId: membershipContext.memberId,
+      walletPayment: totals.wallet_payment,
+      preWalletTotal: totals.pre_wallet_total
     });
 
     const saleCode = `SALE-${Date.now()}`;
 
     const [saleResult] = await conn.execute(
       `INSERT INTO sales
-      (sale_code, customer, member_id, membership_tier_id, membership_tier_name, membership_discount_pct, membership_discount, cashier_id, shift_id, subtotal, discount, loyalty_discount, giftcard_discount, tax, total, payment_method, currency, business_id, branch_id)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      (sale_code, customer, member_id, membership_tier_id, membership_tier_name, membership_discount_pct, membership_discount, cashier_id, shift_id, subtotal, discount, loyalty_discount, giftcard_discount, wallet_payment, tax, total, payment_method, currency, business_id, branch_id)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         saleCode,
         membershipContext.customerName,
@@ -1288,6 +1422,7 @@ router.post("/checkout", requirePermission("pos"), branchAccessMiddleware, async
         totals.discount,
         totals.loyalty_discount,
         totals.giftcard_discount,
+        totals.wallet_payment,
         totals.tax,
         totals.total,
         payment_method,
@@ -1298,6 +1433,17 @@ router.post("/checkout", requirePermission("pos"), branchAccessMiddleware, async
     );
 
     const saleId = saleResult.insertId;
+
+    await debitMemberWalletForCheckout({
+      conn,
+      businessId: req.user.business_id,
+      branchId: req.user.branch_id || null,
+      memberId: membershipContext.memberId,
+      amount: totals.wallet_payment,
+      saleCode,
+      saleId,
+      userId: req.user.id
+    });
 
     for (const item of items) {
       await conn.execute(

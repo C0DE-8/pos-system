@@ -31,6 +31,16 @@ export const updateMembershipTierCategoryDiscounts = async (id, payload) => {
   return data;
 };
 
+export const getWalletTransactions = async (params = {}) => {
+  const { data } = await API.get("/members/wallet/transactions", { params });
+  return data;
+};
+
+export const createWalletTransaction = async (payload) => {
+  const { data } = await API.post("/members/wallet/transactions", payload);
+  return data;
+};
+
 // create member
 export const createMember = async (payload) => {
   const { data } = await API.post("/members", payload);

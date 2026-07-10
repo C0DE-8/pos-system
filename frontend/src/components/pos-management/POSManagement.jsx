@@ -59,6 +59,7 @@ const PAYMENT_METHODS = [
   { key: "cash", label: "Cash", icon: <FiDollarSign /> },
   { key: "card", label: "Card", icon: <FiCreditCard /> },
   { key: "transfer", label: "Transfer", icon: <FiRepeat /> },
+  { key: "wallet", label: "Wallet", icon: <FiUser /> },
   { key: "split", label: "Split", icon: <FiShoppingCart /> }
 ];
 
@@ -191,6 +192,7 @@ export default function POSManagement() {
   const [splitCash, setSplitCash] = useState("");
   const [splitCard, setSplitCard] = useState("");
   const [splitTransfer, setSplitTransfer] = useState("");
+  const [splitWallet, setSplitWallet] = useState("");
   const [shiftId, setShiftId] = useState("");
 
   const [checkingOut, setCheckingOut] = useState(false);
@@ -671,6 +673,10 @@ export default function POSManagement() {
       0
   );
 
+  const selectedWalletBalance = Number(
+    selectedMember?.wallet_balance ?? memberTierSnapshot?.wallet_balance ?? 0
+  );
+
   const customerInputValue = selectedMember
     ? selectedMember.full_name || selectedMember.name || ""
     : memberSearch;
@@ -921,6 +927,7 @@ export default function POSManagement() {
     setSplitCash("");
     setSplitCard("");
     setSplitTransfer("");
+    setSplitWallet("");
     setCustomer("Walk-in");
     setSelectedMember(null);
     setMemberTierSnapshot(null);
@@ -1007,7 +1014,15 @@ export default function POSManagement() {
   );
   const taxRate = Number(settings?.tax_rate ?? 0);
   const tax = taxableBase * (taxRate / 100);
-  const total = taxableBase + tax;
+  const preWalletTotal = taxableBase + tax;
+  const requestedWalletAmount =
+    paymentMethod === "wallet"
+      ? preWalletTotal
+      : paymentMethod === "split"
+      ? Number(splitWallet || 0)
+      : 0;
+  const walletAmount = Math.max(0, Number(requestedWalletAmount || 0));
+  const total = Math.max(0, preWalletTotal - walletAmount);
 
   const splitTotal =
     Number(splitCash || 0) +
@@ -1192,6 +1207,7 @@ export default function POSManagement() {
     discount: discountAmount,
     loyalty_discount: loyaltyAmount,
     giftcard_discount: giftcardAmount,
+    wallet_payment: walletAmount,
     tax,
     total,
     currency: settings?.currency || "NGN",
@@ -1205,6 +1221,22 @@ export default function POSManagement() {
 
     if (!displayedCustomerName.trim()) {
       return "Customer name is required";
+    }
+
+    if (walletAmount > 0 && !selectedMember && !memberTierSnapshot?.member_id) {
+      return "Select a member before applying wallet credit";
+    }
+
+    if (walletAmount > selectedWalletBalance) {
+      return "Wallet credit exceeds the member balance";
+    }
+
+    if (walletAmount > preWalletTotal) {
+      return "Wallet credit cannot exceed the order total";
+    }
+
+    if (paymentMethod === "wallet" && selectedWalletBalance < preWalletTotal) {
+      return "Wallet balance is less than the order total. Use Split to combine payments.";
     }
 
     if (paymentMethod === "cash" && Number(cashTendered || 0) < total) {
@@ -1270,6 +1302,10 @@ export default function POSManagement() {
       );
       setLoyaltyDiscount(data.loyalty_discount || "");
       setGiftcardDiscount(data.giftcard_discount || "");
+      setSplitWallet(data.wallet_payment || "");
+      if (Number(data.wallet_payment || 0) > 0) {
+        setPaymentMethod(Number(data.total || 0) <= 0.009 ? "wallet" : "split");
+      }
       setPendingNote(data.note || "");
 
       const foundMember = data.member_id
@@ -1286,14 +1322,18 @@ export default function POSManagement() {
                 foundMember.membership_tier_name || foundMember.tier || null,
               membership_discount_pct: Number(
                 foundMember.membership_discount_pct || 0
-              )
+              ),
+              wallet_balance: Number(foundMember.wallet_balance || 0),
+              wallet_token: foundMember.wallet_token || null
             }
           : data.member_id || data.membership_tier_name
           ? {
               member_id: data.member_id || null,
               membership_tier_id: data.membership_tier_id || null,
               membership_tier_name: data.membership_tier_name || null,
-              membership_discount_pct: Number(data.membership_discount_pct || 0)
+              membership_discount_pct: Number(data.membership_discount_pct || 0),
+              wallet_balance: Number(data.wallet_balance || 0),
+              wallet_token: data.wallet_token || null
             }
           : null
       );
@@ -1380,6 +1420,7 @@ export default function POSManagement() {
     receiptDiscount,
     receiptLoyaltyDiscount,
     receiptGiftcardDiscount,
+    receiptWalletPayment,
     receiptTax,
     receiptTaxRate,
     receiptTotal,
@@ -1401,6 +1442,7 @@ export default function POSManagement() {
     discount: Number(receiptDiscount || 0),
     loyaltyDiscount: Number(receiptLoyaltyDiscount || 0),
     giftcardDiscount: Number(receiptGiftcardDiscount || 0),
+    walletPayment: Number(receiptWalletPayment || 0),
     tax: Number(receiptTax || 0),
     taxRate: Number(receiptTaxRate || 0),
     total: Number(receiptTotal || 0),
@@ -1456,6 +1498,7 @@ export default function POSManagement() {
           receiptDiscount: data.discount,
           receiptLoyaltyDiscount: data.loyalty_discount,
           receiptGiftcardDiscount: data.giftcard_discount,
+          receiptWalletPayment: data.wallet_payment,
           receiptTax: data.tax,
           receiptTaxRate: Number(settings?.tax_rate ?? 0),
           receiptTotal: data.total,
@@ -1483,7 +1526,9 @@ export default function POSManagement() {
         paymentMethod === "split"
           ? `split (cash:${Number(splitCash || 0)}, card:${Number(
               splitCard || 0
-            )}, transfer:${Number(splitTransfer || 0)})`
+            )}, transfer:${Number(splitTransfer || 0)}, wallet:${Number(
+              splitWallet || 0
+            )})`
           : paymentMethod;
 
       let res;
@@ -1521,6 +1566,7 @@ export default function POSManagement() {
           receiptDiscount: discountAmount,
           receiptLoyaltyDiscount: loyaltyAmount,
           receiptGiftcardDiscount: giftcardAmount,
+          receiptWalletPayment: walletAmount,
           receiptTax: tax,
           receiptTaxRate: taxRate,
           receiptTotal: total,
@@ -1532,6 +1578,7 @@ export default function POSManagement() {
       resetCartState();
       await Promise.all([
         loadProductsData({ silent: true }),
+        getMembers().then((res) => setMembers(res?.data || [])).catch(() => null),
         loadPendingCarts(),
         loadCustomerOrders(),
         loadSalesSummary({ silent: true })
@@ -2629,17 +2676,18 @@ export default function POSManagement() {
               <input
                 type="text"
                 value={customerInputValue}
-                onChange={(e) => {
-                  const value = e.target.value;
-                  setMemberSearch(value);
+	                onChange={(e) => {
+	                  const value = e.target.value;
+	                  setMemberSearch(value);
 
-                  if (selectedMember) {
-                    setSelectedMember(null);
-                  }
-                  setMemberTierSnapshot(null);
+	                  if (selectedMember) {
+	                    setSelectedMember(null);
+	                  }
+	                  setMemberTierSnapshot(null);
+	                  setSplitWallet("");
 
-                  setCustomer(value.trim() || "Walk-in");
-                }}
+	                  setCustomer(value.trim() || "Walk-in");
+	                }}
                 placeholder="Search member or type custom walk-in name..."
               />
 
@@ -2647,12 +2695,13 @@ export default function POSManagement() {
                 <div className={styles.removeMemberWrap}>
                   <button
                     type="button"
-                    className={styles.removeMemberBtn}
-                    onClick={() => {
-                      setSelectedMember(null);
-                      setMemberTierSnapshot(null);
-                      setMemberSearch(customer?.trim() || "");
-                    }}
+	                    className={styles.removeMemberBtn}
+	                    onClick={() => {
+	                      setSelectedMember(null);
+	                      setMemberTierSnapshot(null);
+	                      setSplitWallet("");
+	                      setMemberSearch(customer?.trim() || "");
+	                    }}
                   >
                     <FiX />
                     Remove member
@@ -2679,10 +2728,12 @@ export default function POSManagement() {
                               membership_tier_id: member.membership_tier_id || null,
                               membership_tier_name:
                                 member.membership_tier_name || member.tier || null,
-                              membership_discount_pct: Number(
-                                member.membership_discount_pct || 0
-                              )
-                            });
+	                              membership_discount_pct: Number(
+	                                member.membership_discount_pct || 0
+	                              ),
+	                              wallet_balance: Number(member.wallet_balance || 0),
+	                              wallet_token: member.wallet_token || null
+	                            });
                             setCustomer(memberName);
                             setMemberSearch(memberName);
                           }}
@@ -2690,8 +2741,8 @@ export default function POSManagement() {
                           <div>
                             <strong>{memberName}</strong>
                           </div>
-                          <small>
-                            {member.member_code || "No Code"}{" "}
+	                          <small>
+	                            {member.member_code || "No Code"}{" "}
                             {member.membership_tier_name || member.tier
                               ? `• ${member.membership_tier_name || member.tier}${
                                   Number(member.membership_discount_pct || 0) > 0
@@ -2700,8 +2751,11 @@ export default function POSManagement() {
                                 } `
                               : ""}
                             {member.phone ? `• ${member.phone}` : ""}
-                            {member.email ? ` • ${member.email}` : ""}
-                          </small>
+	                            {member.email ? ` • ${member.email}` : ""}
+	                            {Number(member.wallet_balance || 0) > 0
+	                              ? ` • Wallet ${formatMoney(member.wallet_balance)}`
+	                              : ""}
+	                          </small>
                         </button>
                       );
                     })
@@ -2964,6 +3018,28 @@ export default function POSManagement() {
                   </div>
                 )}
 
+                {paymentMethod === "wallet" && (
+                  <div className={styles.formGroup}>
+                    <label>Wallet Payment</label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={preWalletTotal}
+                      readOnly
+                      placeholder="0"
+                    />
+                    <small
+                      className={
+                        selectedWalletBalance >= preWalletTotal
+                          ? styles.successText
+                          : styles.errorText
+                      }
+                    >
+                      Available: {formatMoney(selectedWalletBalance)}
+                    </small>
+                  </div>
+                )}
+
                 {paymentMethod === "split" && (
                   <div className={styles.splitGrid}>
                     <div className={styles.formGroup}>
@@ -2996,10 +3072,24 @@ export default function POSManagement() {
                         value={splitTransfer}
                         onChange={(e) => setSplitTransfer(e.target.value)}
                         placeholder="0"
+	                      />
+	                    </div>
+
+                    <div className={styles.formGroup}>
+                      <label>Wallet Part</label>
+                      <input
+                        type="number"
+                        min="0"
+                        value={splitWallet}
+                        onChange={(e) => setSplitWallet(e.target.value)}
+                        placeholder="0"
                       />
+                      <small className={styles.cartSub}>
+                        Available: {formatMoney(selectedWalletBalance)}
+                      </small>
                     </div>
 
-                    <small
+	                    <small
                       className={`${styles.splitHint} ${
                         Math.abs(splitRemaining) < 0.01
                           ? styles.successText
@@ -3043,6 +3133,12 @@ export default function POSManagement() {
                     <span>Tax ({taxRate}%)</span>
                     <strong>{formatMoney(tax)}</strong>
                   </div>
+                  {walletAmount > 0 ? (
+                    <div className={styles.totalRow}>
+                      <span>Wallet Payment</span>
+                      <strong>-{formatMoney(walletAmount)}</strong>
+                    </div>
+                  ) : null}
                   <div className={`${styles.totalRow} ${styles.grandTotal}`}>
                     <span>Total</span>
                     <strong>{formatMoney(total)}</strong>
@@ -3323,6 +3419,13 @@ export default function POSManagement() {
                 <span>Tax ({receipt.taxRate}%)</span>
                 <span>{formatMoney(receipt.tax)}</span>
               </div>
+
+              {receipt.walletPayment > 0 ? (
+                <div className={`${styles.rRow} ${styles.rPurple}`}>
+                  <span>Wallet Payment</span>
+                  <span>-{formatMoney(receipt.walletPayment)}</span>
+                </div>
+              ) : null}
 
               <div className={`${styles.rRow} ${styles.rGrand}`}>
                 <span>TOTAL</span>

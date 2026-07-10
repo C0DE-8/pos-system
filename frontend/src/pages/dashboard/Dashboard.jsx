@@ -33,6 +33,7 @@ import POSManagement from "../../components/pos-management/POSManagement";
 import CourtsManagement from "../../components/courts-management/CourtsManagement";
 import SalesManagement from "../../components/sales-management/SalesManagement";
 import MembersManagement from "../../components/members-management/MembersManagement";
+import WalletManagement from "../../components/wallet-management/WalletManagement";
 import SettingsManagement from "../../components/settings-management/SettingsManagement";
 import ReportsManagement from "../../components/reports-management/ReportsManagement";
 import MobileSidebarHead from "../../components/mobile-sidebar-head/MobileSidebarHead";
@@ -75,6 +76,11 @@ const WAREHOUSE_SUBMENU_ITEMS = [
   { label: "Warehouse History", sectionKey: "history" }
 ];
 
+const MEMBERS_SUBMENU_ITEMS = [
+  { label: "Member List", sectionKey: "list" },
+  { label: "Wallet Top-Up", sectionKey: "wallet" }
+];
+
 const INVENTORY_SUBMENU_LABELS = INVENTORY_SUBMENU_ITEMS.map((item) => item.label);
 const INVENTORY_SECTION_BY_LABEL = Object.fromEntries(
   INVENTORY_SUBMENU_ITEMS.map((item) => [item.label, item.sectionKey])
@@ -85,6 +91,8 @@ const WAREHOUSE_SECTION_BY_LABEL = Object.fromEntries(
   WAREHOUSE_SUBMENU_ITEMS.map((item) => [item.label, item.sectionKey])
 );
 const DEFAULT_WAREHOUSE_MENU = WAREHOUSE_SUBMENU_ITEMS[0].label;
+const MEMBERS_SUBMENU_LABELS = MEMBERS_SUBMENU_ITEMS.map((item) => item.label);
+const DEFAULT_MEMBERS_MENU = MEMBERS_SUBMENU_ITEMS[0].label;
 
 const MENU_ITEMS = [
   { label: "Overview", permission: null, icon: <FiHome /> },
@@ -106,6 +114,11 @@ const MENU_ITEMS = [
   { label: "Sales", permission: "sales", icon: <FiTrendingUp /> },
   { label: "Reports", permission: "analytics", icon: <FiBarChart2 /> },
   { label: "Members", permission: "members", icon: <FiUsers /> },
+  ...MEMBERS_SUBMENU_ITEMS.map((item) => ({
+    label: item.label,
+    permission: "members",
+    icon: <FiUsers />
+  })),
   { label: "Users", permission: "users", icon: <FiUsers /> },
   { label: "Settings", permission: "settings", icon: <FiSettings /> }
 ];
@@ -161,6 +174,10 @@ const normalizeMenuLabel = (label) => {
 
   if (label === "Warehouse") {
     return DEFAULT_WAREHOUSE_MENU;
+  }
+
+  if (label === "Members") {
+    return DEFAULT_MEMBERS_MENU;
   }
 
   return label;
@@ -614,10 +631,24 @@ export default function Dashboard() {
       );
     }
 
-    if (activeMenu === "Members" && hasPermission(currentUser, currentPermissions, "members")) {
+    if (
+      activeMenu === "Member List" &&
+      hasPermission(currentUser, currentPermissions, "members")
+    ) {
       return (
         <section className={styles.fullSection}>
           <MembersManagement />
+        </section>
+      );
+    }
+
+    if (
+      activeMenu === "Wallet Top-Up" &&
+      hasPermission(currentUser, currentPermissions, "members")
+    ) {
+      return (
+        <section className={styles.fullSection}>
+          <WalletManagement />
         </section>
       );
     }
@@ -946,7 +977,8 @@ export default function Dashboard() {
             className={`${styles.bottomNavItem} ${
               activeMenu === item.label ||
               (item.label === "Inventory" && INVENTORY_SUBMENU_LABELS.includes(activeMenu)) ||
-              (item.label === "Warehouse" && WAREHOUSE_SUBMENU_LABELS.includes(activeMenu))
+              (item.label === "Warehouse" && WAREHOUSE_SUBMENU_LABELS.includes(activeMenu)) ||
+              (item.label === "Members" && MEMBERS_SUBMENU_LABELS.includes(activeMenu))
                 ? styles.bottomNavItemActive
                 : ""
             }`}

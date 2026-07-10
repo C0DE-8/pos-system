@@ -1,5 +1,5 @@
 const express = require("express");
-const { query } = require("../config/db");
+const { pool, query } = require("../config/db");
 const { authenticateToken, requirePermission } = require("../middleware/auth");
 const { ensureBusinessContext } = require("../utils/tenant");
 
@@ -10,6 +10,20 @@ router.use(authenticateToken);
 const DEFAULT_TIER_NAMES = ["Regular", "VIP"];
 
 const normalizeTierName = (value) => String(value || "").trim();
+const generateWalletToken = (businessId) => {
+  const randomPart = Math.random().toString(36).slice(2, 8).toUpperCase();
+  return `WAL-${businessId || 0}-${Date.now()}-${randomPart}`;
+};
+const roundMoney = (value) => {
+  const amount = Number(value || 0);
+  if (!Number.isFinite(amount)) return 0;
+  return Number(amount.toFixed(2));
+};
+const normalizeWalletAmount = (value) => {
+  const amount = Number(value);
+  if (!Number.isFinite(amount) || amount <= 0) return null;
+  return roundMoney(amount);
+};
 const normalizeDiscountPct = (value) => {
   const discountPct = Number(value ?? 0);
   if (!Number.isFinite(discountPct) || discountPct < 0 || discountPct > 100) {
@@ -520,8 +534,8 @@ router.post("/", requirePermission("members"), async (req, res) => {
 
     const result = await query(
       `INSERT INTO members
-       (member_code, name, phone, email, tier, membership_tier_id, business_id)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+       (member_code, name, phone, email, tier, membership_tier_id, wallet_balance, wallet_token, business_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         memberCode,
         String(name).trim(),
@@ -529,6 +543,8 @@ router.post("/", requirePermission("members"), async (req, res) => {
         String(email || "").trim() || null,
         tierName,
         membershipTierId,
+        0,
+        generateWalletToken(req.user.business_id),
         req.user.business_id
       ]
     );
@@ -543,6 +559,146 @@ router.post("/", requirePermission("members"), async (req, res) => {
     });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+router.get("/wallet/transactions", requirePermission("members"), async (req, res) => {
+  try {
+    if (!ensureBusinessContext(req, res)) return;
+
+    const memberId = req.query.member_id ? Number(req.query.member_id) : null;
+    const params = [req.user.business_id];
+    let where = `WHERE mwt.business_id = ?`;
+
+    if (memberId) {
+      where += ` AND mwt.member_id = ?`;
+      params.push(memberId);
+    }
+
+    const rows = await query(
+      `SELECT
+         mwt.*,
+         m.name AS member_name,
+         m.member_code,
+         u.name AS created_by_name
+       FROM member_wallet_transactions mwt
+       JOIN members m ON m.id = mwt.member_id
+       LEFT JOIN users u ON u.id = mwt.created_by
+       ${where}
+       ORDER BY mwt.created_at DESC, mwt.id DESC
+       LIMIT 250`,
+      params
+    );
+
+    res.json({ success: true, data: rows });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+router.post("/wallet/transactions", requirePermission("members"), async (req, res) => {
+  const conn = await pool.getConnection();
+
+  try {
+    if (!ensureBusinessContext(req, res)) return;
+
+    const memberId = Number(req.body.member_id);
+    const transactionType = String(req.body.transaction_type || "").toLowerCase();
+    const amount = normalizeWalletAmount(req.body.amount);
+    const note = String(req.body.note || "").trim() || null;
+    const reference = String(req.body.reference || "").trim() || null;
+
+    if (!Number.isInteger(memberId) || memberId <= 0) {
+      return res.status(400).json({ success: false, message: "Member is required" });
+    }
+
+    if (!["credit", "debit"].includes(transactionType)) {
+      return res.status(400).json({
+        success: false,
+        message: "Transaction type must be credit or debit"
+      });
+    }
+
+    if (!amount) {
+      return res.status(400).json({
+        success: false,
+        message: "Wallet amount must be greater than zero"
+      });
+    }
+
+    await conn.beginTransaction();
+
+    const [memberRows] = await conn.execute(
+      `SELECT id, name, member_code, wallet_balance, wallet_token
+       FROM members
+       WHERE id = ? AND business_id = ?
+       LIMIT 1
+       FOR UPDATE`,
+      [memberId, req.user.business_id]
+    );
+
+    if (!memberRows.length) {
+      await conn.rollback();
+      return res.status(404).json({ success: false, message: "Member not found" });
+    }
+
+    const member = memberRows[0];
+    const balanceBefore = roundMoney(member.wallet_balance || 0);
+    const balanceAfter =
+      transactionType === "credit"
+        ? roundMoney(balanceBefore + amount)
+        : roundMoney(balanceBefore - amount);
+
+    if (balanceAfter < 0) {
+      await conn.rollback();
+      return res.status(400).json({
+        success: false,
+        message: "Insufficient wallet balance"
+      });
+    }
+
+    await conn.execute(
+      `UPDATE members
+       SET wallet_balance = ?
+       WHERE id = ? AND business_id = ?`,
+      [balanceAfter, memberId, req.user.business_id]
+    );
+
+    await conn.execute(
+      `INSERT INTO member_wallet_transactions
+       (member_id, wallet_token, transaction_type, amount, balance_before, balance_after, source, reference, note, created_by, business_id, branch_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        memberId,
+        member.wallet_token,
+        transactionType,
+        amount,
+        balanceBefore,
+        balanceAfter,
+        "manual",
+        reference,
+        note,
+        req.user.id,
+        req.user.business_id,
+        req.user.branch_id || null
+      ]
+    );
+
+    await conn.commit();
+
+    res.status(201).json({
+      success: true,
+      message: transactionType === "credit" ? "Wallet credited" : "Wallet debited",
+      data: {
+        ...member,
+        wallet_balance: balanceAfter
+      }
+    });
+  } catch (error) {
+    await conn.rollback();
+    res.status(500).json({ success: false, message: error.message });
+  } finally {
+    conn.release();
   }
 });
 
