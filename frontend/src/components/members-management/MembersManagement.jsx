@@ -23,6 +23,7 @@ const initialForm = {
   preferences: "",
   offer_notes: "",
   mobile_wallet_notifications: true,
+  member_status: "active",
   membership_tier_id: ""
 };
 
@@ -194,6 +195,7 @@ export default function MembersManagement() {
         preferences: form.preferences.trim(),
         offer_notes: form.offer_notes.trim(),
         mobile_wallet_notifications: form.mobile_wallet_notifications,
+        member_status: form.member_status,
         membership_tier_id: form.membership_tier_id
           ? Number(form.membership_tier_id)
           : null
@@ -225,6 +227,7 @@ export default function MembersManagement() {
       preferences: member.preferences || "",
       offer_notes: member.offer_notes || "",
       mobile_wallet_notifications: Number(member.mobile_wallet_notifications ?? 1) === 1,
+      member_status: member.member_status || "active",
       membership_tier_id: member.membership_tier_id ? String(member.membership_tier_id) : ""
     });
     setError("");
@@ -258,6 +261,7 @@ export default function MembersManagement() {
         preferences: String(editingMember.preferences || "").trim(),
         offer_notes: String(editingMember.offer_notes || "").trim(),
         mobile_wallet_notifications: editingMember.mobile_wallet_notifications,
+        member_status: editingMember.member_status,
         membership_tier_id: editingMember.membership_tier_id
           ? Number(editingMember.membership_tier_id)
           : null
@@ -504,6 +508,7 @@ export default function MembersManagement() {
         "Offer Notes": member.offer_notes || "",
         "Mobile Wallet Offers":
           Number(member.mobile_wallet_notifications ?? 1) === 1 ? "Yes" : "No",
+        Status: member.member_status || "active",
         Tier: member.tier || "",
         "Tier Discount %": Number(member.membership_discount_pct || 0),
         "Created At": formatDateTime(member.created_at)
@@ -537,6 +542,7 @@ export default function MembersManagement() {
               <td>${member.preferences || ""}</td>
               <td>${member.offer_notes || ""}</td>
               <td>${Number(member.mobile_wallet_notifications ?? 1) === 1 ? "Yes" : "No"}</td>
+              <td>${member.member_status || "active"}</td>
               <td>${member.tier || ""}</td>
               <td>${Number(member.membership_discount_pct || 0)}%</td>
               <td>${formatDateTime(member.created_at)}</td>
@@ -597,6 +603,7 @@ export default function MembersManagement() {
                   <th>Preferences</th>
                   <th>Offer Notes</th>
                   <th>Mobile Wallet Offers</th>
+                  <th>Status</th>
                   <th>Tier</th>
                   <th>Tier Discount %</th>
                   <th>Created At</th>
@@ -645,6 +652,7 @@ export default function MembersManagement() {
           "Offer Notes": selectedMember.offer_notes || "",
           "Mobile Wallet Offers":
             Number(selectedMember.mobile_wallet_notifications ?? 1) === 1 ? "Yes" : "No",
+          Status: selectedMember.member_status || "active",
           Tier: selectedMember.tier || "",
           "Tier Discount %": Number(selectedMember.membership_discount_pct || 0),
           "Created At": formatDateTime(selectedMember.created_at)
@@ -754,6 +762,7 @@ export default function MembersManagement() {
               <p><strong>Mobile Wallet Offers:</strong> ${
                 Number(selectedMember.mobile_wallet_notifications ?? 1) === 1 ? "Yes" : "No"
               }</p>
+              <p><strong>Status:</strong> ${selectedMember.member_status || "active"}</p>
               <p><strong>Tier:</strong> ${selectedMember.tier || ""}</p>
               <p><strong>Tier Discount:</strong> ${Number(
                 selectedMember.membership_discount_pct || 0
@@ -935,6 +944,19 @@ export default function MembersManagement() {
               </select>
             </div>
 
+            <div className={styles.formGroup}>
+              <label>Member Status</label>
+              <select
+                name="member_status"
+                value={form.member_status}
+                onChange={handleChange}
+              >
+                <option value="active">Active</option>
+                <option value="pending">Pending Verification</option>
+                <option value="inactive">Inactive</option>
+              </select>
+            </div>
+
             <button
               type="submit"
               className={styles.primaryBtn}
@@ -1043,6 +1065,19 @@ export default function MembersManagement() {
                       {tier.name}
                     </option>
                   ))}
+                </select>
+              </div>
+
+              <div className={styles.formGroup}>
+                <label>Member Status</label>
+                <select
+                  name="member_status"
+                  value={editingMember.member_status}
+                  onChange={handleEditingMemberChange}
+                >
+                  <option value="active">Active</option>
+                  <option value="pending">Pending Verification</option>
+                  <option value="inactive">Inactive</option>
                 </select>
               </div>
 
@@ -1344,6 +1379,7 @@ export default function MembersManagement() {
                       <th>Name</th>
                       <th>Phone</th>
                       <th>Email</th>
+                      <th>Status</th>
                       <th>Tier</th>
                       <th>CRM</th>
                       <th>Default Discount</th>
@@ -1359,6 +1395,15 @@ export default function MembersManagement() {
                         <td>{member.name || "—"}</td>
                         <td>{member.phone || "—"}</td>
                         <td>{member.email || "—"}</td>
+                        <td>
+                          <span
+                            className={`${styles.statusBadge} ${
+                              styles[`status_${member.member_status || "active"}`]
+                            }`}
+                          >
+                            {member.member_status || "active"}
+                          </span>
+                        </td>
                         <td>
                           <span className={styles.badge}>
                             {member.tier || "—"}
@@ -1496,6 +1541,11 @@ export default function MembersManagement() {
                         ? "Enabled"
                         : "Disabled"}
                     </strong>
+                  </div>
+
+                  <div className={styles.detailCard}>
+                    <span>Status</span>
+                    <strong>{selectedMember.member_status || "active"}</strong>
                   </div>
 
                   <div className={styles.detailCard}>

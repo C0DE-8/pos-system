@@ -21,6 +21,30 @@ export const createCustomerOrder = async (businessSlug, branchSlug, payload) => 
   return data;
 };
 
+export const lookupMenuMember = async (businessSlug, branchSlug, payload) => {
+  const { data } = await API.post(
+    `/menu/${businessSlug}/${branchSlug}/members/lookup`,
+    payload
+  );
+  return data;
+};
+
+export const registerMenuMember = async (businessSlug, branchSlug, payload) => {
+  const { data } = await API.post(
+    `/menu/${businessSlug}/${branchSlug}/members/register`,
+    payload
+  );
+  return data;
+};
+
+export const createCustomerReservation = async (businessSlug, branchSlug, payload) => {
+  const { data } = await API.post(
+    `/menu/${businessSlug}/${branchSlug}/reservations`,
+    payload
+  );
+  return data;
+};
+
 export const getCustomerOrderStatus = async (businessSlug, branchSlug, orderCode) => {
   const { data } = await API.get(`/menu/${businessSlug}/${branchSlug}/orders/${orderCode}`);
   return data;

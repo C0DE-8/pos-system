@@ -38,7 +38,10 @@ const normalizeMemberPayload = (body = {}) => ({
   birthday: String(body.birthday || "").trim() || null,
   preferences: String(body.preferences || "").trim() || null,
   offerNotes: String(body.offer_notes || "").trim() || null,
-  mobileWalletNotifications: normalizeMemberOptIn(body.mobile_wallet_notifications)
+  mobileWalletNotifications: normalizeMemberOptIn(body.mobile_wallet_notifications),
+  memberStatus: ["active", "pending", "inactive"].includes(body.member_status)
+    ? body.member_status
+    : "active"
 });
 
 router.get("/wallet/balance/:token", async (req, res) => {
@@ -594,8 +597,8 @@ router.post("/", requirePermission("members"), async (req, res) => {
 
     const result = await query(
       `INSERT INTO members
-       (member_code, name, phone, email, birthday, preferences, offer_notes, mobile_wallet_notifications, tier, membership_tier_id, wallet_balance, wallet_token, business_id)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       (member_code, name, phone, email, birthday, preferences, offer_notes, mobile_wallet_notifications, member_status, registered_source, verified_at, tier, membership_tier_id, wallet_balance, wallet_token, business_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'staff', ?, ?, ?, ?, ?, ?)`,
       [
         memberCode,
         memberPayload.name,
@@ -605,6 +608,8 @@ router.post("/", requirePermission("members"), async (req, res) => {
         memberPayload.preferences,
         memberPayload.offerNotes,
         memberPayload.mobileWalletNotifications,
+        memberPayload.memberStatus,
+        memberPayload.memberStatus === "active" ? new Date() : null,
         tierName,
         membershipTierId,
         0,
@@ -681,6 +686,11 @@ router.put("/:id", requirePermission("members"), async (req, res) => {
            preferences = ?,
            offer_notes = ?,
            mobile_wallet_notifications = ?,
+           member_status = ?,
+           verified_at = CASE
+             WHEN ? = 'active' AND verified_at IS NULL THEN NOW()
+             ELSE verified_at
+           END,
            tier = ?,
            membership_tier_id = ?
        WHERE id = ? AND business_id = ?`,
@@ -692,6 +702,8 @@ router.put("/:id", requirePermission("members"), async (req, res) => {
         memberPayload.preferences,
         memberPayload.offerNotes,
         memberPayload.mobileWalletNotifications,
+        memberPayload.memberStatus,
+        memberPayload.memberStatus,
         tierName,
         membershipTierId,
         memberId,

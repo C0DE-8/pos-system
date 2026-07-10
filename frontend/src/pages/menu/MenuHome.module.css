@@ -74,6 +74,14 @@
   box-shadow: 0 8px 30px rgba(0, 0, 0, 0.18);
 }
 
+.notice {
+  background: linear-gradient(180deg, rgba(21, 128, 61, 0.2), rgba(20, 83, 45, 0.14));
+  color: #bbf7d0;
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(34, 197, 94, 0.35);
+}
+
 .tabs {
   display: flex;
   gap: 10px;
@@ -339,6 +347,26 @@
   box-shadow: 0 10px 22px rgba(37, 99, 235, 0.25);
 }
 
+.secondaryAction {
+  border: 1px solid rgba(71, 85, 105, 0.76);
+  background: rgba(15, 23, 42, 0.9);
+  color: #dbeafe;
+  padding: 12px 14px;
+  border-radius: 12px;
+  cursor: pointer;
+  font-weight: 800;
+  transition:
+    transform 0.18s ease,
+    border-color 0.2s ease,
+    background 0.2s ease;
+}
+
+.secondaryAction:hover {
+  transform: translateY(-1px);
+  border-color: rgba(96, 165, 250, 0.8);
+  background: #132139;
+}
+
 .linkBtn:hover:not(:disabled) {
   transform: translateY(-1px);
   filter: brightness(1.04);
@@ -433,6 +461,84 @@
   gap: 10px;
 }
 
+.inlineForm {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: stretch;
+}
+
+.memberBanner,
+.memberCard,
+.memberRegisterBox {
+  border: 1px solid rgba(96, 165, 250, 0.26);
+  border-radius: 16px;
+  background: linear-gradient(180deg, rgba(15, 23, 42, 0.84), rgba(8, 17, 31, 0.9));
+  padding: 14px;
+}
+
+.memberBanner {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.memberBanner div,
+.memberCard {
+  display: grid;
+  gap: 5px;
+}
+
+.memberBanner span,
+.memberCard span {
+  color: #8ea2c0;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.memberBanner strong,
+.memberCard strong {
+  color: #f8fbff;
+  font-size: 18px;
+}
+
+.memberBanner small,
+.memberCard small {
+  color: #9bc8ff;
+}
+
+.memberBanner button {
+  border: 1px solid rgba(71, 85, 105, 0.76);
+  background: rgba(15, 23, 42, 0.9);
+  color: #dbeafe;
+  border-radius: 12px;
+  padding: 10px 12px;
+  cursor: pointer;
+  font-weight: 800;
+}
+
+.memberMeta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 8px 0;
+}
+
+.memberMeta span {
+  padding: 7px 10px;
+  border-radius: 999px;
+  background: rgba(37, 99, 235, 0.14);
+  border: 1px solid rgba(96, 165, 250, 0.2);
+  color: #bfdbfe;
+}
+
+.memberRegisterBox {
+  display: grid;
+  gap: 14px;
+  margin-top: 4px;
+}
+
 .infoGrid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -515,8 +621,14 @@
 
   .heroMeta,
   .formGrid,
-  .infoGrid {
+  .infoGrid,
+  .inlineForm {
     grid-template-columns: 1fr;
+  }
+
+  .memberBanner {
+    align-items: stretch;
+    flex-direction: column;
   }
 
   .tabs {

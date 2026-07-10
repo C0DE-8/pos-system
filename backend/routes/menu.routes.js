@@ -24,6 +24,108 @@ async function resolveBusinessBranch(businessSlug, branchSlug = null) {
   return { business, branch };
 }
 
+const normalizeEmail = (value) => String(value || "").trim().toLowerCase();
+const roundMoney = (value) => {
+  const amount = Number(value || 0);
+  if (!Number.isFinite(amount)) return 0;
+  return Number(amount.toFixed(2));
+};
+const generateWalletToken = (businessId) => {
+  const randomPart = Math.random().toString(36).slice(2, 8).toUpperCase();
+  return `WAL-${businessId || 0}-${Date.now()}-${randomPart}`;
+};
+const generateMemberCode = () => `M${Date.now()}`;
+
+async function findActiveMemberByEmail(businessId, email, conn = null) {
+  const normalizedEmail = normalizeEmail(email);
+  if (!normalizedEmail) return null;
+
+  const sql = `
+    SELECT
+      m.id,
+      m.member_code,
+      m.name,
+      m.phone,
+      m.email,
+      m.wallet_balance,
+      m.wallet_token,
+      m.member_status,
+      m.membership_tier_id,
+      COALESCE(mt.name, m.tier) AS membership_tier_name
+    FROM members m
+    LEFT JOIN membership_tiers mt ON mt.id = m.membership_tier_id
+    WHERE m.business_id = ?
+      AND LOWER(m.email) = ?
+      AND COALESCE(m.member_status, 'active') = 'active'
+    LIMIT 1`;
+  const params = [businessId, normalizedEmail];
+
+  if (conn) {
+    const [rows] = await conn.execute(sql, params);
+    return rows[0] || null;
+  }
+
+  const rows = await query(sql, params);
+  return rows[0] || null;
+}
+
+async function debitMemberWallet(conn, { member, amount, source, reference, note, businessId, branchId }) {
+  const walletAmount = roundMoney(amount);
+  if (!walletAmount) return { walletPayment: 0, balanceAfter: roundMoney(member.wallet_balance || 0) };
+
+  const [memberRows] = await conn.execute(
+    `SELECT id, wallet_balance, wallet_token
+     FROM members
+     WHERE id = ? AND business_id = ? AND COALESCE(member_status, 'active') = 'active'
+     LIMIT 1
+     FOR UPDATE`,
+    [member.id, businessId]
+  );
+
+  if (!memberRows.length) {
+    const error = new Error("Member not found");
+    error.statusCode = 404;
+    throw error;
+  }
+
+  const lockedMember = memberRows[0];
+  const balanceBefore = roundMoney(lockedMember.wallet_balance || 0);
+  if (walletAmount > balanceBefore) {
+    const error = new Error("Insufficient wallet balance");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const balanceAfter = roundMoney(balanceBefore - walletAmount);
+
+  await conn.execute(
+    `UPDATE members
+     SET wallet_balance = ?
+     WHERE id = ? AND business_id = ?`,
+    [balanceAfter, member.id, businessId]
+  );
+
+  await conn.execute(
+    `INSERT INTO member_wallet_transactions
+     (member_id, wallet_token, transaction_type, amount, balance_before, balance_after, source, reference, note, business_id, branch_id)
+     VALUES (?, ?, 'checkout', ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [
+      member.id,
+      lockedMember.wallet_token,
+      walletAmount,
+      balanceBefore,
+      balanceAfter,
+      source,
+      reference,
+      note,
+      businessId,
+      branchId || null
+    ]
+  );
+
+  return { walletPayment: walletAmount, balanceAfter };
+}
+
 router.get("/:businessSlug/:branchSlug/products", async (req, res) => {
   try {
     const resolved = await resolveBusinessBranch(req.params.businessSlug, req.params.branchSlug);
@@ -88,16 +190,140 @@ router.get("/:businessSlug/:branchSlug/products/:id", async (req, res) => {
   }
 });
 
+router.post("/:businessSlug/:branchSlug/members/lookup", async (req, res) => {
+  try {
+    const resolved = await resolveBusinessBranch(req.params.businessSlug, req.params.branchSlug);
+    if (!resolved) return res.status(404).json({ success: false, message: "Menu not found" });
+
+    const email = normalizeEmail(req.body.email);
+    if (!email) {
+      return res.status(400).json({ success: false, message: "Email is required" });
+    }
+
+    const member = await findActiveMemberByEmail(resolved.business.id, email);
+    if (!member) {
+      return res.status(404).json({
+        success: false,
+        message: "No active member found for this email"
+      });
+    }
+
+    return res.json({
+      success: true,
+      data: {
+        id: member.id,
+        member_code: member.member_code,
+        name: member.name,
+        phone: member.phone,
+        email: member.email,
+        wallet_balance: roundMoney(member.wallet_balance || 0),
+        membership_tier_name: member.membership_tier_name
+      }
+    });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+router.post("/:businessSlug/:branchSlug/members/register", async (req, res) => {
+  try {
+    const resolved = await resolveBusinessBranch(req.params.businessSlug, req.params.branchSlug);
+    if (!resolved) return res.status(404).json({ success: false, message: "Menu not found" });
+
+    const name = String(req.body.name || "").trim();
+    const phone = String(req.body.phone || "").trim() || null;
+    const email = normalizeEmail(req.body.email);
+    const birthday = String(req.body.birthday || "").trim() || null;
+    const preferences = String(req.body.preferences || "").trim() || null;
+
+    if (!name) {
+      return res.status(400).json({ success: false, message: "Name is required" });
+    }
+
+    if (!email) {
+      return res.status(400).json({ success: false, message: "Email is required" });
+    }
+
+    const existing = await query(
+      `SELECT id, member_status
+       FROM members
+       WHERE business_id = ? AND LOWER(email) = ?
+       LIMIT 1`,
+      [resolved.business.id, email]
+    );
+
+    if (existing.length) {
+      const status = existing[0].member_status || "active";
+      return res.status(409).json({
+        success: false,
+        message:
+          status === "pending"
+            ? "A member registration with this email is already waiting for staff verification"
+            : "A member account already exists for this email"
+      });
+    }
+
+    const memberCode = generateMemberCode();
+
+    const result = await query(
+      `INSERT INTO members
+       (member_code, name, phone, email, birthday, preferences, offer_notes, mobile_wallet_notifications, member_status, registered_source, wallet_balance, wallet_token, business_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending', 'public_menu', 0, ?, ?)`,
+      [
+        memberCode,
+        name,
+        phone,
+        email,
+        birthday,
+        preferences,
+        "Registered from online menu. Staff verification required.",
+        1,
+        generateWalletToken(resolved.business.id),
+        resolved.business.id
+      ]
+    );
+
+    return res.status(201).json({
+      success: true,
+      message: "Member registration submitted for staff verification",
+      data: {
+        id: result.insertId,
+        member_code: memberCode,
+        member_status: "pending"
+      }
+    });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+});
+
 router.post("/:businessSlug/:branchSlug/orders", async (req, res) => {
   const conn = await pool.getConnection();
   try {
     const resolved = await resolveBusinessBranch(req.params.businessSlug, req.params.branchSlug);
     if (!resolved) return res.status(404).json({ success: false, message: "Menu not found" });
 
-    const { customer_name, customer_phone, customer_email, order_type = "pickup", table_number, delivery_address, notes, items = [] } = req.body;
+    const {
+      customer_name,
+      customer_phone,
+      customer_email,
+      order_type = "pickup",
+      table_number,
+      delivery_address,
+      notes,
+      payment_method = "pay_at_counter",
+      wallet_payment = 0,
+      items = []
+    } = req.body;
     if (!items.length) return res.status(400).json({ success: false, message: "No items selected" });
 
     await conn.beginTransaction();
+
+    const member = await findActiveMemberByEmail(
+      resolved.business.id,
+      customer_email,
+      conn
+    );
 
     let subtotal = 0;
     const preparedItems = [];
@@ -138,29 +364,63 @@ router.post("/:businessSlug/:branchSlug/orders", async (req, res) => {
     }
 
     const taxRate = Number(resolved.business.tax_rate || 0);
-    const tax = (subtotal * taxRate) / 100;
-    const total = subtotal + tax;
+    const tax = roundMoney((subtotal * taxRate) / 100);
+    const total = roundMoney(subtotal + tax);
     const orderCode = `DM-${Date.now()}`;
+    const normalizedPaymentMethod = ["pay_at_counter", "wallet", "card", "transfer"].includes(payment_method)
+      ? payment_method
+      : "pay_at_counter";
+    const walletRequest = normalizedPaymentMethod === "wallet" ? roundMoney(wallet_payment || total) : 0;
+
+    if (walletRequest > total) {
+      await conn.rollback();
+      return res.status(400).json({ success: false, message: "Wallet payment cannot exceed order total" });
+    }
+
+    if (walletRequest > 0 && !member) {
+      await conn.rollback();
+      return res.status(400).json({
+        success: false,
+        message: "Wallet payment requires an active member email"
+      });
+    }
+
+    const walletResult = walletRequest
+      ? await debitMemberWallet(conn, {
+          member,
+          amount: walletRequest,
+          source: "online_order",
+          reference: orderCode,
+          note: "Online menu order payment",
+          businessId: resolved.business.id,
+          branchId: resolved.branch.id
+        })
+      : { walletPayment: 0 };
+    const paymentStatus = walletResult.walletPayment >= total ? "paid" : "pending";
 
     const [orderResult] = await conn.execute(
       `INSERT INTO customer_orders
-      (business_id, branch_id, order_code, customer_name, customer_phone, customer_email, order_type, table_number, delivery_address, notes, subtotal, tax, total, currency)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      (business_id, branch_id, order_code, customer_name, customer_phone, customer_email, member_id, order_type, table_number, delivery_address, notes, subtotal, wallet_payment, tax, total, currency, payment_method, payment_status)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         resolved.business.id,
         resolved.branch.id,
         orderCode,
-        customer_name || null,
-        customer_phone || null,
-        customer_email || null,
+        customer_name || member?.name || null,
+        customer_phone || member?.phone || null,
+        customer_email || member?.email || null,
+        member?.id || null,
         order_type,
         table_number || null,
         delivery_address || null,
         notes || null,
         subtotal,
+        walletResult.walletPayment || 0,
         tax,
         total,
-        resolved.business.currency || "NGN"
+        resolved.business.currency || "NGN",
+        normalizedPaymentMethod,
+        paymentStatus
       ]
     );
 
@@ -184,10 +444,96 @@ router.post("/:businessSlug/:branchSlug/orders", async (req, res) => {
     }
 
     await conn.commit();
-    res.status(201).json({ success: true, message: "Order placed", order_code: orderCode, order_id: orderResult.insertId });
+    res.status(201).json({
+      success: true,
+      message: "Order placed",
+      order_code: orderCode,
+      order_id: orderResult.insertId,
+      member: member
+        ? {
+            id: member.id,
+            name: member.name,
+            wallet_balance: walletResult.balanceAfter ?? roundMoney(member.wallet_balance || 0)
+          }
+        : null
+    });
   } catch (error) {
     await conn.rollback();
-    res.status(500).json({ success: false, message: error.message });
+    res.status(error.statusCode || 500).json({ success: false, message: error.message });
+  } finally {
+    conn.release();
+  }
+});
+
+router.post("/:businessSlug/:branchSlug/reservations", async (req, res) => {
+  const conn = await pool.getConnection();
+  try {
+    const resolved = await resolveBusinessBranch(req.params.businessSlug, req.params.branchSlug);
+    if (!resolved) return res.status(404).json({ success: false, message: "Menu not found" });
+
+    const customerName = String(req.body.customer_name || "").trim();
+    const customerPhone = String(req.body.customer_phone || "").trim() || null;
+    const customerEmail = normalizeEmail(req.body.customer_email);
+    const sessionType = String(req.body.session_type || "game_session").trim() || "game_session";
+    const partySize = Math.max(1, Number(req.body.party_size || 1));
+    const reservationDate = String(req.body.reservation_date || "").trim();
+    const reservationTime = String(req.body.reservation_time || "").trim();
+    const durationMinutes = Math.max(30, Number(req.body.duration_minutes || 60));
+    const notes = String(req.body.notes || "").trim() || null;
+
+    if (!customerName && !customerEmail) {
+      return res.status(400).json({ success: false, message: "Name or member email is required" });
+    }
+
+    if (!reservationDate || !reservationTime) {
+      return res.status(400).json({ success: false, message: "Reservation date and time are required" });
+    }
+
+    await conn.beginTransaction();
+
+    const member = await findActiveMemberByEmail(resolved.business.id, customerEmail, conn);
+    const reservationCode = `RSV-${Date.now()}`;
+
+    const [result] = await conn.execute(
+      `INSERT INTO customer_reservations
+       (business_id, branch_id, reservation_code, member_id, customer_name, customer_phone, customer_email, session_type, party_size, reservation_date, reservation_time, duration_minutes, notes, payment_method)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        resolved.business.id,
+        resolved.branch.id,
+        reservationCode,
+        member?.id || null,
+        customerName || member?.name || null,
+        customerPhone || member?.phone || null,
+        customerEmail || member?.email || null,
+        sessionType,
+        partySize,
+        reservationDate,
+        reservationTime,
+        durationMinutes,
+        notes,
+        "pay_at_counter"
+      ]
+    );
+
+    await conn.commit();
+
+    return res.status(201).json({
+      success: true,
+      message: "Reservation request submitted",
+      reservation_code: reservationCode,
+      reservation_id: result.insertId,
+      member: member
+        ? {
+            id: member.id,
+            name: member.name,
+            member_code: member.member_code
+          }
+        : null
+    });
+  } catch (error) {
+    await conn.rollback();
+    return res.status(error.statusCode || 500).json({ success: false, message: error.message });
   } finally {
     conn.release();
   }
@@ -361,21 +707,25 @@ router.post("/admin/orders/:id/hold", requirePermission("pos"), async (req, res)
     }
 
     const cartCode = `PEND-${Date.now()}`;
+    const walletPayment = roundMoney(order.wallet_payment || 0);
+    const pendingTotal = Math.max(0, roundMoney(Number(order.total || 0) - walletPayment));
     const [cartResult] = await conn.execute(
       `INSERT INTO pending_carts
-      (cart_code, customer, cashier_id, shift_id, subtotal, discount, loyalty_discount, giftcard_discount, tax, total, currency, note, business_id, branch_id)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      (cart_code, customer, member_id, cashier_id, shift_id, subtotal, discount, loyalty_discount, giftcard_discount, wallet_payment, tax, total, currency, note, business_id, branch_id)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         cartCode,
         order.customer_name || "Walk-in",
+        order.member_id || null,
         req.user.id,
         null,
         order.subtotal || 0,
         order.discount || 0,
         0,
         0,
+        walletPayment,
         order.tax || 0,
-        order.total || 0,
+        pendingTotal,
         order.currency || "NGN",
         order.notes || `From customer order ${order.order_code}`,
         order.business_id,
