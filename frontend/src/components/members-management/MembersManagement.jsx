@@ -58,6 +58,7 @@ export default function MembersManagement() {
   const [showHistoryModal, setShowHistoryModal] = useState(false);
   const [selectedMember, setSelectedMember] = useState(null);
   const [memberSales, setMemberSales] = useState([]);
+  const [memberPointsLedger, setMemberPointsLedger] = useState([]);
 
   const fetchMembers = async () => {
     try {
@@ -408,6 +409,7 @@ export default function MembersManagement() {
       const res = await getMemberHistory(memberId);
       setSelectedMember(res?.member || null);
       setMemberSales(res?.sales || []);
+      setMemberPointsLedger(res?.pointsLedger || []);
     } catch (err) {
       setShowHistoryModal(false);
       setError(err?.response?.data?.message || "Failed to load member history");
@@ -420,6 +422,7 @@ export default function MembersManagement() {
     setShowHistoryModal(false);
     setSelectedMember(null);
     setMemberSales([]);
+    setMemberPointsLedger([]);
   };
 
   const filteredMembers = useMemo(() => {
@@ -509,6 +512,9 @@ export default function MembersManagement() {
         "Mobile Wallet Offers":
           Number(member.mobile_wallet_notifications ?? 1) === 1 ? "Yes" : "No",
         Status: member.member_status || "active",
+        Points: Number(member.points || 0),
+        "Lifetime Points": Number(member.lifetime_points || 0),
+        "Reward Badge": member.reward_badge || "Starter",
         Tier: member.tier || "",
         "Tier Discount %": Number(member.membership_discount_pct || 0),
         "Created At": formatDateTime(member.created_at)
@@ -543,6 +549,8 @@ export default function MembersManagement() {
               <td>${member.offer_notes || ""}</td>
               <td>${Number(member.mobile_wallet_notifications ?? 1) === 1 ? "Yes" : "No"}</td>
               <td>${member.member_status || "active"}</td>
+              <td>${Number(member.points || 0)}</td>
+              <td>${member.reward_badge || "Starter"}</td>
               <td>${member.tier || ""}</td>
               <td>${Number(member.membership_discount_pct || 0)}%</td>
               <td>${formatDateTime(member.created_at)}</td>
@@ -604,6 +612,8 @@ export default function MembersManagement() {
                   <th>Offer Notes</th>
                   <th>Mobile Wallet Offers</th>
                   <th>Status</th>
+                  <th>Points</th>
+                  <th>Reward Badge</th>
                   <th>Tier</th>
                   <th>Tier Discount %</th>
                   <th>Created At</th>
@@ -653,6 +663,9 @@ export default function MembersManagement() {
           "Mobile Wallet Offers":
             Number(selectedMember.mobile_wallet_notifications ?? 1) === 1 ? "Yes" : "No",
           Status: selectedMember.member_status || "active",
+          Points: Number(selectedMember.points || 0),
+          "Lifetime Points": Number(selectedMember.lifetime_points || 0),
+          "Reward Badge": selectedMember.reward_badge || "Starter",
           Tier: selectedMember.tier || "",
           "Tier Discount %": Number(selectedMember.membership_discount_pct || 0),
           "Created At": formatDateTime(selectedMember.created_at)
@@ -763,6 +776,8 @@ export default function MembersManagement() {
                 Number(selectedMember.mobile_wallet_notifications ?? 1) === 1 ? "Yes" : "No"
               }</p>
               <p><strong>Status:</strong> ${selectedMember.member_status || "active"}</p>
+              <p><strong>Points:</strong> ${Number(selectedMember.points || 0)}</p>
+              <p><strong>Reward Badge:</strong> ${selectedMember.reward_badge || "Starter"}</p>
               <p><strong>Tier:</strong> ${selectedMember.tier || ""}</p>
               <p><strong>Tier Discount:</strong> ${Number(
                 selectedMember.membership_discount_pct || 0
@@ -1380,6 +1395,7 @@ export default function MembersManagement() {
                       <th>Phone</th>
                       <th>Email</th>
                       <th>Status</th>
+                      <th>Rewards</th>
                       <th>Tier</th>
                       <th>CRM</th>
                       <th>Default Discount</th>
@@ -1403,6 +1419,12 @@ export default function MembersManagement() {
                           >
                             {member.member_status || "active"}
                           </span>
+                        </td>
+                        <td>
+                          <div className={styles.rewardCell}>
+                            <strong>{Number(member.points || 0).toLocaleString()} pts</strong>
+                            <span>{member.reward_badge || "Starter"}</span>
+                          </div>
                         </td>
                         <td>
                           <span className={styles.badge}>
@@ -1549,6 +1571,16 @@ export default function MembersManagement() {
                   </div>
 
                   <div className={styles.detailCard}>
+                    <span>Reward Points</span>
+                    <strong>{Number(selectedMember.points || 0).toLocaleString()}</strong>
+                  </div>
+
+                  <div className={styles.detailCard}>
+                    <span>Reward Badge</span>
+                    <strong>{selectedMember.reward_badge || "Starter"}</strong>
+                  </div>
+
+                  <div className={styles.detailCard}>
                     <span>Created At</span>
                     <strong>{formatDateTime(selectedMember.created_at)}</strong>
                   </div>
@@ -1570,6 +1602,50 @@ export default function MembersManagement() {
                     <MemberWalletCode walletToken={selectedMember.wallet_token} />
                   </div>
                 ) : null}
+
+                <div className={styles.itemsSection}>
+                  <div className={styles.itemsHeader}>
+                    <div>
+                      <h4>Reward Activity</h4>
+                      <span>{memberPointsLedger.length} record(s)</span>
+                    </div>
+                  </div>
+
+                  {memberPointsLedger.length === 0 ? (
+                    <div className={styles.emptyStateSmall}>
+                      No reward activity found for this member
+                    </div>
+                  ) : (
+                    <div className={styles.tableOuter}>
+                      <div className={styles.tableWrapper}>
+                        <table className={styles.table}>
+                          <thead>
+                            <tr>
+                              <th>Type</th>
+                              <th>Points</th>
+                              <th>Balance</th>
+                              <th>Source</th>
+                              <th>Reference</th>
+                              <th>Date</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {memberPointsLedger.map((entry) => (
+                              <tr key={entry.id}>
+                                <td>{entry.transaction_type || "—"}</td>
+                                <td>{Number(entry.points || 0).toLocaleString()}</td>
+                                <td>{Number(entry.points_after || 0).toLocaleString()}</td>
+                                <td>{entry.source || "—"}</td>
+                                <td>{entry.reference || "—"}</td>
+                                <td>{formatDateTime(entry.created_at)}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+                </div>
 
                 <div className={styles.itemsSection}>
                   <div className={styles.itemsHeader}>

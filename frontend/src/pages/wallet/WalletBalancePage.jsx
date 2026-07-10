@@ -91,6 +91,14 @@ export default function WalletBalancePage() {
                   <span>Tier</span>
                   <strong>{wallet?.membership_tier_name || "-"}</strong>
                 </div>
+                <div>
+                  <span>Points</span>
+                  <strong>{Number(wallet?.points || 0).toLocaleString()}</strong>
+                </div>
+                <div>
+                  <span>Badge</span>
+                  <strong>{wallet?.reward_badge || "Starter"}</strong>
+                </div>
               </div>
             </div>
 

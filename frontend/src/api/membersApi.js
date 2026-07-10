@@ -41,6 +41,16 @@ export const createWalletTransaction = async (payload) => {
   return data;
 };
 
+export const getPointsLedger = async (params = {}) => {
+  const { data } = await API.get("/members/points/ledger", { params });
+  return data;
+};
+
+export const createPointsLedgerEntry = async (payload) => {
+  const { data } = await API.post("/members/points/ledger", payload);
+  return data;
+};
+
 export const getWalletBalanceByToken = async (token) => {
   const { data } = await API.get(`/members/wallet/balance/${encodeURIComponent(token)}`);
   return data;

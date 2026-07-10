@@ -596,6 +596,27 @@
   -webkit-box-orient: vertical;
 }
 
+.rewardCell {
+  display: grid;
+  gap: 4px;
+  min-width: 110px;
+}
+
+.rewardCell strong {
+  color: #0f172a;
+  font-size: 13px;
+}
+
+.rewardCell span {
+  width: fit-content;
+  padding: 5px 8px;
+  border-radius: 999px;
+  background: #fef3c7;
+  color: #92400e;
+  font-size: 12px;
+  font-weight: 800;
+}
+
 .loader,
 .emptyState {
   min-height: 220px;

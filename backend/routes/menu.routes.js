@@ -30,6 +30,20 @@ const roundMoney = (value) => {
   if (!Number.isFinite(amount)) return 0;
   return Number(amount.toFixed(2));
 };
+const POINT_EARN_AMOUNT = 100;
+const calculatePointsEarned = (amount) => {
+  const value = roundMoney(amount);
+  if (value <= 0) return 0;
+  return Math.floor(value / POINT_EARN_AMOUNT);
+};
+const getRewardBadge = (lifetimePoints) => {
+  const points = Number(lifetimePoints || 0);
+  if (points >= 5000) return "Legend";
+  if (points >= 2500) return "Champion";
+  if (points >= 1000) return "Pro";
+  if (points >= 250) return "Rising Star";
+  return "Starter";
+};
 const generateWalletToken = (businessId) => {
   const randomPart = Math.random().toString(36).slice(2, 8).toUpperCase();
   return `WAL-${businessId || 0}-${Date.now()}-${randomPart}`;
@@ -124,6 +138,56 @@ async function debitMemberWallet(conn, { member, amount, source, reference, note
   );
 
   return { walletPayment: walletAmount, balanceAfter };
+}
+
+async function awardMemberPoints(conn, { memberId, points, source, reference, note, businessId, branchId }) {
+  const pointAmount = Math.floor(Number(points || 0));
+  if (!memberId || pointAmount <= 0) return null;
+
+  const [memberRows] = await conn.execute(
+    `SELECT id, points, lifetime_points
+     FROM members
+     WHERE id = ? AND business_id = ?
+     LIMIT 1
+     FOR UPDATE`,
+    [memberId, businessId]
+  );
+
+  if (!memberRows.length) return null;
+
+  const member = memberRows[0];
+  const pointsBefore = Math.floor(Number(member.points || 0));
+  const pointsAfter = pointsBefore + pointAmount;
+  const lifetimeAfter = Math.floor(Number(member.lifetime_points || 0)) + pointAmount;
+  const rewardBadge = getRewardBadge(lifetimeAfter);
+
+  await conn.execute(
+    `UPDATE members
+     SET points = ?,
+         lifetime_points = ?,
+         reward_badge = ?
+     WHERE id = ? AND business_id = ?`,
+    [pointsAfter, lifetimeAfter, rewardBadge, memberId, businessId]
+  );
+
+  await conn.execute(
+    `INSERT INTO member_points_ledger
+     (member_id, transaction_type, points, points_before, points_after, source, reference, note, business_id, branch_id)
+     VALUES (?, 'earn', ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [
+      memberId,
+      pointAmount,
+      pointsBefore,
+      pointsAfter,
+      source,
+      reference,
+      note,
+      businessId,
+      branchId || null
+    ]
+  );
+
+  return { pointsEarned: pointAmount, pointsAfter, lifetimeAfter, rewardBadge };
 }
 
 router.get("/:businessSlug/:branchSlug/products", async (req, res) => {
@@ -397,6 +461,21 @@ router.post("/:businessSlug/:branchSlug/orders", async (req, res) => {
         })
       : { walletPayment: 0 };
     const paymentStatus = walletResult.walletPayment >= total ? "paid" : "pending";
+    const pointsEarned =
+      paymentStatus === "paid" && member
+        ? calculatePointsEarned(total)
+        : 0;
+    const pointsResult = pointsEarned
+      ? await awardMemberPoints(conn, {
+          memberId: member.id,
+          points: pointsEarned,
+          source: "online_order",
+          reference: orderCode,
+          note: "Points earned from online order",
+          businessId: resolved.business.id,
+          branchId: resolved.branch.id
+        })
+      : null;
 
     const [orderResult] = await conn.execute(
       `INSERT INTO customer_orders
@@ -453,7 +532,9 @@ router.post("/:businessSlug/:branchSlug/orders", async (req, res) => {
         ? {
             id: member.id,
             name: member.name,
-            wallet_balance: walletResult.balanceAfter ?? roundMoney(member.wallet_balance || 0)
+            wallet_balance: walletResult.balanceAfter ?? roundMoney(member.wallet_balance || 0),
+            points: pointsResult?.pointsAfter,
+            reward_badge: pointsResult?.rewardBadge
           }
         : null
     });
@@ -517,6 +598,20 @@ router.post("/:businessSlug/:branchSlug/reservations", async (req, res) => {
           branchId: resolved.branch.id
         })
       : { walletPayment: 0 };
+    const pointsEarned = walletResult.walletPayment > 0 && member
+      ? calculatePointsEarned(walletResult.walletPayment)
+      : 0;
+    const pointsResult = pointsEarned
+      ? await awardMemberPoints(conn, {
+          memberId: member.id,
+          points: pointsEarned,
+          source: "online_reservation",
+          reference: reservationCode,
+          note: "Points earned from reservation wallet payment",
+          businessId: resolved.business.id,
+          branchId: resolved.branch.id
+        })
+      : null;
 
     const [result] = await conn.execute(
       `INSERT INTO customer_reservations
@@ -553,7 +648,9 @@ router.post("/:businessSlug/:branchSlug/reservations", async (req, res) => {
             id: member.id,
             name: member.name,
             member_code: member.member_code,
-            wallet_balance: walletResult.balanceAfter ?? roundMoney(member.wallet_balance || 0)
+            wallet_balance: walletResult.balanceAfter ?? roundMoney(member.wallet_balance || 0),
+            points: pointsResult?.pointsAfter,
+            reward_badge: pointsResult?.rewardBadge
           }
         : null
     });
@@ -735,10 +832,13 @@ router.post("/admin/orders/:id/hold", requirePermission("pos"), async (req, res)
     const cartCode = `PEND-${Date.now()}`;
     const walletPayment = roundMoney(order.wallet_payment || 0);
     const pendingTotal = Math.max(0, roundMoney(Number(order.total || 0) - walletPayment));
+    const pointsEarned = walletPayment > 0 && order.member_id
+      ? calculatePointsEarned(order.total || 0)
+      : 0;
     const [cartResult] = await conn.execute(
       `INSERT INTO pending_carts
-      (cart_code, customer, member_id, cashier_id, shift_id, subtotal, discount, loyalty_discount, giftcard_discount, wallet_payment, wallet_debited_at, wallet_debit_source, tax, total, currency, note, business_id, branch_id)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      (cart_code, customer, member_id, cashier_id, shift_id, subtotal, discount, loyalty_discount, giftcard_discount, wallet_payment, wallet_debited_at, wallet_debit_source, points_earned, points_awarded_at, points_award_source, tax, total, currency, note, business_id, branch_id)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         cartCode,
         order.customer_name || "Walk-in",
@@ -752,6 +852,9 @@ router.post("/admin/orders/:id/hold", requirePermission("pos"), async (req, res)
         walletPayment,
         walletPayment > 0 ? new Date() : null,
         walletPayment > 0 ? "online_order" : null,
+        pointsEarned,
+        pointsEarned > 0 ? new Date() : null,
+        pointsEarned > 0 ? "online_order" : null,
         order.tax || 0,
         pendingTotal,
         order.currency || "NGN",

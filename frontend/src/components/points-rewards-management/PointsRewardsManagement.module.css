@@ -1,0 +1,515 @@
+.wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  width: 100%;
+  min-width: 0;
+}
+
+.hero,
+.card,
+.statCard {
+  background: #ffffff;
+  border: 1px solid #dbe5f0;
+  border-radius: 18px;
+  box-shadow: 0 14px 34px rgba(15, 23, 42, 0.06);
+}
+
+.hero {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 22px;
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.94), rgba(240, 253, 250, 0.9)),
+    radial-gradient(circle at 85% 15%, rgba(250, 204, 21, 0.2), transparent 28%);
+}
+
+.eyebrow {
+  display: inline-flex;
+  align-items: center;
+  color: #047857;
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.hero h1,
+.cardHeader h2,
+.tableHeader h2 {
+  margin: 0;
+  color: #0f172a;
+  line-height: 1.15;
+}
+
+.hero h1 {
+  font-size: 24px;
+  margin-top: 6px;
+}
+
+.hero p,
+.cardHeader p,
+.tableHeader p {
+  margin: 8px 0 0;
+  color: #64748b;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.iconBtn {
+  width: 42px;
+  height: 42px;
+  border: none;
+  border-radius: 12px;
+  background: #dcfce7;
+  color: #047857;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex: 0 0 auto;
+}
+
+.statsGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.statCard {
+  padding: 18px;
+  min-width: 0;
+}
+
+.statCard span {
+  color: #64748b;
+  display: block;
+  font-size: 12px;
+  font-weight: 800;
+  margin-bottom: 8px;
+}
+
+.statCard strong {
+  color: #0f172a;
+  display: block;
+  font-size: 22px;
+  line-height: 1.2;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: minmax(320px, 1fr) minmax(320px, 430px);
+  gap: 22px;
+  align-items: start;
+}
+
+.card {
+  padding: 20px;
+  min-width: 0;
+}
+
+.cardHeader,
+.tableHeader {
+  margin-bottom: 16px;
+}
+
+.tableHeader {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: flex-start;
+}
+
+.searchBox {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid #cbd5e1;
+  border-radius: 12px;
+  padding: 0 12px;
+  height: 44px;
+  color: #64748b;
+}
+
+.searchBox input,
+.formGroup input,
+.formGroup textarea {
+  width: 100%;
+  border: none;
+  font-size: 14px;
+  outline: none;
+  background: transparent;
+}
+
+.searchBox:focus-within,
+.formGroup:focus-within {
+  border-color: #059669;
+  box-shadow: 0 0 0 3px rgba(5, 150, 105, 0.12);
+}
+
+.memberList {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.memberItem {
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  background: #f8fafc;
+  color: #0f172a;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 13px;
+  text-align: left;
+}
+
+.memberItem:hover {
+  border-color: #86efac;
+  background: #f0fdf4;
+}
+
+.memberItemActive {
+  border-color: #059669;
+  background: #ecfdf5;
+}
+
+.memberItem strong,
+.table strong {
+  display: block;
+  font-size: 14px;
+}
+
+.memberItem small,
+.table small {
+  display: block;
+  color: #64748b;
+  font-size: 12px;
+  margin-top: 4px;
+}
+
+.memberItem b {
+  color: #047857;
+  white-space: nowrap;
+}
+
+.rewardCard {
+  border: 1px solid rgba(15, 23, 42, 0.1);
+  border-radius: 18px;
+  color: #ffffff;
+  margin-top: 16px;
+  overflow: hidden;
+  padding: 18px;
+  position: relative;
+  background:
+    linear-gradient(135deg, rgba(15, 23, 42, 0.94), rgba(4, 120, 87, 0.9)),
+    linear-gradient(45deg, rgba(250, 204, 21, 0.18), transparent);
+  box-shadow: 0 18px 34px rgba(15, 23, 42, 0.18);
+}
+
+.rewardCard::after {
+  content: "";
+  position: absolute;
+  inset: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 14px;
+  pointer-events: none;
+}
+
+.rewardCardTop {
+  position: relative;
+  z-index: 1;
+}
+
+.rewardCardTop span,
+.rewardMetrics span {
+  color: rgba(255, 255, 255, 0.72);
+  display: block;
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.rewardCardTop strong {
+  display: block;
+  font-size: 20px;
+  margin-top: 6px;
+}
+
+.rewardCardTop small {
+  color: rgba(255, 255, 255, 0.7);
+  display: block;
+  margin-top: 4px;
+}
+
+.rewardMetrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 18px;
+  position: relative;
+  z-index: 1;
+}
+
+.rewardMetrics div {
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 14px;
+  padding: 12px;
+}
+
+.rewardMetrics strong {
+  display: block;
+  font-size: 15px;
+  margin-top: 6px;
+}
+
+.badgePill {
+  align-items: center;
+  border-radius: 999px;
+  display: inline-flex;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 900;
+  margin-top: 16px;
+  padding: 8px 12px;
+  position: relative;
+  z-index: 1;
+}
+
+.badgeStarter {
+  background: #e2e8f0;
+  color: #334155;
+}
+
+.badgeRising {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.badgePro {
+  background: #dcfce7;
+  color: #047857;
+}
+
+.badgeChampion {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.badgeLegend {
+  background: #fae8ff;
+  color: #86198f;
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.segmented {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  padding: 4px;
+  border-radius: 14px;
+  background: #f1f5f9;
+}
+
+.segmented button,
+.primaryBtn,
+.filterGroup button {
+  border: none;
+  border-radius: 12px;
+  cursor: pointer;
+  font-weight: 800;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.segmented button {
+  min-height: 40px;
+  color: #475569;
+  background: transparent;
+}
+
+.segmented .segmentActive {
+  background: #ffffff;
+  color: #047857;
+  box-shadow: 0 6px 14px rgba(15, 23, 42, 0.08);
+}
+
+.formGroup {
+  border: 1px solid #cbd5e1;
+  border-radius: 12px;
+  display: block;
+  padding: 10px 12px;
+}
+
+.formGroup span {
+  color: #64748b;
+  display: block;
+  font-size: 12px;
+  font-weight: 800;
+  margin-bottom: 6px;
+}
+
+.formGroup textarea {
+  resize: vertical;
+}
+
+.primaryBtn {
+  min-height: 46px;
+  background: #059669;
+  color: #ffffff;
+}
+
+.primaryBtn:disabled,
+.filterGroup button:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+.filterGroup {
+  background: #f1f5f9;
+  border-radius: 14px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(90px, 1fr));
+  gap: 4px;
+  padding: 4px;
+}
+
+.filterGroup button {
+  min-height: 38px;
+  background: transparent;
+  color: #475569;
+}
+
+.filterGroup .filterActive {
+  background: #ffffff;
+  color: #047857;
+  box-shadow: 0 6px 14px rgba(15, 23, 42, 0.08);
+}
+
+.errorBox,
+.successBox {
+  border-radius: 14px;
+  padding: 13px 15px;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.errorBox {
+  background: #fee2e2;
+  color: #991b1b;
+  border: 1px solid #fecaca;
+}
+
+.successBox {
+  background: #dcfce7;
+  color: #166534;
+  border: 1px solid #bbf7d0;
+}
+
+.tableOuter {
+  width: 100%;
+  overflow-x: auto;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+}
+
+.table {
+  width: 100%;
+  min-width: 980px;
+  border-collapse: collapse;
+}
+
+.table th,
+.table td {
+  padding: 13px 12px;
+  text-align: left;
+  border-bottom: 1px solid #eef2f7;
+  font-size: 13px;
+  color: #0f172a;
+  vertical-align: middle;
+}
+
+.table th {
+  background: #f8fafc;
+  color: #64748b;
+  font-size: 12px;
+  text-transform: uppercase;
+}
+
+.typeBadge {
+  display: inline-flex;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: #e0f2fe;
+  color: #0369a1;
+  font-weight: 800;
+  text-transform: capitalize;
+}
+
+.earn {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.redeem {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.adjust {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.emptyState,
+.emptyCell {
+  color: #64748b;
+  text-align: center;
+  padding: 24px;
+  font-weight: 700;
+}
+
+@media (max-width: 1100px) {
+  .statsGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 620px) {
+  .hero,
+  .tableHeader {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .statsGrid,
+  .rewardMetrics {
+    grid-template-columns: 1fr;
+  }
+
+  .segmented {
+    grid-template-columns: 1fr;
+  }
+
+  .filterGroup {
+    width: 100%;
+  }
+}

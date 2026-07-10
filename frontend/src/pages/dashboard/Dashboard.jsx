@@ -5,6 +5,7 @@ import {
   FiUsers,
   FiMapPin,
   FiCreditCard,
+  FiAward,
   FiMenu,
   FiHome,
   FiBox,
@@ -34,8 +35,10 @@ import CourtsManagement from "../../components/courts-management/CourtsManagemen
 import SalesManagement from "../../components/sales-management/SalesManagement";
 import MembersManagement from "../../components/members-management/MembersManagement";
 import WalletManagement from "../../components/wallet-management/WalletManagement";
+import PointsRewardsManagement from "../../components/points-rewards-management/PointsRewardsManagement";
 import SettingsManagement from "../../components/settings-management/SettingsManagement";
 import ReportsManagement from "../../components/reports-management/ReportsManagement";
+import AdvancedAnalyticsDashboard from "../../components/advanced-analytics-dashboard/AdvancedAnalyticsDashboard";
 import MobileSidebarHead from "../../components/mobile-sidebar-head/MobileSidebarHead";
 
 import useDashboard from "../../hooks/useDashboard";
@@ -78,7 +81,8 @@ const WAREHOUSE_SUBMENU_ITEMS = [
 
 const MEMBERS_SUBMENU_ITEMS = [
   { label: "Member Management", sectionKey: "management" },
-  { label: "Wallet Top-Up", sectionKey: "wallet" }
+  { label: "Wallet Top-Up", sectionKey: "wallet" },
+  { label: "Points & Rewards", sectionKey: "rewards" }
 ];
 
 const INVENTORY_SUBMENU_LABELS = INVENTORY_SUBMENU_ITEMS.map((item) => item.label);
@@ -113,11 +117,12 @@ const MENU_ITEMS = [
   })),
   { label: "Sales", permission: "sales", icon: <FiTrendingUp /> },
   { label: "Reports", permission: "analytics", icon: <FiBarChart2 /> },
+  { label: "Advanced Analytics", permission: "analytics", adminOnly: true, icon: <FiBarChart2 /> },
   { label: "Members", permission: "members", icon: <FiUsers /> },
   ...MEMBERS_SUBMENU_ITEMS.map((item) => ({
     label: item.label,
     permission: "members",
-    icon: <FiUsers />
+    icon: item.sectionKey === "rewards" ? <FiAward /> : <FiUsers />
   })),
   { label: "Users", permission: "users", icon: <FiUsers /> },
   { label: "Settings", permission: "settings", icon: <FiSettings /> }
@@ -264,6 +269,7 @@ export default function Dashboard() {
 
   const menu = useMemo(() => {
     return MENU_ITEMS.filter((item) => {
+      if (item.adminOnly && !isAdmin(currentUser)) return false;
       if (!item.permission) return true;
       return hasPermission(currentUser, currentPermissions, item.permission);
     });
@@ -636,6 +642,18 @@ export default function Dashboard() {
     }
 
     if (
+      activeMenu === "Advanced Analytics" &&
+      isAdmin(currentUser) &&
+      hasPermission(currentUser, currentPermissions, "analytics")
+    ) {
+      return (
+        <section className={styles.fullSection}>
+          <AdvancedAnalyticsDashboard />
+        </section>
+      );
+    }
+
+    if (
       activeMenu === "Member Management" &&
       hasPermission(currentUser, currentPermissions, "members")
     ) {
@@ -653,6 +671,17 @@ export default function Dashboard() {
       return (
         <section className={styles.fullSection}>
           <WalletManagement />
+        </section>
+      );
+    }
+
+    if (
+      activeMenu === "Points & Rewards" &&
+      hasPermission(currentUser, currentPermissions, "members")
+    ) {
+      return (
+        <section className={styles.fullSection}>
+          <PointsRewardsManagement />
         </section>
       );
     }

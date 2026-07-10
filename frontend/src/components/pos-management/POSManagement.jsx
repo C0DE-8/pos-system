@@ -186,6 +186,7 @@ export default function POSManagement() {
 
   const [discountPct, setDiscountPct] = useState("");
   const [loyaltyDiscount, setLoyaltyDiscount] = useState("");
+  const [rewardPointsRedeemed, setRewardPointsRedeemed] = useState("");
   const [giftcardDiscount, setGiftcardDiscount] = useState("");
   const [paymentMethod, setPaymentMethod] = useState("cash");
   const [cashTendered, setCashTendered] = useState("");
@@ -922,6 +923,7 @@ export default function POSManagement() {
     setCart([]);
     setDiscountPct("");
     setLoyaltyDiscount("");
+    setRewardPointsRedeemed("");
     setGiftcardDiscount("");
     setCashTendered("");
     setSplitCash("");
@@ -1003,13 +1005,19 @@ export default function POSManagement() {
     subtotal > 0 ? (membershipDiscountAmount / subtotal) * 100 : 0;
 
   const loyaltyAmount = Number(loyaltyDiscount || 0);
+  const rewardPointsAmount = Math.max(0, Math.floor(Number(rewardPointsRedeemed || 0)));
+  const rewardDiscountAmount = rewardPointsAmount * 10;
   const giftcardAmount = Number(giftcardDiscount || 0);
+  const selectedRewardPoints = Number(
+    selectedMember?.points ?? memberTierSnapshot?.points ?? 0
+  );
   const taxableBase = Math.max(
     0,
     subtotal -
       discountAmount -
       membershipDiscountAmount -
       loyaltyAmount -
+      rewardDiscountAmount -
       giftcardAmount
   );
   const taxRate = Number(settings?.tax_rate ?? 0);
@@ -1206,6 +1214,7 @@ export default function POSManagement() {
     subtotal,
     discount: discountAmount,
     loyalty_discount: loyaltyAmount,
+    reward_points_redeemed: rewardPointsAmount,
     giftcard_discount: giftcardAmount,
     wallet_payment: walletAmount,
     tax,
@@ -1221,6 +1230,14 @@ export default function POSManagement() {
 
     if (!displayedCustomerName.trim()) {
       return "Customer name is required";
+    }
+
+    if (rewardPointsAmount > 0 && !selectedMember && !memberTierSnapshot?.member_id) {
+      return "Select a member before redeeming reward points";
+    }
+
+    if (rewardPointsAmount > selectedRewardPoints) {
+      return "Reward points exceed the member balance";
     }
 
     if (walletAmount > 0 && !selectedMember && !memberTierSnapshot?.member_id) {
@@ -1301,6 +1318,7 @@ export default function POSManagement() {
           : ""
       );
       setLoyaltyDiscount(data.loyalty_discount || "");
+      setRewardPointsRedeemed(data.reward_points_redeemed || "");
       setGiftcardDiscount(data.giftcard_discount || "");
       setSplitWallet(data.wallet_payment || "");
       if (Number(data.wallet_payment || 0) > 0) {
@@ -1324,6 +1342,8 @@ export default function POSManagement() {
                 foundMember.membership_discount_pct || 0
               ),
               wallet_balance: Number(foundMember.wallet_balance || 0),
+              points: Number(foundMember.points || 0),
+              reward_badge: foundMember.reward_badge || null,
               wallet_token: foundMember.wallet_token || null
             }
           : data.member_id || data.membership_tier_name
@@ -1333,6 +1353,8 @@ export default function POSManagement() {
               membership_tier_name: data.membership_tier_name || null,
               membership_discount_pct: Number(data.membership_discount_pct || 0),
               wallet_balance: Number(data.wallet_balance || 0),
+              points: Number(data.points || 0),
+              reward_badge: data.reward_badge || null,
               wallet_token: data.wallet_token || null
             }
           : null
@@ -2732,6 +2754,8 @@ export default function POSManagement() {
 	                                member.membership_discount_pct || 0
 	                              ),
 	                              wallet_balance: Number(member.wallet_balance || 0),
+	                              points: Number(member.points || 0),
+	                              reward_badge: member.reward_badge || null,
 	                              wallet_token: member.wallet_token || null
 	                            });
                             setCustomer(memberName);
@@ -2954,6 +2978,20 @@ export default function POSManagement() {
                 </div>
 
                 <div className={styles.formGroup}>
+                  <label>Reward Points</label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={rewardPointsRedeemed}
+                    onChange={(e) => setRewardPointsRedeemed(e.target.value)}
+                    placeholder="0"
+                  />
+                  <small className={styles.splitHint}>
+                    Available: {selectedRewardPoints.toLocaleString()} points
+                  </small>
+                </div>
+
+                <div className={styles.formGroup}>
                   <label>Gift Card Discount</label>
                   <input
                     type="number"
@@ -3125,6 +3163,12 @@ export default function POSManagement() {
                     <span>Loyalty</span>
                     <strong>-{formatMoney(loyaltyAmount)}</strong>
                   </div>
+                  {rewardDiscountAmount > 0 ? (
+                    <div className={styles.totalRow}>
+                      <span>Reward Points ({rewardPointsAmount})</span>
+                      <strong>-{formatMoney(rewardDiscountAmount)}</strong>
+                    </div>
+                  ) : null}
                   <div className={styles.totalRow}>
                     <span>Gift Card</span>
                     <strong>-{formatMoney(giftcardAmount)}</strong>

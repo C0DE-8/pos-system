@@ -6,6 +6,7 @@ import {
   FiUsers,
   FiShoppingCart,
   FiCreditCard,
+  FiAward,
   FiTrendingUp,
   FiLayers,
   FiMap,
@@ -38,7 +39,7 @@ const WAREHOUSE_SUBMENU_LABELS = [
   "Warehouse History"
 ];
 
-const MEMBERS_SUBMENU_LABELS = ["Member Management", "Wallet Top-Up"];
+const MEMBERS_SUBMENU_LABELS = ["Member Management", "Wallet Top-Up", "Points & Rewards"];
 
 const ICONS = {
   Overview: <FiGrid />,
@@ -52,10 +53,12 @@ const ICONS = {
   Users: <FiUserCheck />,
   Settings: <FiSettings />,
   Reports: <FiBarChart2 />,
+  "Advanced Analytics": <FiBarChart2 />,
   Viewer: <FiEye />,
   Warehouse: <FiArchive />,
   "Member Management": <FiUsers />,
   "Wallet Top-Up": <FiCreditCard />,
+  "Points & Rewards": <FiAward />,
   "Add Product": <FiBox />,
   "Stock Tools": <FiBox />,
   Categories: <FiBox />,

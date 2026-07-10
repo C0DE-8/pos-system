@@ -1,7 +1,7 @@
 const express = require("express");
 const { query } = require("../config/db");
 const { authenticateToken, requirePermission } = require("../middleware/auth");
-const { ensureBusinessContext } = require("../utils/tenant");
+const { ensureBusinessContext, isAdmin } = require("../utils/tenant");
 
 const router = express.Router();
 router.use(authenticateToken);
@@ -51,6 +51,22 @@ function dateRangeFromQuery(q = {}) {
 
 function branchFilterSql(branchId) {
   return branchId ? { sql: " AND branch_id = ? ", params: [branchId] } : { sql: "", params: [] };
+}
+
+function aliasedBranchFilterSql(alias, branchId) {
+  return branchId
+    ? { sql: ` AND ${alias}.branch_id = ? `, params: [branchId] }
+    : { sql: "", params: [] };
+}
+
+function requireAdminUser(req, res) {
+  if (isAdmin(req.user)) return true;
+
+  res.status(403).json({
+    success: false,
+    message: "Advanced analytics is available to admin users only"
+  });
+  return false;
 }
 
 router.get("/dashboard", requirePermission("analytics"), async (req, res) => {
@@ -338,6 +354,306 @@ router.get("/branches", requirePermission("analytics"), async (req, res) => {
       [start, end, req.user.business_id]
     );
     res.json({ success: true, data: rows });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+router.get("/advanced-dashboard", requirePermission("analytics"), async (req, res) => {
+  try {
+    if (!requireAdminUser(req, res)) return;
+    if (!ensureBusinessContext(req, res)) return;
+
+    const { start, end } = dateRangeFromQuery(req.query);
+    const branchId = req.query.branch_id || "";
+    const salesBranch = aliasedBranchFilterSql("s", branchId);
+    const walletBranch = aliasedBranchFilterSql("mwt", branchId);
+    const pointsBranch = aliasedBranchFilterSql("mpl", branchId);
+    const orderBranch = aliasedBranchFilterSql("co", branchId);
+    const salesScope = [req.user.business_id, start, end, ...salesBranch.params];
+
+    const [
+      salesSummary,
+      walletUsage,
+      walletTrend,
+      walletSources,
+      categorySales,
+      topItems,
+      membershipSummary,
+      tierActivity,
+      memberLeaderboard,
+      pointsSummary,
+      pointsTrend,
+      digitalOrders,
+      promotionSignals
+    ] = await Promise.all([
+      query(
+        `SELECT
+           COUNT(*) AS order_count,
+           COALESCE(SUM(s.subtotal), 0) AS subtotal,
+           COALESCE(SUM(s.total), 0) AS total_sales,
+           COALESCE(AVG(s.total), 0) AS average_order_value,
+           COALESCE(SUM(s.membership_discount), 0) AS membership_discount,
+           COALESCE(SUM(s.loyalty_discount), 0) AS loyalty_discount,
+           COALESCE(SUM(s.giftcard_discount), 0) AS giftcard_discount,
+           COALESCE(SUM(s.wallet_payment), 0) AS wallet_payment,
+           COALESCE(SUM(s.reward_points_redeemed), 0) AS reward_points_redeemed,
+           COALESCE(SUM(s.points_earned), 0) AS points_earned,
+           COUNT(DISTINCT s.member_id) AS purchasing_members
+         FROM sales s
+         WHERE s.business_id = ? AND s.sale_date BETWEEN ? AND ? ${salesBranch.sql}`,
+        salesScope
+      ),
+      query(
+        `SELECT
+           COUNT(*) AS transaction_count,
+           SUM(CASE WHEN mwt.transaction_type = 'credit' THEN 1 ELSE 0 END) AS credit_count,
+           SUM(CASE WHEN mwt.transaction_type = 'debit' THEN 1 ELSE 0 END) AS debit_count,
+           COALESCE(SUM(CASE WHEN mwt.transaction_type = 'credit' THEN mwt.amount ELSE 0 END), 0) AS credited_amount,
+           COALESCE(SUM(CASE WHEN mwt.transaction_type = 'debit' THEN mwt.amount ELSE 0 END), 0) AS debited_amount,
+           COALESCE(AVG(CASE WHEN mwt.transaction_type = 'credit' THEN mwt.amount ELSE NULL END), 0) AS average_topup,
+           COUNT(DISTINCT mwt.member_id) AS wallet_members
+         FROM member_wallet_transactions mwt
+         WHERE mwt.business_id = ? AND mwt.created_at BETWEEN ? AND ? ${walletBranch.sql}`,
+        [req.user.business_id, start, end, ...walletBranch.params]
+      ),
+      query(
+        `SELECT
+           DATE(mwt.created_at) AS bucket,
+           COALESCE(SUM(CASE WHEN mwt.transaction_type = 'credit' THEN mwt.amount ELSE 0 END), 0) AS credits,
+           COALESCE(SUM(CASE WHEN mwt.transaction_type = 'debit' THEN mwt.amount ELSE 0 END), 0) AS debits,
+           COUNT(*) AS transaction_count
+         FROM member_wallet_transactions mwt
+         WHERE mwt.business_id = ? AND mwt.created_at BETWEEN ? AND ? ${walletBranch.sql}
+         GROUP BY bucket
+         ORDER BY bucket ASC`,
+        [req.user.business_id, start, end, ...walletBranch.params]
+      ),
+      query(
+        `SELECT
+           COALESCE(mwt.source, 'manual') AS source,
+           mwt.transaction_type,
+           COUNT(*) AS count,
+           COALESCE(SUM(mwt.amount), 0) AS amount
+         FROM member_wallet_transactions mwt
+         WHERE mwt.business_id = ? AND mwt.created_at BETWEEN ? AND ? ${walletBranch.sql}
+         GROUP BY source, mwt.transaction_type
+         ORDER BY amount DESC`,
+        [req.user.business_id, start, end, ...walletBranch.params]
+      ),
+      query(
+        `SELECT
+           COALESCE(c.name, si.item_type, 'Uncategorized') AS category_name,
+           COALESCE(c.type, si.item_type, 'general') AS category_type,
+           COALESCE(SUM(si.qty), 0) AS qty,
+           COALESCE(SUM(si.final_price), 0) AS revenue,
+           COUNT(DISTINCT s.id) AS order_count,
+           COALESCE(AVG(si.item_discount_pct), 0) AS average_item_discount
+         FROM sale_items si
+         JOIN sales s ON s.id = si.sale_id
+         LEFT JOIN products p ON p.id = si.product_id
+         LEFT JOIN categories c ON c.id = p.category_id
+         WHERE s.business_id = ? AND s.sale_date BETWEEN ? AND ? ${salesBranch.sql}
+         GROUP BY category_name, category_type
+         ORDER BY revenue DESC
+         LIMIT 12`,
+        salesScope
+      ),
+      query(
+        `SELECT
+           si.item_name,
+           COALESCE(c.name, si.item_type, 'Uncategorized') AS category_name,
+           COALESCE(SUM(si.qty), 0) AS qty,
+           COALESCE(SUM(si.final_price), 0) AS revenue,
+           COUNT(DISTINCT s.id) AS order_count
+         FROM sale_items si
+         JOIN sales s ON s.id = si.sale_id
+         LEFT JOIN products p ON p.id = si.product_id
+         LEFT JOIN categories c ON c.id = p.category_id
+         WHERE s.business_id = ? AND s.sale_date BETWEEN ? AND ? ${salesBranch.sql}
+         GROUP BY si.item_name, category_name
+         ORDER BY revenue DESC, qty DESC
+         LIMIT 10`,
+        salesScope
+      ),
+      query(
+        `SELECT
+           COUNT(*) AS member_count,
+           COUNT(*) AS active_members,
+           SUM(CASE WHEN m.created_at BETWEEN ? AND ? THEN 1 ELSE 0 END) AS new_members,
+           COALESCE(SUM(m.wallet_balance), 0) AS wallet_liability,
+           COALESCE(SUM(m.points), 0) AS outstanding_points,
+           COALESCE(SUM(m.lifetime_points), 0) AS lifetime_points
+         FROM members m
+         WHERE m.business_id = ?`,
+        [start, end, req.user.business_id]
+      ),
+      query(
+        `SELECT
+           COALESCE(mt.name, m.tier, 'No Tier') AS tier_name,
+           COUNT(DISTINCT m.id) AS member_count,
+           COUNT(DISTINCT s.id) AS order_count,
+           COALESCE(SUM(s.total), 0) AS sales_total,
+           COALESCE(SUM(s.membership_discount), 0) AS discount_total,
+           COALESCE(SUM(m.wallet_balance), 0) AS wallet_balance,
+           COALESCE(SUM(m.points), 0) AS points_balance
+         FROM members m
+         LEFT JOIN membership_tiers mt ON mt.id = m.membership_tier_id
+         LEFT JOIN sales s
+           ON s.member_id = m.id
+          AND s.business_id = m.business_id
+          AND s.sale_date BETWEEN ? AND ?
+          ${branchId ? "AND s.branch_id = ?" : ""}
+         WHERE m.business_id = ?
+         GROUP BY tier_name
+         ORDER BY sales_total DESC, member_count DESC`,
+        [
+          start,
+          end,
+          ...(branchId ? [branchId] : []),
+          req.user.business_id
+        ]
+      ),
+      query(
+        `SELECT
+           m.id,
+           m.name,
+           m.member_code,
+           COALESCE(mt.name, m.tier, 'No Tier') AS tier_name,
+           COALESCE(SUM(s.total), 0) AS sales_total,
+           COUNT(s.id) AS order_count,
+           COALESCE(m.wallet_balance, 0) AS wallet_balance,
+           COALESCE(m.points, 0) AS points
+         FROM members m
+         LEFT JOIN membership_tiers mt ON mt.id = m.membership_tier_id
+         LEFT JOIN sales s
+           ON s.member_id = m.id
+          AND s.business_id = m.business_id
+          AND s.sale_date BETWEEN ? AND ?
+          ${branchId ? "AND s.branch_id = ?" : ""}
+         WHERE m.business_id = ?
+         GROUP BY m.id, m.name, m.member_code, tier_name, m.wallet_balance, m.points
+         ORDER BY sales_total DESC, order_count DESC
+         LIMIT 10`,
+        [
+          start,
+          end,
+          ...(branchId ? [branchId] : []),
+          req.user.business_id
+        ]
+      ),
+      query(
+        `SELECT
+           COUNT(*) AS transaction_count,
+           COALESCE(SUM(CASE WHEN mpl.transaction_type = 'earn' THEN mpl.points ELSE 0 END), 0) AS earned_points,
+           COALESCE(SUM(CASE WHEN mpl.transaction_type = 'redeem' THEN mpl.points ELSE 0 END), 0) AS redeemed_points,
+           COALESCE(SUM(CASE WHEN mpl.transaction_type = 'adjust' THEN mpl.points ELSE 0 END), 0) AS adjusted_points,
+           COUNT(DISTINCT mpl.member_id) AS active_members
+         FROM member_points_ledger mpl
+         WHERE mpl.business_id = ? AND mpl.created_at BETWEEN ? AND ? ${pointsBranch.sql}`,
+        [req.user.business_id, start, end, ...pointsBranch.params]
+      ),
+      query(
+        `SELECT
+           DATE(mpl.created_at) AS bucket,
+           COALESCE(SUM(CASE WHEN mpl.transaction_type = 'earn' THEN mpl.points ELSE 0 END), 0) AS earned,
+           COALESCE(SUM(CASE WHEN mpl.transaction_type = 'redeem' THEN mpl.points ELSE 0 END), 0) AS redeemed,
+           COALESCE(SUM(CASE WHEN mpl.transaction_type = 'adjust' THEN mpl.points ELSE 0 END), 0) AS adjusted
+         FROM member_points_ledger mpl
+         WHERE mpl.business_id = ? AND mpl.created_at BETWEEN ? AND ? ${pointsBranch.sql}
+         GROUP BY bucket
+         ORDER BY bucket ASC`,
+        [req.user.business_id, start, end, ...pointsBranch.params]
+      ),
+      query(
+        `SELECT
+           COUNT(*) AS order_count,
+           COALESCE(SUM(co.total), 0) AS total,
+           SUM(CASE WHEN co.payment_status = 'paid' THEN 1 ELSE 0 END) AS paid_count,
+           SUM(CASE WHEN co.fulfillment_status = 'completed' THEN 1 ELSE 0 END) AS completed_count
+         FROM customer_orders co
+         WHERE co.business_id = ? AND co.created_at BETWEEN ? AND ? ${orderBranch.sql}`,
+        [req.user.business_id, start, end, ...orderBranch.params]
+      ),
+      query(
+        `SELECT
+           COALESCE(s.membership_tier_name, 'No Membership') AS tier_name,
+           COUNT(*) AS order_count,
+           COALESCE(SUM(s.subtotal), 0) AS subtotal,
+           COALESCE(SUM(s.membership_discount), 0) AS membership_discount,
+           COALESCE(SUM(s.loyalty_discount), 0) AS loyalty_discount,
+           COALESCE(SUM(s.total), 0) AS total
+         FROM sales s
+         WHERE s.business_id = ? AND s.sale_date BETWEEN ? AND ? ${salesBranch.sql}
+         GROUP BY tier_name
+         ORDER BY membership_discount DESC, total DESC`,
+        salesScope
+      )
+    ]);
+
+    const summary = salesSummary[0] || {};
+    const wallet = walletUsage[0] || {};
+    const members = membershipSummary[0] || {};
+    const points = pointsSummary[0] || {};
+    const digital = digitalOrders[0] || {};
+    const totalSales = Number(summary.total_sales || 0);
+    const walletPayment = Number(summary.wallet_payment || 0);
+    const totalDiscounts =
+      Number(summary.membership_discount || 0) +
+      Number(summary.loyalty_discount || 0) +
+      Number(summary.giftcard_discount || 0);
+
+    res.json({
+      success: true,
+      data: {
+        range: { start, end, branch_id: branchId || null },
+        kpis: {
+          total_sales: totalSales,
+          order_count: Number(summary.order_count || 0),
+          average_order_value: Number(summary.average_order_value || 0),
+          wallet_payment: walletPayment,
+          wallet_sales_share: totalSales > 0 ? walletPayment / totalSales : 0,
+          wallet_credited: Number(wallet.credited_amount || 0),
+          wallet_debited: Number(wallet.debited_amount || 0),
+          average_topup: Number(wallet.average_topup || 0),
+          wallet_members: Number(wallet.wallet_members || 0),
+          wallet_liability: Number(members.wallet_liability || 0),
+          member_count: Number(members.member_count || 0),
+          active_members: Number(members.active_members || 0),
+          new_members: Number(members.new_members || 0),
+          purchasing_members: Number(summary.purchasing_members || 0),
+          outstanding_points: Number(members.outstanding_points || 0),
+          lifetime_points: Number(members.lifetime_points || 0),
+          earned_points: Number(points.earned_points || 0),
+          redeemed_points: Number(points.redeemed_points || 0),
+          total_discounts: totalDiscounts,
+          reward_points_redeemed: Number(summary.reward_points_redeemed || 0),
+          points_earned: Number(summary.points_earned || 0),
+          digital_order_count: Number(digital.order_count || 0),
+          digital_order_total: Number(digital.total || 0)
+        },
+        wallet: {
+          usage: wallet,
+          trend: walletTrend,
+          sources: walletSources
+        },
+        sales: {
+          category_sales: categorySales,
+          top_items: topItems,
+          promotion_signals: promotionSignals
+        },
+        membership: {
+          summary: members,
+          tier_activity: tierActivity,
+          leaderboard: memberLeaderboard
+        },
+        points: {
+          summary: points,
+          trend: pointsTrend
+        },
+        digital_orders: digital
+      }
+    });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }

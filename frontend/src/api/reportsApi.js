@@ -35,3 +35,8 @@ export const getBranchesReport = async (params = {}) => {
   const { data } = await API.get("/reports/branches", { params });
   return data;
 };
+
+export const getAdvancedAnalyticsDashboard = async (params = {}) => {
+  const { data } = await API.get("/reports/advanced-dashboard", { params });
+  return data;
+};

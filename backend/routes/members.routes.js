@@ -17,6 +17,19 @@ const roundMoney = (value) => {
   if (!Number.isFinite(amount)) return 0;
   return Number(amount.toFixed(2));
 };
+const getRewardBadge = (lifetimePoints) => {
+  const points = Number(lifetimePoints || 0);
+  if (points >= 5000) return "Legend";
+  if (points >= 2500) return "Champion";
+  if (points >= 1000) return "Pro";
+  if (points >= 250) return "Rising Star";
+  return "Starter";
+};
+const normalizePointsAmount = (value) => {
+  const points = Math.floor(Number(value));
+  if (!Number.isFinite(points) || points <= 0) return null;
+  return points;
+};
 const normalizeWalletAmount = (value) => {
   const amount = Number(value);
   if (!Number.isFinite(amount) || amount <= 0) return null;
@@ -62,6 +75,9 @@ router.get("/wallet/balance/:token", async (req, res) => {
          COALESCE(mt.name, m.tier) AS membership_tier_name,
          m.wallet_token,
          m.wallet_balance,
+         m.points,
+         m.lifetime_points,
+         m.reward_badge,
          m.created_at
        FROM members m
        LEFT JOIN membership_tiers mt ON mt.id = m.membership_tier_id
@@ -85,6 +101,9 @@ router.get("/wallet/balance/:token", async (req, res) => {
         membership_tier_name: rows[0].membership_tier_name,
         wallet_token: rows[0].wallet_token,
         wallet_balance: roundMoney(rows[0].wallet_balance || 0),
+        points: Number(rows[0].points || 0),
+        lifetime_points: Number(rows[0].lifetime_points || 0),
+        reward_badge: rows[0].reward_badge || getRewardBadge(rows[0].lifetime_points || 0),
         created_at: rows[0].created_at
       }
     });
@@ -892,6 +911,154 @@ router.post("/wallet/transactions", requirePermission("members"), async (req, re
   }
 });
 
+router.get("/points/ledger", requirePermission("members"), async (req, res) => {
+  try {
+    if (!ensureBusinessContext(req, res)) return;
+
+    const memberId = req.query.member_id ? Number(req.query.member_id) : null;
+    const params = [req.user.business_id];
+    let where = `WHERE mpl.business_id = ?`;
+
+    if (memberId) {
+      where += ` AND mpl.member_id = ?`;
+      params.push(memberId);
+    }
+
+    const rows = await query(
+      `SELECT
+         mpl.*,
+         m.name AS member_name,
+         m.member_code,
+         u.name AS created_by_name
+       FROM member_points_ledger mpl
+       LEFT JOIN members m ON m.id = mpl.member_id
+       LEFT JOIN users u ON u.id = mpl.created_by
+       ${where}
+       ORDER BY mpl.created_at DESC, mpl.id DESC
+       LIMIT 250`,
+      params
+    );
+
+    res.json({ success: true, data: rows });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+router.post("/points/ledger", requirePermission("members"), async (req, res) => {
+  const conn = await pool.getConnection();
+
+  try {
+    if (!ensureBusinessContext(req, res)) return;
+
+    const memberId = Number(req.body.member_id);
+    const transactionType = String(req.body.transaction_type || "").toLowerCase();
+    const points = normalizePointsAmount(req.body.points);
+    const note = String(req.body.note || "").trim() || null;
+    const reference = String(req.body.reference || "").trim() || null;
+
+    if (!Number.isInteger(memberId) || memberId <= 0) {
+      return res.status(400).json({ success: false, message: "Member is required" });
+    }
+
+    if (!["earn", "redeem", "adjust"].includes(transactionType)) {
+      return res.status(400).json({
+        success: false,
+        message: "Transaction type must be earn, redeem, or adjust"
+      });
+    }
+
+    if (!points) {
+      return res.status(400).json({
+        success: false,
+        message: "Points must be greater than zero"
+      });
+    }
+
+    await conn.beginTransaction();
+
+    const [memberRows] = await conn.execute(
+      `SELECT id, name, member_code, points, lifetime_points
+       FROM members
+       WHERE id = ? AND business_id = ?
+       LIMIT 1
+       FOR UPDATE`,
+      [memberId, req.user.business_id]
+    );
+
+    if (!memberRows.length) {
+      await conn.rollback();
+      return res.status(404).json({ success: false, message: "Member not found" });
+    }
+
+    const member = memberRows[0];
+    const pointsBefore = Math.floor(Number(member.points || 0));
+    const pointsAfter =
+      transactionType === "redeem" ? pointsBefore - points : pointsBefore + points;
+
+    if (pointsAfter < 0) {
+      await conn.rollback();
+      return res.status(400).json({
+        success: false,
+        message: "Insufficient reward points"
+      });
+    }
+
+    const lifetimeBefore = Math.floor(Number(member.lifetime_points || 0));
+    const lifetimeAfter =
+      transactionType === "earn" || transactionType === "adjust"
+        ? lifetimeBefore + points
+        : lifetimeBefore;
+    const rewardBadge = getRewardBadge(lifetimeAfter);
+
+    await conn.execute(
+      `UPDATE members
+       SET points = ?,
+           lifetime_points = ?,
+           reward_badge = ?
+       WHERE id = ? AND business_id = ?`,
+      [pointsAfter, lifetimeAfter, rewardBadge, memberId, req.user.business_id]
+    );
+
+    await conn.execute(
+      `INSERT INTO member_points_ledger
+       (member_id, transaction_type, points, points_before, points_after, source, reference, note, created_by, business_id, branch_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        memberId,
+        transactionType,
+        points,
+        pointsBefore,
+        pointsAfter,
+        "manual",
+        reference,
+        note,
+        req.user.id,
+        req.user.business_id,
+        req.user.branch_id || null
+      ]
+    );
+
+    await conn.commit();
+
+    res.status(201).json({
+      success: true,
+      message: "Reward points updated",
+      data: {
+        ...member,
+        points: pointsAfter,
+        lifetime_points: lifetimeAfter,
+        reward_badge: rewardBadge
+      }
+    });
+  } catch (error) {
+    await conn.rollback();
+    res.status(500).json({ success: false, message: error.message });
+  } finally {
+    conn.release();
+  }
+});
+
 router.get("/:id/history", requirePermission("members"), async (req, res) => {
   try {
     if (!ensureBusinessContext(req, res)) return;
@@ -908,11 +1075,20 @@ router.get("/:id/history", requirePermission("members"), async (req, res) => {
        ORDER BY sale_date DESC`,
       [req.user.business_id, member.id, member.name]
     );
+    const pointsLedger = await query(
+      `SELECT *
+       FROM member_points_ledger
+       WHERE business_id = ? AND member_id = ?
+       ORDER BY created_at DESC, id DESC
+       LIMIT 100`,
+      [req.user.business_id, member.id]
+    );
 
     res.json({
       success: true,
       member,
-      sales
+      sales,
+      pointsLedger
     });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
