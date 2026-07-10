@@ -1195,16 +1195,18 @@ router.post("/pending/:id/checkout", requirePermission("pos"), branchAccessMiddl
 
     const saleId = saleResult.insertId;
 
-    await debitMemberWalletForCheckout({
-      conn,
-      businessId: cart.business_id || req.user.business_id,
-      branchId: cart.branch_id || req.user.branch_id || null,
-      memberId: cart.member_id || null,
-      amount: cart.wallet_payment || 0,
-      saleCode,
-      saleId,
-      userId: req.user.id
-    });
+    if (!cart.wallet_debited_at) {
+      await debitMemberWalletForCheckout({
+        conn,
+        businessId: cart.business_id || req.user.business_id,
+        branchId: cart.branch_id || req.user.branch_id || null,
+        memberId: cart.member_id || null,
+        amount: cart.wallet_payment || 0,
+        saleCode,
+        saleId,
+        userId: req.user.id
+      });
+    }
 
     for (const item of items) {
       await conn.execute(

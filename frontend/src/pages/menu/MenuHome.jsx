@@ -1,6 +1,22 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import {
+  FiCalendar,
+  FiCheckCircle,
+  FiClock,
+  FiCreditCard,
+  FiMinus,
+  FiPackage,
+  FiPlus,
+  FiSearch,
+  FiShoppingBag,
+  FiShoppingCart,
+  FiTrash2,
+  FiTruck,
+  FiUser,
+  FiUsers
+} from "react-icons/fi";
+import {
   createCustomerReservation,
   createCustomerOrder,
   getCustomerOrderStatus,
@@ -64,6 +80,8 @@ export default function MenuHome() {
     reservation_date: "",
     reservation_time: "",
     duration_minutes: "60",
+    payment_method: "pay_at_counter",
+    wallet_payment: "",
     notes: ""
   });
 
@@ -107,6 +125,19 @@ export default function MenuHome() {
     );
   }, [cart]);
 
+  const tabs = [
+    { key: "menu", label: "Browse Menu", icon: <FiShoppingBag /> },
+    {
+      key: "cart",
+      label: cartCount > 0 ? `Cart (${cartCount})` : "Cart",
+      icon: <FiShoppingCart />
+    },
+    { key: "checkout", label: "Checkout", icon: <FiCreditCard /> },
+    { key: "member", label: "Member Access", icon: <FiUser /> },
+    { key: "reservations", label: "Book Session", icon: <FiCalendar /> },
+    { key: "status", label: "Track Order", icon: <FiSearch /> }
+  ];
+
   const addToCart = (product) => {
     const productId = Number(product.id);
 
@@ -126,7 +157,7 @@ export default function MenuHome() {
         {
           product_id: productId,
           item_name: product.name,
-          icon: product.icon || "🍽️",
+          icon: product.icon || "",
           qty: 1,
           unit_price: Number(product.price || 0),
           notes: "",
@@ -317,6 +348,15 @@ export default function MenuHome() {
       return;
     }
 
+    if (
+      reservationForm.payment_method === "wallet" &&
+      (!activeMember || Number(reservationForm.wallet_payment || 0) <= 0)
+    ) {
+      setError("Find your member account and enter a wallet amount before using wallet payment");
+      setView("member");
+      return;
+    }
+
     try {
       setReserving(true);
       setError("");
@@ -331,8 +371,20 @@ export default function MenuHome() {
         reservation_date: reservationForm.reservation_date,
         reservation_time: reservationForm.reservation_time,
         duration_minutes: Number(reservationForm.duration_minutes || 60),
+        payment_method: reservationForm.payment_method,
+        wallet_payment:
+          reservationForm.payment_method === "wallet"
+            ? Number(reservationForm.wallet_payment || 0)
+            : 0,
         notes: reservationForm.notes || null
       });
+
+      if (res.member) {
+        setActiveMember((prev) => ({
+          ...(prev || {}),
+          ...res.member
+        }));
+      }
 
       setReservationMessage(
         res?.reservation_code
@@ -343,6 +395,7 @@ export default function MenuHome() {
         ...prev,
         reservation_date: "",
         reservation_time: "",
+        wallet_payment: "",
         notes: ""
       }));
     } catch (err) {
@@ -408,21 +461,28 @@ export default function MenuHome() {
     <div className={styles.page}>
       <div className={styles.hero}>
         <div className={styles.head}>
+          <span className={styles.kicker}>Online ordering and reservations</span>
           <h1>{business?.name || businessSlug}</h1>
           <p>{branch?.name || branchSlug}</p>
         </div>
 
         <div className={styles.heroMeta}>
           <div className={styles.heroPill}>
-            <span>🛒</span>
+            <span><FiShoppingCart /></span>
             <strong>{cartCount}</strong>
             <small>items</small>
           </div>
 
           <div className={styles.heroPill}>
-            <span>💳</span>
+            <span><FiCreditCard /></span>
             <strong>₦{cartTotal.toLocaleString("en-NG")}</strong>
             <small>total</small>
+          </div>
+
+          <div className={styles.heroPill}>
+            <span><FiUser /></span>
+            <strong>{activeMember ? "Member" : "Guest"}</strong>
+            <small>{activeMember?.name || "checkout ready"}</small>
           </div>
         </div>
       </div>
@@ -430,76 +490,42 @@ export default function MenuHome() {
       {error ? <div className={styles.error}>{error}</div> : null}
 
       <div className={styles.tabs} role="tablist" aria-label="Menu sections">
-        <button
-          type="button"
-          role="tab"
-          aria-selected={view === "menu"}
-          className={view === "menu" ? styles.tabActive : styles.tab}
-          onClick={() => setView("menu")}
-        >
-          Menu
-        </button>
-
-        <button
-          type="button"
-          role="tab"
-          aria-selected={view === "cart"}
-          className={view === "cart" ? styles.tabActive : styles.tab}
-          onClick={() => setView("cart")}
-        >
-          Cart {cartCount > 0 ? `(${cartCount})` : ""}
-        </button>
-
-        <button
-          type="button"
-          role="tab"
-          aria-selected={view === "checkout"}
-          className={view === "checkout" ? styles.tabActive : styles.tab}
-          onClick={() => setView("checkout")}
-        >
-          Checkout
-        </button>
-
-        <button
-          type="button"
-          role="tab"
-          aria-selected={view === "member"}
-          className={view === "member" ? styles.tabActive : styles.tab}
-          onClick={() => setView("member")}
-        >
-          Member
-        </button>
-
-        <button
-          type="button"
-          role="tab"
-          aria-selected={view === "reservations"}
-          className={view === "reservations" ? styles.tabActive : styles.tab}
-          onClick={() => setView("reservations")}
-        >
-          Reservations
-        </button>
-
-        <button
-          type="button"
-          role="tab"
-          aria-selected={view === "status"}
-          className={view === "status" ? styles.tabActive : styles.tab}
-          onClick={() => setView("status")}
-        >
-          Track Order
-        </button>
+        {tabs.map((tab) => (
+          <button
+            key={tab.key}
+            type="button"
+            role="tab"
+            aria-selected={view === tab.key}
+            className={view === tab.key ? styles.tabActive : styles.tab}
+            onClick={() => setView(tab.key)}
+          >
+            <span className={styles.tabIcon}>{tab.icon}</span>
+            <span>{tab.label}</span>
+          </button>
+        ))}
       </div>
 
       <div className={styles.contentShell}>
         {view === "menu" && (
           <div className={styles.sectionBox}>
+            <div className={styles.sectionHeader}>
+              <div className={styles.sectionTitleRow}>
+                <span className={styles.sectionIcon}><FiPackage /></span>
+                <div>
+                  <h2>Order food and drinks</h2>
+                  <p>Choose available items, review your cart, then pay now or at the counter.</p>
+                </div>
+              </div>
+            </div>
+
             {products.length ? (
               <div className={styles.grid}>
                 {products.map((product) => (
                   <article key={product.id} className={styles.card}>
                     <div className={styles.cardTop}>
-                      <span className={styles.cardIcon}>{product.icon || "🍽️"}</span>
+                      <span className={styles.cardIcon}>
+                        {product.icon || <FiShoppingBag />}
+                      </span>
                       <div>
                         <strong>{product.name}</strong>
                         <p className={styles.typeText}>
@@ -519,9 +545,13 @@ export default function MenuHome() {
                           : styles.unavailable
                       }
                     >
-                      {Number(product.available) === 1
-                        ? "Available"
-                        : "Out of stock"}
+                      {Number(product.available) === 1 ? (
+                        <>
+                          <FiCheckCircle /> Available now
+                        </>
+                      ) : (
+                        "Out of stock"
+                      )}
                     </p>
 
                     <button
@@ -530,7 +560,7 @@ export default function MenuHome() {
                       onClick={() => addToCart(product)}
                       disabled={Number(product.available) !== 1}
                     >
-                      Add to cart
+                      <FiPlus /> Add to cart
                     </button>
                   </article>
                 ))}
@@ -547,8 +577,13 @@ export default function MenuHome() {
         {view === "cart" && (
           <div className={styles.sectionBox}>
             <div className={styles.sectionHeader}>
-              <h2>Your cart</h2>
-              <p>Review your selected items before checkout.</p>
+              <div className={styles.sectionTitleRow}>
+                <span className={styles.sectionIcon}><FiShoppingCart /></span>
+                <div>
+                  <h2>Your cart</h2>
+                  <p>Adjust quantities, remove items, then continue to checkout.</p>
+                </div>
+              </div>
             </div>
 
             {!cart.length ? (
@@ -563,7 +598,10 @@ export default function MenuHome() {
                     <div key={item.product_id} className={styles.cartRow}>
                       <div>
                         <strong>
-                          {item.icon || "🍽️"} {item.item_name}
+                          <span className={styles.inlineItemIcon}>
+                            {item.icon || <FiShoppingBag />}
+                          </span>
+                          {item.item_name}
                         </strong>
                         <p>
                           ₦{Number(item.unit_price || 0).toLocaleString("en-NG")}
@@ -576,8 +614,9 @@ export default function MenuHome() {
                           onClick={() =>
                             updateQty(item.product_id, Number(item.qty || 0) - 1)
                           }
+                          aria-label={`Decrease ${item.item_name}`}
                         >
-                          -
+                          <FiMinus />
                         </button>
 
                         <span>{item.qty}</span>
@@ -587,14 +626,17 @@ export default function MenuHome() {
                           onClick={() =>
                             updateQty(item.product_id, Number(item.qty || 0) + 1)
                           }
+                          aria-label={`Increase ${item.item_name}`}
                         >
-                          +
+                          <FiPlus />
                         </button>
 
                         <button
                           type="button"
                           onClick={() => removeFromCart(item.product_id)}
+                          aria-label={`Remove ${item.item_name}`}
                         >
+                          <FiTrash2 />
                           Remove
                         </button>
                       </div>
@@ -612,7 +654,7 @@ export default function MenuHome() {
                   className={styles.linkBtn}
                   onClick={() => setView("checkout")}
                 >
-                  Continue to checkout
+                  <FiCreditCard /> Continue to checkout
                 </button>
               </>
             )}
@@ -622,8 +664,13 @@ export default function MenuHome() {
         {view === "checkout" && (
           <form className={styles.sectionBox} onSubmit={handlePlaceOrder}>
             <div className={styles.sectionHeader}>
-              <h2>Checkout</h2>
-              <p>Fill in your details to place your order.</p>
+              <div className={styles.sectionTitleRow}>
+                <span className={styles.sectionIcon}><FiCreditCard /></span>
+                <div>
+                  <h2>Checkout</h2>
+                  <p>Guest checkout is available. Members can use wallet credit after email lookup.</p>
+                </div>
+              </div>
             </div>
 
             {activeMember ? (
@@ -655,7 +702,7 @@ export default function MenuHome() {
                   setView("member");
                 }}
               >
-                I have a member account
+                <FiUser /> I have a member account
               </button>
             )}
 
@@ -753,7 +800,7 @@ export default function MenuHome() {
               className={styles.linkBtn}
               disabled={!cart.length || submitting}
             >
-              {submitting ? "Placing order..." : "Place order"}
+              {submitting ? "Placing order..." : <><FiCheckCircle /> Place order</>}
             </button>
           </form>
         )}
@@ -761,8 +808,13 @@ export default function MenuHome() {
         {view === "member" && (
           <div className={styles.sectionBox}>
             <div className={styles.sectionHeader}>
-              <h2>Member account</h2>
-              <p>Use your member email for wallet checkout and member-linked orders.</p>
+              <div className={styles.sectionTitleRow}>
+                <span className={styles.sectionIcon}><FiUser /></span>
+                <div>
+                  <h2>Member access</h2>
+                  <p>Find your account by email, use wallet credit, or submit a new member registration.</p>
+                </div>
+              </div>
             </div>
 
             {memberMessage ? <div className={styles.notice}>{memberMessage}</div> : null}
@@ -784,7 +836,7 @@ export default function MenuHome() {
                   className={styles.secondaryAction}
                   onClick={() => setActiveMember(null)}
                 >
-                  Sign out member
+                  <FiUser /> Sign out member
                 </button>
               </div>
             ) : (
@@ -796,15 +848,20 @@ export default function MenuHome() {
                   onChange={(e) => setMemberLookupEmail(e.target.value)}
                 />
                 <button type="submit" className={styles.linkBtn} disabled={lookupLoading}>
-                  {lookupLoading ? "Checking..." : "Find member"}
+                  {lookupLoading ? "Checking..." : <><FiSearch /> Find member</>}
                 </button>
               </form>
             )}
 
             <form className={styles.memberRegisterBox} onSubmit={handleRegisterMember}>
               <div className={styles.sectionHeader}>
-                <h2>Register as a member</h2>
-                <p>New registrations are sent to staff for verification.</p>
+                <div className={styles.sectionTitleRow}>
+                  <span className={styles.sectionIcon}><FiUsers /></span>
+                  <div>
+                    <h2>Register as a member</h2>
+                    <p>New registrations are sent to staff for verification before wallet access is enabled.</p>
+                  </div>
+                </div>
               </div>
 
               <div className={styles.formGrid}>
@@ -854,7 +911,7 @@ export default function MenuHome() {
               />
 
               <button type="submit" className={styles.linkBtn} disabled={registering}>
-                {registering ? "Submitting..." : "Submit registration"}
+                {registering ? "Submitting..." : <><FiCheckCircle /> Submit registration</>}
               </button>
             </form>
           </div>
@@ -863,8 +920,13 @@ export default function MenuHome() {
         {view === "reservations" && (
           <form className={styles.sectionBox} onSubmit={handleCreateReservation}>
             <div className={styles.sectionHeader}>
-              <h2>Book a game session</h2>
-              <p>Reserve a time and staff will confirm availability.</p>
+              <div className={styles.sectionTitleRow}>
+                <span className={styles.sectionIcon}><FiCalendar /></span>
+                <div>
+                  <h2>Book a game session</h2>
+                  <p>Request a reservation time for arcade, console, events, or general game sessions.</p>
+                </div>
+              </div>
             </div>
 
             {reservationMessage ? (
@@ -963,6 +1025,36 @@ export default function MenuHome() {
                 <option value="90">1.5 hours</option>
                 <option value="120">2 hours</option>
               </select>
+              <select
+                value={reservationForm.payment_method}
+                onChange={(e) =>
+                  setReservationForm((prev) => ({
+                    ...prev,
+                    payment_method: e.target.value
+                  }))
+                }
+              >
+                <option value="pay_at_counter">Pay at counter</option>
+                <option value="card">Card / online payment</option>
+                <option value="transfer">Bank transfer</option>
+                <option value="wallet" disabled={!activeMember}>
+                  Member wallet
+                </option>
+              </select>
+              {reservationForm.payment_method === "wallet" ? (
+                <input
+                  type="number"
+                  min="0"
+                  placeholder="Wallet amount"
+                  value={reservationForm.wallet_payment}
+                  onChange={(e) =>
+                    setReservationForm((prev) => ({
+                      ...prev,
+                      wallet_payment: e.target.value
+                    }))
+                  }
+                />
+              ) : null}
             </div>
 
             <textarea
@@ -974,7 +1066,7 @@ export default function MenuHome() {
             />
 
             <button type="submit" className={styles.linkBtn} disabled={reserving}>
-              {reserving ? "Submitting..." : "Request reservation"}
+              {reserving ? "Submitting..." : <><FiClock /> Request reservation</>}
             </button>
           </form>
         )}
@@ -982,8 +1074,13 @@ export default function MenuHome() {
         {view === "status" && (
           <div className={styles.sectionBox}>
             <div className={styles.sectionHeader}>
-              <h2>Track order</h2>
-              <p>Enter your order code to see live progress.</p>
+              <div className={styles.sectionTitleRow}>
+                <span className={styles.sectionIcon}><FiSearch /></span>
+                <div>
+                  <h2>Track order</h2>
+                  <p>Use your order code to check fulfillment and payment status.</p>
+                </div>
+              </div>
             </div>
 
             <div className={styles.statusLookup}>
@@ -1001,17 +1098,17 @@ export default function MenuHome() {
                 <div className={styles.infoGrid}>
                   <div className={styles.infoCard}>
                     <span>Order</span>
-                    <strong>{orderInfo.order.order_code}</strong>
+                    <strong><FiPackage /> {orderInfo.order.order_code}</strong>
                   </div>
 
                   <div className={styles.infoCard}>
                     <span>Status</span>
-                    <strong>{orderInfo.order.fulfillment_status || "pending"}</strong>
+                    <strong><FiClock /> {orderInfo.order.fulfillment_status || "pending"}</strong>
                   </div>
 
                   <div className={styles.infoCard}>
                     <span>Payment</span>
-                    <strong>{orderInfo.order.payment_status || "pending"}</strong>
+                    <strong><FiCreditCard /> {orderInfo.order.payment_status || "pending"}</strong>
                   </div>
 
                   <div className={styles.infoCard}>
@@ -1023,7 +1120,7 @@ export default function MenuHome() {
 
                   <div className={styles.infoCard}>
                     <span>Type</span>
-                    <strong>{orderInfo.order.order_type || "-"}</strong>
+                    <strong><FiTruck /> {orderInfo.order.order_type || "-"}</strong>
                   </div>
 
                   {orderInfo.order.table_number ? (
@@ -1038,7 +1135,10 @@ export default function MenuHome() {
                   {orderInfo.items.map((item) => (
                     <div key={item.id} className={styles.statusItem}>
                       <span>
-                        {item.icon || "🍽️"} {item.item_name} x{item.qty}
+                        <span className={styles.inlineItemIcon}>
+                          {item.icon || <FiShoppingBag />}
+                        </span>
+                        {item.item_name} x{item.qty}
                       </span>
                       <strong>
                         ₦{Number(item.final_price || 0).toLocaleString("en-NG")}

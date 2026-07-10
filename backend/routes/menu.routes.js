@@ -480,6 +480,10 @@ router.post("/:businessSlug/:branchSlug/reservations", async (req, res) => {
     const reservationTime = String(req.body.reservation_time || "").trim();
     const durationMinutes = Math.max(30, Number(req.body.duration_minutes || 60));
     const notes = String(req.body.notes || "").trim() || null;
+    const paymentMethod = ["pay_at_counter", "wallet", "card", "transfer"].includes(req.body.payment_method)
+      ? req.body.payment_method
+      : "pay_at_counter";
+    const walletRequest = paymentMethod === "wallet" ? roundMoney(req.body.wallet_payment || 0) : 0;
 
     if (!customerName && !customerEmail) {
       return res.status(400).json({ success: false, message: "Name or member email is required" });
@@ -494,10 +498,30 @@ router.post("/:businessSlug/:branchSlug/reservations", async (req, res) => {
     const member = await findActiveMemberByEmail(resolved.business.id, customerEmail, conn);
     const reservationCode = `RSV-${Date.now()}`;
 
+    if (walletRequest > 0 && !member) {
+      await conn.rollback();
+      return res.status(400).json({
+        success: false,
+        message: "Wallet payment requires an active member email"
+      });
+    }
+
+    const walletResult = walletRequest
+      ? await debitMemberWallet(conn, {
+          member,
+          amount: walletRequest,
+          source: "online_reservation",
+          reference: reservationCode,
+          note: "Online reservation wallet payment",
+          businessId: resolved.business.id,
+          branchId: resolved.branch.id
+        })
+      : { walletPayment: 0 };
+
     const [result] = await conn.execute(
       `INSERT INTO customer_reservations
-       (business_id, branch_id, reservation_code, member_id, customer_name, customer_phone, customer_email, session_type, party_size, reservation_date, reservation_time, duration_minutes, notes, payment_method)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       (business_id, branch_id, reservation_code, member_id, customer_name, customer_phone, customer_email, session_type, party_size, reservation_date, reservation_time, duration_minutes, notes, payment_method, wallet_payment)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         resolved.business.id,
         resolved.branch.id,
@@ -512,7 +536,8 @@ router.post("/:businessSlug/:branchSlug/reservations", async (req, res) => {
         reservationTime,
         durationMinutes,
         notes,
-        "pay_at_counter"
+        paymentMethod,
+        walletResult.walletPayment || 0
       ]
     );
 
@@ -527,7 +552,8 @@ router.post("/:businessSlug/:branchSlug/reservations", async (req, res) => {
         ? {
             id: member.id,
             name: member.name,
-            member_code: member.member_code
+            member_code: member.member_code,
+            wallet_balance: walletResult.balanceAfter ?? roundMoney(member.wallet_balance || 0)
           }
         : null
     });
@@ -711,8 +737,8 @@ router.post("/admin/orders/:id/hold", requirePermission("pos"), async (req, res)
     const pendingTotal = Math.max(0, roundMoney(Number(order.total || 0) - walletPayment));
     const [cartResult] = await conn.execute(
       `INSERT INTO pending_carts
-      (cart_code, customer, member_id, cashier_id, shift_id, subtotal, discount, loyalty_discount, giftcard_discount, wallet_payment, tax, total, currency, note, business_id, branch_id)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      (cart_code, customer, member_id, cashier_id, shift_id, subtotal, discount, loyalty_discount, giftcard_discount, wallet_payment, wallet_debited_at, wallet_debit_source, tax, total, currency, note, business_id, branch_id)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         cartCode,
         order.customer_name || "Walk-in",
@@ -724,6 +750,8 @@ router.post("/admin/orders/:id/hold", requirePermission("pos"), async (req, res)
         0,
         0,
         walletPayment,
+        walletPayment > 0 ? new Date() : null,
+        walletPayment > 0 ? "online_order" : null,
         order.tax || 0,
         pendingTotal,
         order.currency || "NGN",
