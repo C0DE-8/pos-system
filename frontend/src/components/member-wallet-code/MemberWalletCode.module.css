@@ -1,0 +1,50 @@
+.wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.header span {
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.header strong {
+  color: #0f172a;
+  font-size: 13px;
+  word-break: break-word;
+}
+
+.codeBox {
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 12px;
+  background: #ffffff;
+  overflow-x: auto;
+}
+
+.barcode {
+  width: 100%;
+  min-width: 360px;
+  height: 86px;
+  display: block;
+}
+
+.lookupUrl {
+  margin: 0;
+  color: #64748b;
+  font-size: 12px;
+  line-height: 1.45;
+  word-break: break-all;
+}

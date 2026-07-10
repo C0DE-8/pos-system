@@ -10,6 +10,7 @@ import {
   createMember,
   getMemberHistory
 } from "../../api/membersApi";
+import MemberWalletCode from "../member-wallet-code/MemberWalletCode";
 import styles from "./MembersManagement.module.css";
 
 const initialForm = {
@@ -1137,6 +1138,12 @@ export default function MembersManagement() {
                     <strong>{formatDateTime(selectedMember.created_at)}</strong>
                   </div>
                 </div>
+
+                {selectedMember.wallet_token ? (
+                  <div className={styles.walletCodeSection}>
+                    <MemberWalletCode walletToken={selectedMember.wallet_token} />
+                  </div>
+                ) : null}
 
                 <div className={styles.itemsSection}>
                   <div className={styles.itemsHeader}>

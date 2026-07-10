@@ -5,6 +5,7 @@ import {
   getMembers,
   getWalletTransactions
 } from "../../api/membersApi";
+import MemberWalletCode from "../member-wallet-code/MemberWalletCode";
 import styles from "./WalletManagement.module.css";
 
 const initialForm = {
@@ -198,16 +199,21 @@ export default function WalletManagement() {
           </div>
 
           {selectedMember ? (
-            <div className={styles.walletSummary}>
-              <div>
-                <span>Wallet Balance</span>
-                <strong>{formatMoney(selectedMember.wallet_balance)}</strong>
+            <>
+              <div className={styles.walletSummary}>
+                <div>
+                  <span>Wallet Balance</span>
+                  <strong>{formatMoney(selectedMember.wallet_balance)}</strong>
+                </div>
+                <div>
+                  <span>Wallet Token</span>
+                  <strong>{selectedMember.wallet_token || "-"}</strong>
+                </div>
               </div>
-              <div>
-                <span>Wallet Token</span>
-                <strong>{selectedMember.wallet_token || "-"}</strong>
+              <div className={styles.codeSection}>
+                <MemberWalletCode walletToken={selectedMember.wallet_token} />
               </div>
-            </div>
+            </>
           ) : null}
         </section>
 

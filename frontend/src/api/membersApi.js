@@ -41,6 +41,11 @@ export const createWalletTransaction = async (payload) => {
   return data;
 };
 
+export const getWalletBalanceByToken = async (token) => {
+  const { data } = await API.get(`/members/wallet/balance/${encodeURIComponent(token)}`);
+  return data;
+};
+
 // create member
 export const createMember = async (payload) => {
   const { data } = await API.post("/members", payload);

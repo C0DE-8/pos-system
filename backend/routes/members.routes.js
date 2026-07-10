@@ -5,8 +5,6 @@ const { ensureBusinessContext } = require("../utils/tenant");
 
 const router = express.Router();
 
-router.use(authenticateToken);
-
 const DEFAULT_TIER_NAMES = ["Regular", "VIP"];
 
 const normalizeTierName = (value) => String(value || "").trim();
@@ -31,6 +29,57 @@ const normalizeDiscountPct = (value) => {
   }
   return discountPct;
 };
+
+router.get("/wallet/balance/:token", async (req, res) => {
+  try {
+    const walletToken = String(req.params.token || "").trim();
+
+    if (!walletToken) {
+      return res.status(400).json({
+        success: false,
+        message: "Wallet token is required"
+      });
+    }
+
+    const rows = await query(
+      `SELECT
+         m.name,
+         m.member_code,
+         COALESCE(mt.name, m.tier) AS membership_tier_name,
+         m.wallet_token,
+         m.wallet_balance,
+         m.created_at
+       FROM members m
+       LEFT JOIN membership_tiers mt ON mt.id = m.membership_tier_id
+       WHERE m.wallet_token = ?
+       LIMIT 1`,
+      [walletToken]
+    );
+
+    if (!rows.length) {
+      return res.status(404).json({
+        success: false,
+        message: "Wallet not found"
+      });
+    }
+
+    res.json({
+      success: true,
+      data: {
+        name: rows[0].name,
+        member_code: rows[0].member_code,
+        membership_tier_name: rows[0].membership_tier_name,
+        wallet_token: rows[0].wallet_token,
+        wallet_balance: roundMoney(rows[0].wallet_balance || 0),
+        created_at: rows[0].created_at
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+router.use(authenticateToken);
 
 async function ensureDefaultMembershipTiers(businessId) {
   for (const tierName of DEFAULT_TIER_NAMES) {

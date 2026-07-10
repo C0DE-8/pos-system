@@ -583,6 +583,12 @@
   border-top: 1px solid #e7eef6;
 }
 
+.walletCodeSection {
+  margin-top: 24px;
+  padding-top: 22px;
+  border-top: 1px solid #e7eef6;
+}
+
 .itemsHeader {
   display: flex;
   align-items: center;

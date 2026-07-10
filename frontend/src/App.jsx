@@ -6,6 +6,7 @@ import Dashboard from "./pages/dashboard/Dashboard";
 import NotFound from "./pages/404/NotFound";
 import ClockPage from "./pages/auth/clock/ClockPage";
 import MenuHome from "./pages/menu/MenuHome";
+import WalletBalancePage from "./pages/wallet/WalletBalancePage";
 
 export default function App() {
   return (
@@ -14,6 +15,7 @@ export default function App() {
 
         <Route path="/" element={<Login />} />
         <Route path="/clock" element={<ClockPage />} />
+        <Route path="/wallet/:token" element={<WalletBalancePage />} />
         <Route path="/menu/:businessSlug/:branchSlug" element={<MenuHome />} />
         <Route path="/menu/:businessSlug/:branchSlug/order/:orderCode" element={<MenuHome />} />
 
