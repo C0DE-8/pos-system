@@ -52,6 +52,16 @@ export const createMember = async (payload) => {
   return data;
 };
 
+export const updateMember = async (id, payload) => {
+  const { data } = await API.put(`/members/${id}`, payload);
+  return data;
+};
+
+export const deleteMember = async (id) => {
+  const { data } = await API.delete(`/members/${id}`);
+  return data;
+};
+
 // get member history
 export const getMemberHistory = async (id) => {
   const { data } = await API.get(`/members/${id}/history`);

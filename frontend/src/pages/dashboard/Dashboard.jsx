@@ -77,7 +77,7 @@ const WAREHOUSE_SUBMENU_ITEMS = [
 ];
 
 const MEMBERS_SUBMENU_ITEMS = [
-  { label: "Member List", sectionKey: "list" },
+  { label: "Member Management", sectionKey: "management" },
   { label: "Wallet Top-Up", sectionKey: "wallet" }
 ];
 
@@ -168,6 +168,10 @@ const getAlertDismissKey = (key) => {
 };
 
 const normalizeMenuLabel = (label) => {
+  if (label === "Member List") {
+    return "Member Management";
+  }
+
   if (label === "Inventory") {
     return DEFAULT_INVENTORY_MENU;
   }
@@ -632,7 +636,7 @@ export default function Dashboard() {
     }
 
     if (
-      activeMenu === "Member List" &&
+      activeMenu === "Member Management" &&
       hasPermission(currentUser, currentPermissions, "members")
     ) {
       return (

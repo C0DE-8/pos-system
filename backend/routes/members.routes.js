@@ -29,6 +29,17 @@ const normalizeDiscountPct = (value) => {
   }
   return discountPct;
 };
+const normalizeMemberOptIn = (value) =>
+  value === false || value === 0 || value === "0" ? 0 : 1;
+const normalizeMemberPayload = (body = {}) => ({
+  name: String(body.name || "").trim(),
+  phone: String(body.phone || "").trim() || null,
+  email: String(body.email || "").trim() || null,
+  birthday: String(body.birthday || "").trim() || null,
+  preferences: String(body.preferences || "").trim() || null,
+  offerNotes: String(body.offer_notes || "").trim() || null,
+  mobileWalletNotifications: normalizeMemberOptIn(body.mobile_wallet_notifications)
+});
 
 router.get("/wallet/balance/:token", async (req, res) => {
   try {
@@ -549,14 +560,14 @@ router.post("/", requirePermission("members"), async (req, res) => {
   try {
     if (!ensureBusinessContext(req, res)) return;
 
-    const { name, phone, email } = req.body;
+    const memberPayload = normalizeMemberPayload(req.body);
     const membershipTierId = await resolveMembershipTierId(
       req.user.business_id,
       req.body.membership_tier_id,
       req.body.tier
     );
 
-    if (!String(name || "").trim()) {
+    if (!memberPayload.name) {
       return res.status(400).json({ success: false, message: "Member name is required" });
     }
 
@@ -583,13 +594,17 @@ router.post("/", requirePermission("members"), async (req, res) => {
 
     const result = await query(
       `INSERT INTO members
-       (member_code, name, phone, email, tier, membership_tier_id, wallet_balance, wallet_token, business_id)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       (member_code, name, phone, email, birthday, preferences, offer_notes, mobile_wallet_notifications, tier, membership_tier_id, wallet_balance, wallet_token, business_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         memberCode,
-        String(name).trim(),
-        String(phone || "").trim() || null,
-        String(email || "").trim() || null,
+        memberPayload.name,
+        memberPayload.phone,
+        memberPayload.email,
+        memberPayload.birthday,
+        memberPayload.preferences,
+        memberPayload.offerNotes,
+        memberPayload.mobileWalletNotifications,
         tierName,
         membershipTierId,
         0,
@@ -605,6 +620,120 @@ router.post("/", requirePermission("members"), async (req, res) => {
       message: "Member added",
       memberCode,
       data: member
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+router.put("/:id", requirePermission("members"), async (req, res) => {
+  try {
+    if (!ensureBusinessContext(req, res)) return;
+
+    const memberId = Number(req.params.id);
+    if (!Number.isInteger(memberId) || memberId <= 0) {
+      return res.status(400).json({ success: false, message: "Invalid member" });
+    }
+
+    const existing = await getMemberById(memberId, req.user.business_id);
+    if (!existing) {
+      return res.status(404).json({ success: false, message: "Member not found" });
+    }
+
+    const memberPayload = normalizeMemberPayload(req.body);
+    if (!memberPayload.name) {
+      return res.status(400).json({ success: false, message: "Member name is required" });
+    }
+
+    const membershipTierId = await resolveMembershipTierId(
+      req.user.business_id,
+      req.body.membership_tier_id,
+      req.body.tier
+    );
+
+    if (
+      req.body.membership_tier_id !== undefined &&
+      req.body.membership_tier_id !== null &&
+      req.body.membership_tier_id !== "" &&
+      !membershipTierId
+    ) {
+      return res.status(400).json({ success: false, message: "Invalid membership tier" });
+    }
+
+    const tierName = membershipTierId
+      ? (
+          await query(
+            `SELECT name
+             FROM membership_tiers
+             WHERE id = ?
+             LIMIT 1`,
+            [membershipTierId]
+          )
+        )[0]?.name || null
+      : normalizeTierName(req.body.tier) || null;
+
+    await query(
+      `UPDATE members
+       SET name = ?,
+           phone = ?,
+           email = ?,
+           birthday = ?,
+           preferences = ?,
+           offer_notes = ?,
+           mobile_wallet_notifications = ?,
+           tier = ?,
+           membership_tier_id = ?
+       WHERE id = ? AND business_id = ?`,
+      [
+        memberPayload.name,
+        memberPayload.phone,
+        memberPayload.email,
+        memberPayload.birthday,
+        memberPayload.preferences,
+        memberPayload.offerNotes,
+        memberPayload.mobileWalletNotifications,
+        tierName,
+        membershipTierId,
+        memberId,
+        req.user.business_id
+      ]
+    );
+
+    const member = await getMemberById(memberId, req.user.business_id);
+
+    res.json({
+      success: true,
+      message: "Member updated",
+      data: member
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+router.delete("/:id", requirePermission("members"), async (req, res) => {
+  try {
+    if (!ensureBusinessContext(req, res)) return;
+
+    const memberId = Number(req.params.id);
+    if (!Number.isInteger(memberId) || memberId <= 0) {
+      return res.status(400).json({ success: false, message: "Invalid member" });
+    }
+
+    const existing = await getMemberById(memberId, req.user.business_id);
+    if (!existing) {
+      return res.status(404).json({ success: false, message: "Member not found" });
+    }
+
+    await query(
+      `DELETE FROM members
+       WHERE id = ? AND business_id = ?`,
+      [memberId, req.user.business_id]
+    );
+
+    res.json({
+      success: true,
+      message: "Member deleted"
     });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });

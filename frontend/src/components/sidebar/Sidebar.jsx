@@ -38,7 +38,7 @@ const WAREHOUSE_SUBMENU_LABELS = [
   "Warehouse History"
 ];
 
-const MEMBERS_SUBMENU_LABELS = ["Member List", "Wallet Top-Up"];
+const MEMBERS_SUBMENU_LABELS = ["Member Management", "Wallet Top-Up"];
 
 const ICONS = {
   Overview: <FiGrid />,
@@ -54,7 +54,7 @@ const ICONS = {
   Reports: <FiBarChart2 />,
   Viewer: <FiEye />,
   Warehouse: <FiArchive />,
-  "Member List": <FiUsers />,
+  "Member Management": <FiUsers />,
   "Wallet Top-Up": <FiCreditCard />,
   "Add Product": <FiBox />,
   "Stock Tools": <FiBox />,

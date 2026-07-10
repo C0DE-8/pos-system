@@ -8,6 +8,8 @@ import {
   createMembershipTier,
   updateMembershipTier,
   createMember,
+  updateMember,
+  deleteMember,
   getMemberHistory
 } from "../../api/membersApi";
 import MemberWalletCode from "../member-wallet-code/MemberWalletCode";
@@ -17,6 +19,10 @@ const initialForm = {
   name: "",
   phone: "",
   email: "",
+  birthday: "",
+  preferences: "",
+  offer_notes: "",
+  mobile_wallet_notifications: true,
   membership_tier_id: ""
 };
 
@@ -31,6 +37,8 @@ export default function MembersManagement() {
   const [discountCategories, setDiscountCategories] = useState([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [memberUpdating, setMemberUpdating] = useState(false);
+  const [deletingMemberId, setDeletingMemberId] = useState(null);
   const [tierSubmitting, setTierSubmitting] = useState(false);
   const [updatingTierId, setUpdatingTierId] = useState(null);
   const [historyLoading, setHistoryLoading] = useState(false);
@@ -39,6 +47,7 @@ export default function MembersManagement() {
   const [tierFilter, setTierFilter] = useState("all");
 
   const [form, setForm] = useState(initialForm);
+  const [editingMember, setEditingMember] = useState(null);
   const [tierForm, setTierForm] = useState(initialTierForm);
   const [editingTier, setEditingTier] = useState(null);
 
@@ -75,12 +84,25 @@ export default function MembersManagement() {
   }, []);
 
   const handleChange = (e) => {
-    const { name, value } = e.target;
+    const { name, type, checked, value } = e.target;
 
     setForm((prev) => ({
       ...prev,
-      [name]: value
+      [name]: type === "checkbox" ? checked : value
     }));
+  };
+
+  const handleEditingMemberChange = (e) => {
+    const { name, type, checked, value } = e.target;
+
+    setEditingMember((prev) =>
+      prev
+        ? {
+            ...prev,
+            [name]: type === "checkbox" ? checked : value
+          }
+        : prev
+    );
   };
 
   const handleTierChange = (e) => {
@@ -168,6 +190,10 @@ export default function MembersManagement() {
         name: form.name.trim(),
         phone: form.phone.trim(),
         email: form.email.trim(),
+        birthday: form.birthday || null,
+        preferences: form.preferences.trim(),
+        offer_notes: form.offer_notes.trim(),
+        mobile_wallet_notifications: form.mobile_wallet_notifications,
         membership_tier_id: form.membership_tier_id
           ? Number(form.membership_tier_id)
           : null
@@ -185,6 +211,96 @@ export default function MembersManagement() {
       setError(err?.response?.data?.message || "Failed to create member");
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const startEditingMember = (member) => {
+    setEditingMember({
+      id: member.id,
+      member_code: member.member_code || "",
+      name: member.name || "",
+      phone: member.phone || "",
+      email: member.email || "",
+      birthday: member.birthday ? moment(member.birthday).format("YYYY-MM-DD") : "",
+      preferences: member.preferences || "",
+      offer_notes: member.offer_notes || "",
+      mobile_wallet_notifications: Number(member.mobile_wallet_notifications ?? 1) === 1,
+      membership_tier_id: member.membership_tier_id ? String(member.membership_tier_id) : ""
+    });
+    setError("");
+    setSuccessMessage("");
+  };
+
+  const cancelEditingMember = () => {
+    setEditingMember(null);
+  };
+
+  const handleUpdateMember = async (e) => {
+    e.preventDefault();
+
+    if (!editingMember?.id) return;
+
+    if (!String(editingMember.name || "").trim()) {
+      setError("Member name is required");
+      return;
+    }
+
+    try {
+      setMemberUpdating(true);
+      setError("");
+      setSuccessMessage("");
+
+      const res = await updateMember(editingMember.id, {
+        name: String(editingMember.name || "").trim(),
+        phone: String(editingMember.phone || "").trim(),
+        email: String(editingMember.email || "").trim(),
+        birthday: editingMember.birthday || null,
+        preferences: String(editingMember.preferences || "").trim(),
+        offer_notes: String(editingMember.offer_notes || "").trim(),
+        mobile_wallet_notifications: editingMember.mobile_wallet_notifications,
+        membership_tier_id: editingMember.membership_tier_id
+          ? Number(editingMember.membership_tier_id)
+          : null
+      });
+
+      setSuccessMessage(
+        res?.data?.name ? `Member updated: ${res.data.name}` : "Member updated successfully"
+      );
+      setEditingMember(null);
+      await fetchMembers();
+    } catch (err) {
+      setError(err?.response?.data?.message || "Failed to update member");
+    } finally {
+      setMemberUpdating(false);
+    }
+  };
+
+  const handleDeleteMember = async (member) => {
+    if (!member?.id) return;
+
+    const confirmed = window.confirm(
+      `Delete ${member.name || "this member"}? Sales history will remain, but the member profile will be removed.`
+    );
+
+    if (!confirmed) return;
+
+    try {
+      setDeletingMemberId(member.id);
+      setError("");
+      setSuccessMessage("");
+
+      const res = await deleteMember(member.id);
+      setSuccessMessage(res?.message || "Member deleted");
+
+      if (editingMember?.id === member.id) {
+        setEditingMember(null);
+      }
+
+      await fetchMembers();
+    } catch (err) {
+      setError(err?.response?.data?.message || "Failed to delete member");
+    } finally {
+      setDeletingMemberId(null);
     }
   };
 
@@ -383,6 +499,11 @@ export default function MembersManagement() {
         Name: member.name || "",
         Phone: member.phone || "",
         Email: member.email || "",
+        Birthday: member.birthday ? moment(member.birthday).format("YYYY-MM-DD") : "",
+        Preferences: member.preferences || "",
+        "Offer Notes": member.offer_notes || "",
+        "Mobile Wallet Offers":
+          Number(member.mobile_wallet_notifications ?? 1) === 1 ? "Yes" : "No",
         Tier: member.tier || "",
         "Tier Discount %": Number(member.membership_discount_pct || 0),
         "Created At": formatDateTime(member.created_at)
@@ -412,6 +533,10 @@ export default function MembersManagement() {
               <td>${member.name || ""}</td>
               <td>${member.phone || ""}</td>
               <td>${member.email || ""}</td>
+              <td>${member.birthday ? moment(member.birthday).format("YYYY-MM-DD") : ""}</td>
+              <td>${member.preferences || ""}</td>
+              <td>${member.offer_notes || ""}</td>
+              <td>${Number(member.mobile_wallet_notifications ?? 1) === 1 ? "Yes" : "No"}</td>
               <td>${member.tier || ""}</td>
               <td>${Number(member.membership_discount_pct || 0)}%</td>
               <td>${formatDateTime(member.created_at)}</td>
@@ -468,6 +593,10 @@ export default function MembersManagement() {
                   <th>Name</th>
                   <th>Phone</th>
                   <th>Email</th>
+                  <th>Birthday</th>
+                  <th>Preferences</th>
+                  <th>Offer Notes</th>
+                  <th>Mobile Wallet Offers</th>
                   <th>Tier</th>
                   <th>Tier Discount %</th>
                   <th>Created At</th>
@@ -509,6 +638,13 @@ export default function MembersManagement() {
           Name: selectedMember.name || "",
           Phone: selectedMember.phone || "",
           Email: selectedMember.email || "",
+          Birthday: selectedMember.birthday
+            ? moment(selectedMember.birthday).format("YYYY-MM-DD")
+            : "",
+          Preferences: selectedMember.preferences || "",
+          "Offer Notes": selectedMember.offer_notes || "",
+          "Mobile Wallet Offers":
+            Number(selectedMember.mobile_wallet_notifications ?? 1) === 1 ? "Yes" : "No",
           Tier: selectedMember.tier || "",
           "Tier Discount %": Number(selectedMember.membership_discount_pct || 0),
           "Created At": formatDateTime(selectedMember.created_at)
@@ -610,6 +746,14 @@ export default function MembersManagement() {
               <p><strong>Name:</strong> ${selectedMember.name || ""}</p>
               <p><strong>Phone:</strong> ${selectedMember.phone || ""}</p>
               <p><strong>Email:</strong> ${selectedMember.email || ""}</p>
+              <p><strong>Birthday:</strong> ${
+                selectedMember.birthday ? moment(selectedMember.birthday).format("YYYY-MM-DD") : ""
+              }</p>
+              <p><strong>Preferences:</strong> ${selectedMember.preferences || ""}</p>
+              <p><strong>Offer Notes:</strong> ${selectedMember.offer_notes || ""}</p>
+              <p><strong>Mobile Wallet Offers:</strong> ${
+                Number(selectedMember.mobile_wallet_notifications ?? 1) === 1 ? "Yes" : "No"
+              }</p>
               <p><strong>Tier:</strong> ${selectedMember.tier || ""}</p>
               <p><strong>Tier Discount:</strong> ${Number(
                 selectedMember.membership_discount_pct || 0
@@ -734,6 +878,48 @@ export default function MembersManagement() {
             </div>
 
             <div className={styles.formGroup}>
+              <label>Birthday</label>
+              <input
+                type="date"
+                name="birthday"
+                value={form.birthday}
+                onChange={handleChange}
+              />
+            </div>
+
+            <div className={styles.formGroup}>
+              <label>Preferences</label>
+              <textarea
+                name="preferences"
+                value={form.preferences}
+                onChange={handleChange}
+                rows="3"
+                placeholder="Favorite games, food, visit times, interests"
+              />
+            </div>
+
+            <div className={styles.formGroup}>
+              <label>Offer Notes</label>
+              <textarea
+                name="offer_notes"
+                value={form.offer_notes}
+                onChange={handleChange}
+                rows="3"
+                placeholder="Targeted offers or promo notes for this member"
+              />
+            </div>
+
+            <label className={styles.checkboxRow}>
+              <input
+                type="checkbox"
+                name="mobile_wallet_notifications"
+                checked={form.mobile_wallet_notifications}
+                onChange={handleChange}
+              />
+              <span>Send mobile wallet notifications and special offers</span>
+            </label>
+
+            <div className={styles.formGroup}>
               <label>Membership Tier</label>
               <select
                 name="membership_tier_id"
@@ -757,6 +943,129 @@ export default function MembersManagement() {
               {submitting ? "Adding Member..." : "Add Member"}
             </button>
           </form>
+
+          {editingMember ? (
+            <form onSubmit={handleUpdateMember} className={styles.form}>
+              <div className={styles.cardHeader}>
+                <div>
+                  <h2 className={styles.title}>Update Member</h2>
+                  <p className={styles.subtitle}>
+                    Editing {editingMember.member_code || editingMember.name}
+                  </p>
+                </div>
+              </div>
+
+              <div className={styles.formGroup}>
+                <label>Name</label>
+                <input
+                  type="text"
+                  name="name"
+                  value={editingMember.name}
+                  onChange={handleEditingMemberChange}
+                  placeholder="Enter member name"
+                />
+              </div>
+
+              <div className={styles.formGroup}>
+                <label>Phone</label>
+                <input
+                  type="text"
+                  name="phone"
+                  value={editingMember.phone}
+                  onChange={handleEditingMemberChange}
+                  placeholder="Enter phone number"
+                />
+              </div>
+
+              <div className={styles.formGroup}>
+                <label>Email</label>
+                <input
+                  type="email"
+                  name="email"
+                  value={editingMember.email}
+                  onChange={handleEditingMemberChange}
+                  placeholder="Enter email address"
+                />
+              </div>
+
+              <div className={styles.formGroup}>
+                <label>Birthday</label>
+                <input
+                  type="date"
+                  name="birthday"
+                  value={editingMember.birthday}
+                  onChange={handleEditingMemberChange}
+                />
+              </div>
+
+              <div className={styles.formGroup}>
+                <label>Preferences</label>
+                <textarea
+                  name="preferences"
+                  value={editingMember.preferences}
+                  onChange={handleEditingMemberChange}
+                  rows="3"
+                  placeholder="Favorite games, food, visit times, interests"
+                />
+              </div>
+
+              <div className={styles.formGroup}>
+                <label>Offer Notes</label>
+                <textarea
+                  name="offer_notes"
+                  value={editingMember.offer_notes}
+                  onChange={handleEditingMemberChange}
+                  rows="3"
+                  placeholder="Targeted offers or promo notes for this member"
+                />
+              </div>
+
+              <label className={styles.checkboxRow}>
+                <input
+                  type="checkbox"
+                  name="mobile_wallet_notifications"
+                  checked={editingMember.mobile_wallet_notifications}
+                  onChange={handleEditingMemberChange}
+                />
+                <span>Send mobile wallet notifications and special offers</span>
+              </label>
+
+              <div className={styles.formGroup}>
+                <label>Membership Tier</label>
+                <select
+                  name="membership_tier_id"
+                  value={editingMember.membership_tier_id}
+                  onChange={handleEditingMemberChange}
+                >
+                  <option value="">Select tier</option>
+                  {membershipTiers.map((tier) => (
+                    <option key={tier.id} value={tier.id}>
+                      {tier.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className={styles.inlineActions}>
+                <button
+                  type="submit"
+                  className={styles.primaryBtn}
+                  disabled={memberUpdating}
+                >
+                  {memberUpdating ? "Saving Member..." : "Save Member"}
+                </button>
+
+                <button
+                  type="button"
+                  className={styles.secondaryBtn}
+                  onClick={cancelEditingMember}
+                  disabled={memberUpdating}
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          ) : null}
 
           <div className={styles.cardHeader}>
             <div>
@@ -1036,6 +1345,7 @@ export default function MembersManagement() {
                       <th>Phone</th>
                       <th>Email</th>
                       <th>Tier</th>
+                      <th>CRM</th>
                       <th>Default Discount</th>
                       <th>Created At</th>
                       <th>Action</th>
@@ -1054,16 +1364,53 @@ export default function MembersManagement() {
                             {member.tier || "—"}
                           </span>
                         </td>
+                        <td>
+                          <div className={styles.crmCell}>
+                            <strong>
+                              {member.birthday
+                                ? moment(member.birthday).format("MMM D")
+                                : "No birthday"}
+                            </strong>
+                            <span>
+                              {member.preferences
+                                ? member.preferences
+                                : "No preferences"}
+                            </span>
+                            <small>
+                              Wallet offers:{" "}
+                              {Number(member.mobile_wallet_notifications ?? 1) === 1
+                                ? "On"
+                                : "Off"}
+                            </small>
+                          </div>
+                        </td>
                         <td>{Number(member.membership_discount_pct || 0)}%</td>
                         <td>{formatDateTime(member.created_at)}</td>
                         <td>
-                          <button
-                            type="button"
-                            className={styles.secondaryBtn}
-                            onClick={() => openHistoryModal(member.id)}
-                          >
-                            View History
-                          </button>
+                          <div className={styles.rowActions}>
+                            <button
+                              type="button"
+                              className={styles.secondaryBtn}
+                              onClick={() => startEditingMember(member)}
+                            >
+                              Edit
+                            </button>
+                            <button
+                              type="button"
+                              className={styles.secondaryBtn}
+                              onClick={() => openHistoryModal(member.id)}
+                            >
+                              History
+                            </button>
+                            <button
+                              type="button"
+                              className={styles.dangerBtn}
+                              onClick={() => handleDeleteMember(member)}
+                              disabled={deletingMemberId === member.id}
+                            >
+                              {deletingMemberId === member.id ? "Deleting..." : "Delete"}
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -1134,8 +1481,37 @@ export default function MembersManagement() {
                   </div>
 
                   <div className={styles.detailCard}>
+                    <span>Birthday</span>
+                    <strong>
+                      {selectedMember.birthday
+                        ? moment(selectedMember.birthday).format("DD MMM YYYY")
+                        : "—"}
+                    </strong>
+                  </div>
+
+                  <div className={styles.detailCard}>
+                    <span>Mobile Wallet Offers</span>
+                    <strong>
+                      {Number(selectedMember.mobile_wallet_notifications ?? 1) === 1
+                        ? "Enabled"
+                        : "Disabled"}
+                    </strong>
+                  </div>
+
+                  <div className={styles.detailCard}>
                     <span>Created At</span>
                     <strong>{formatDateTime(selectedMember.created_at)}</strong>
+                  </div>
+                </div>
+
+                <div className={styles.crmDetailGrid}>
+                  <div className={styles.crmDetailCard}>
+                    <span>Preferences</span>
+                    <strong>{selectedMember.preferences || "—"}</strong>
+                  </div>
+                  <div className={styles.crmDetailCard}>
+                    <span>Offer Notes</span>
+                    <strong>{selectedMember.offer_notes || "—"}</strong>
                   </div>
                 </div>
 

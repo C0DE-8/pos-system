@@ -123,6 +123,7 @@
 
 .formGroup input,
 .formGroup select,
+.formGroup textarea,
 .searchInput,
 .filterSelect,
 .closeBtn {
@@ -146,8 +147,17 @@
   width: 100%;
 }
 
+.formGroup textarea {
+  min-height: 92px;
+  padding: 13px 15px;
+  resize: vertical;
+  width: 100%;
+  line-height: 1.5;
+}
+
 .formGroup input:focus,
 .formGroup select:focus,
+.formGroup textarea:focus,
 .searchInput:focus,
 .filterSelect:focus {
   border-color: #2563eb;
@@ -155,8 +165,30 @@
   background: #ffffff;
 }
 
+.checkboxRow {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 1px solid #dbe5f0;
+  border-radius: 14px;
+  background: #f8fbff;
+  color: #334155;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.45;
+}
+
+.checkboxRow input {
+  width: 18px;
+  height: 18px;
+  margin-top: 1px;
+  flex: 0 0 auto;
+}
+
 .primaryBtn,
 .secondaryBtn,
+.dangerBtn,
 .closeBtn,
 .clearSearchBtn {
   border: none;
@@ -174,7 +206,8 @@
 }
 
 .primaryBtn,
-.secondaryBtn {
+.secondaryBtn,
+.dangerBtn {
   min-height: 46px;
   padding: 12px 18px;
 }
@@ -205,6 +238,19 @@
   box-shadow: 0 10px 20px rgba(148, 163, 184, 0.18);
 }
 
+.dangerBtn {
+  background: #fee2e2;
+  color: #991b1b;
+  border: 1px solid #fecaca;
+}
+
+.dangerBtn:hover {
+  transform: translateY(-1px);
+  background: #fecaca;
+  border-color: #fca5a5;
+  box-shadow: 0 10px 20px rgba(239, 68, 68, 0.16);
+}
+
 .closeBtn {
   width: 42px;
   height: 42px;
@@ -222,7 +268,8 @@
 }
 
 .primaryBtn:disabled,
-.secondaryBtn:disabled {
+.secondaryBtn:disabled,
+.dangerBtn:disabled {
   opacity: 0.62;
   cursor: not-allowed;
   transform: none;
@@ -313,6 +360,22 @@
   gap: 10px;
   align-items: center;
   flex-wrap: wrap;
+}
+
+.rowActions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+  min-width: 250px;
+}
+
+.rowActions .secondaryBtn,
+.rowActions .dangerBtn {
+  min-height: 38px;
+  padding: 9px 11px;
+  border-radius: 12px;
+  font-size: 12px;
 }
 
 .tierList {
@@ -440,7 +503,7 @@
 
 .table {
   width: 100%;
-  min-width: 860px;
+  min-width: 1040px;
   border-collapse: collapse;
   background: #ffffff;
 }
@@ -479,6 +542,32 @@
   font-size: 12px;
   font-weight: 700;
   white-space: nowrap;
+}
+
+.crmCell {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-width: 240px;
+}
+
+.crmCell strong {
+  color: #0f172a;
+  font-size: 13px;
+}
+
+.crmCell span,
+.crmCell small {
+  color: #64748b;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.crmCell span {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
 }
 
 .loader,
@@ -583,6 +672,37 @@
   border-top: 1px solid #e7eef6;
 }
 
+.crmDetailGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.crmDetailCard {
+  background: #f8fbff;
+  border: 1px solid #e3ebf4;
+  border-radius: 16px;
+  padding: 16px;
+  min-width: 0;
+}
+
+.crmDetailCard span {
+  display: block;
+  color: #64748b;
+  font-size: 12px;
+  margin-bottom: 8px;
+}
+
+.crmDetailCard strong {
+  display: block;
+  color: #0f172a;
+  font-size: 14px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
 .walletCodeSection {
   margin-top: 24px;
   padding-top: 22px;
@@ -622,6 +742,10 @@
 @media (max-width: 900px) {
   .detailsGrid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .crmDetailGrid {
+    grid-template-columns: 1fr;
   }
 
   .card {
@@ -685,7 +809,7 @@
   }
 
   .table {
-    min-width: 760px;
+    min-width: 1040px;
   }
 }
 
@@ -726,6 +850,6 @@
   }
 
   .table {
-    min-width: 680px;
+    min-width: 1040px;
   }
 }

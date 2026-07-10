@@ -4,101 +4,277 @@
   align-items: center;
   justify-content: center;
   padding: 24px;
-  background: #f8fafc;
+  background:
+    radial-gradient(circle at 18% 14%, rgba(20, 184, 166, 0.24), transparent 28%),
+    radial-gradient(circle at 82% 12%, rgba(244, 114, 182, 0.20), transparent 25%),
+    linear-gradient(135deg, #f8fafc 0%, #eef6f4 48%, #f7f3ff 100%);
 }
 
 .panel {
-  width: min(100%, 440px);
-  border: 1px solid #dbe5f0;
-  border-radius: 20px;
-  background: #ffffff;
-  padding: 28px;
-  text-align: center;
-  box-shadow: 0 20px 50px rgba(15, 23, 42, 0.1);
+  width: min(100%, 520px);
+  border: 1px solid rgba(255, 255, 255, 0.58);
+  border-radius: 28px;
+  background: rgba(255, 255, 255, 0.62);
+  padding: 22px;
+  box-shadow:
+    0 28px 70px rgba(15, 23, 42, 0.16),
+    inset 0 1px 0 rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+}
+
+.panelHeader {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 18px;
 }
 
 .icon {
-  width: 56px;
-  height: 56px;
-  border-radius: 18px;
-  margin: 0 auto 16px;
-  background: #e0f2fe;
-  color: #0369a1;
+  width: 52px;
+  height: 52px;
+  border-radius: 16px;
+  background: rgba(15, 23, 42, 0.92);
+  color: #ffffff;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 24px;
+  font-size: 23px;
+  flex: 0 0 auto;
 }
 
 .panel h1 {
   margin: 0;
   color: #0f172a;
   font-size: 24px;
+  line-height: 1.15;
 }
 
-.memberBlock {
-  margin-top: 18px;
-  padding-top: 18px;
-  border-top: 1px solid #e2e8f0;
+.panelHeader p {
+  margin: 5px 0 0;
+  color: #64748b;
+  font-size: 13px;
+  font-weight: 700;
 }
 
-.memberBlock h2 {
-  margin: 0;
-  color: #0f172a;
-  font-size: 20px;
-  line-height: 1.2;
+.atmCardWrap {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.atmCard {
+  position: relative;
+  overflow: hidden;
+  min-height: 292px;
+  border-radius: 26px;
+  padding: 24px;
+  color: #ffffff;
+  background:
+    linear-gradient(135deg, rgba(10, 36, 34, 0.98) 0%, rgba(14, 90, 82, 0.96) 44%, rgba(72, 43, 92, 0.96) 100%),
+    linear-gradient(45deg, rgba(245, 158, 11, 0.42), transparent 45%);
+  box-shadow:
+    0 22px 48px rgba(15, 23, 42, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.26);
+  transform: perspective(900px) rotateX(0deg) rotateY(0deg) translateY(0);
+  transition:
+    transform 0.28s ease,
+    box-shadow 0.28s ease,
+    filter 0.28s ease;
+}
+
+.atmCard:hover {
+  transform: perspective(900px) rotateX(3deg) rotateY(-4deg) translateY(-5px);
+  box-shadow:
+    0 30px 70px rgba(15, 23, 42, 0.34),
+    inset 0 1px 0 rgba(255, 255, 255, 0.32);
+  filter: saturate(1.06);
+}
+
+.atmCard::before,
+.atmCard::after {
+  content: "";
+  position: absolute;
+  pointer-events: none;
+}
+
+.atmCard::before {
+  inset: 1px;
+  border-radius: 25px;
+  background:
+    linear-gradient(115deg, rgba(255, 255, 255, 0.24), transparent 32%),
+    linear-gradient(280deg, transparent 52%, rgba(255, 255, 255, 0.08));
+  mix-blend-mode: screen;
+}
+
+.atmCard::after {
+  width: 230px;
+  height: 230px;
+  right: -76px;
+  bottom: -98px;
+  border-radius: 50%;
+  border: 34px solid rgba(255, 255, 255, 0.12);
+}
+
+.cardTop,
+.cardChipRow,
+.balanceBlock,
+.cardFooter {
+  position: relative;
+  z-index: 1;
+}
+
+.cardTop {
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+  align-items: flex-start;
+}
+
+.cardEyebrow,
+.balanceBlock span,
+.cardFooter span,
+.tokenStrip span {
+  display: block;
+  font-size: 11px;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0;
+}
+
+.cardEyebrow {
+  color: rgba(255, 255, 255, 0.68);
+  margin-bottom: 8px;
+}
+
+.cardName {
+  display: block;
+  font-size: 22px;
+  line-height: 1.15;
   word-break: break-word;
 }
 
-.infoGrid {
+.cardMark {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.16);
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  color: #ffffff;
+  font-weight: 900;
+  flex: 0 0 auto;
+}
+
+.cardChipRow {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  margin-top: 30px;
+}
+
+.cardChip {
+  width: 56px;
+  height: 42px;
+  border-radius: 11px;
+  background: linear-gradient(135deg, #f7d77b, #b98322);
+  border: 1px solid rgba(255, 255, 255, 0.34);
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
-  margin-top: 14px;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 4px;
+  padding: 8px;
+  box-shadow: inset 0 0 0 1px rgba(90, 56, 0, 0.2);
 }
 
-.infoGrid div {
-  border: 1px solid #e2e8f0;
-  border-radius: 14px;
-  padding: 12px;
-  background: #f8fafc;
-  min-width: 0;
+.cardChip span {
+  border-radius: 4px;
+  background: rgba(90, 56, 0, 0.26);
 }
 
-.infoGrid span {
+.contactless {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+
+.contactless span {
   display: block;
-  color: #64748b;
-  font-size: 11px;
-  font-weight: 800;
-  text-transform: uppercase;
-  margin-bottom: 6px;
+  width: 8px;
+  border: 2px solid rgba(255, 255, 255, 0.7);
+  border-left: 0;
+  border-top-right-radius: 20px;
+  border-bottom-right-radius: 20px;
 }
 
-.infoGrid strong {
+.contactless span:nth-child(1) {
+  height: 18px;
+}
+
+.contactless span:nth-child(2) {
+  height: 28px;
+}
+
+.contactless span:nth-child(3) {
+  height: 38px;
+}
+
+.balanceBlock {
+  margin-top: 28px;
+}
+
+.balanceBlock span,
+.cardFooter span {
+  color: rgba(255, 255, 255, 0.64);
+  margin-bottom: 8px;
+}
+
+.balanceBlock strong {
   display: block;
-  color: #0f172a;
+  font-size: 42px;
+  font-weight: 950;
+  line-height: 1;
+  word-break: break-word;
+}
+
+.cardFooter {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  margin-top: 28px;
+}
+
+.cardFooter strong {
+  display: block;
   font-size: 14px;
   word-break: break-word;
 }
 
-.muted,
-.token {
+.tokenStrip {
+  border: 1px solid rgba(203, 213, 225, 0.8);
+  border-radius: 18px;
+  padding: 14px 16px;
+  background: rgba(255, 255, 255, 0.78);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9);
+}
+
+.tokenStrip span {
   color: #64748b;
-  line-height: 1.5;
+  margin-bottom: 6px;
 }
 
-.balance {
-  margin: 22px 0 8px;
+.tokenStrip strong {
   color: #0f172a;
-  font-size: 38px;
-  font-weight: 900;
-  line-height: 1;
-}
-
-.token {
-  margin: 0 0 20px;
   font-size: 13px;
   word-break: break-word;
+}
+
+.muted {
+  color: #64748b;
+  line-height: 1.5;
+  text-align: center;
+  font-weight: 700;
 }
 
 .error {
@@ -107,25 +283,66 @@
   border: 1px solid #fecaca;
   border-radius: 14px;
   padding: 12px;
+  text-align: center;
+  font-weight: 700;
 }
 
 .refreshBtn {
-  min-height: 44px;
+  width: 100%;
+  min-height: 46px;
+  margin-top: 16px;
   padding: 0 16px;
   border: none;
-  border-radius: 12px;
-  background: #2563eb;
+  border-radius: 14px;
+  background: #0f172a;
   color: #ffffff;
-  font-weight: 800;
+  font-weight: 900;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
+  transition:
+    transform 0.18s ease,
+    background 0.18s ease;
 }
 
-@media (max-width: 420px) {
-  .infoGrid {
+.refreshBtn:hover {
+  transform: translateY(-1px);
+  background: #1f2937;
+}
+
+@media (max-width: 520px) {
+  .page {
+    padding: 14px;
+  }
+
+  .panel {
+    padding: 14px;
+    border-radius: 22px;
+  }
+
+  .atmCard {
+    min-height: 278px;
+    padding: 20px;
+    border-radius: 22px;
+  }
+
+  .cardName {
+    font-size: 19px;
+  }
+
+  .balanceBlock strong {
+    font-size: 34px;
+  }
+}
+
+@media (max-width: 390px) {
+  .panelHeader {
+    align-items: flex-start;
+  }
+
+  .cardFooter {
     grid-template-columns: 1fr;
   }
 }

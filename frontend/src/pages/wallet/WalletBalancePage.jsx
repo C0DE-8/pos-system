@@ -39,21 +39,50 @@ export default function WalletBalancePage() {
   return (
     <main className={styles.page}>
       <section className={styles.panel}>
-        <div className={styles.icon}>
-          <FiCreditCard />
+        <div className={styles.panelHeader}>
+          <div className={styles.icon}>
+            <FiCreditCard />
+          </div>
+          <div>
+            <h1>Wallet Balance</h1>
+            <p>Scan-to-check member credit</p>
+          </div>
         </div>
-
-        <h1>Wallet Balance</h1>
 
         {loading ? (
           <p className={styles.muted}>Checking balance...</p>
         ) : error ? (
           <p className={styles.error}>{error}</p>
         ) : (
-          <>
-            <div className={styles.memberBlock}>
-              <h2>{wallet?.name || "Member"}</h2>
-              <div className={styles.infoGrid}>
+          <div className={styles.atmCardWrap}>
+            <div className={styles.atmCard}>
+              <div className={styles.cardTop}>
+                <div>
+                  <span className={styles.cardEyebrow}>Arena Pro Wallet</span>
+                  <strong className={styles.cardName}>{wallet?.name || "Member"}</strong>
+                </div>
+                <div className={styles.cardMark}>AP</div>
+              </div>
+
+              <div className={styles.cardChipRow}>
+                <div className={styles.cardChip} aria-hidden="true">
+                  <span />
+                  <span />
+                  <span />
+                </div>
+                <div className={styles.contactless} aria-hidden="true">
+                  <span />
+                  <span />
+                  <span />
+                </div>
+              </div>
+
+              <div className={styles.balanceBlock}>
+                <span>Available Credit</span>
+                <strong>{formatMoney(wallet?.wallet_balance)}</strong>
+              </div>
+
+              <div className={styles.cardFooter}>
                 <div>
                   <span>Member Code</span>
                   <strong>{wallet?.member_code || "-"}</strong>
@@ -65,9 +94,11 @@ export default function WalletBalancePage() {
               </div>
             </div>
 
-            <p className={styles.balance}>{formatMoney(wallet?.wallet_balance)}</p>
-            <p className={styles.token}>Token: {wallet?.wallet_token}</p>
-          </>
+            <div className={styles.tokenStrip}>
+              <span>Wallet Token</span>
+              <strong>{wallet?.wallet_token}</strong>
+            </div>
+          </div>
         )}
 
         <button type="button" onClick={loadBalance} className={styles.refreshBtn}>
