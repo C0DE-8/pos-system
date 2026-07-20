@@ -638,7 +638,7 @@ export default function POSManagement() {
     ? selectedMember.full_name || selectedMember.name || "Walk-in"
     : customer?.trim() || "Walk-in";
 
-  const appliedMembershipTierName =
+  const selectedMembershipTierName =
     memberTierSnapshot?.membership_tier_name ||
     selectedMember?.membership_tier_name ||
     selectedMember?.tier ||
@@ -649,7 +649,7 @@ export default function POSManagement() {
       memberTierSnapshot?.membership_tier_id ||
       selectedMember?.membership_tier_id ||
       null;
-    const tierName = appliedMembershipTierName;
+    const tierName = selectedMembershipTierName;
 
     return (
       membershipTiers.find((tier) => Number(tier.id) === Number(tierId)) ||
@@ -661,7 +661,7 @@ export default function POSManagement() {
       null
     );
   }, [
-    appliedMembershipTierName,
+    selectedMembershipTierName,
     memberTierSnapshot?.membership_tier_id,
     membershipTiers,
     selectedMember?.membership_tier_id
@@ -981,8 +981,17 @@ export default function POSManagement() {
     return (subtotal * pct) / 100;
   }, [subtotal, discountPct]);
 
+  const shouldApplyMembershipDiscount =
+    Boolean(selectedMembershipTierName) &&
+    (paymentMethod === "wallet" ||
+      (paymentMethod === "split" && Number(splitWallet || 0) > 0));
+
+  const appliedMembershipTierName = shouldApplyMembershipDiscount
+    ? selectedMembershipTierName
+    : "";
+
   const membershipDiscountAmount = useMemo(() => {
-    if (!appliedMembershipTierName) return 0;
+    if (!shouldApplyMembershipDiscount) return 0;
 
     return computedCart.reduce((sum, item) => {
       const categoryDiscount = activeMembershipTier?.category_discounts?.find(
@@ -997,8 +1006,8 @@ export default function POSManagement() {
   }, [
     activeMembershipTier?.category_discounts,
     appliedMembershipBaseDiscountPct,
-    appliedMembershipTierName,
-    computedCart
+    computedCart,
+    shouldApplyMembershipDiscount
   ]);
 
   const appliedMembershipDiscountPct =
@@ -1203,10 +1212,11 @@ export default function POSManagement() {
   const buildOrderPayload = () => ({
     customer: displayedCustomerName,
     member_id: selectedMember?.id || memberTierSnapshot?.member_id || null,
-    membership_tier_id:
-      memberTierSnapshot?.membership_tier_id ||
-      selectedMember?.membership_tier_id ||
-      null,
+    membership_tier_id: shouldApplyMembershipDiscount
+      ? memberTierSnapshot?.membership_tier_id ||
+        selectedMember?.membership_tier_id ||
+        null
+      : null,
     membership_tier_name: appliedMembershipTierName || null,
     membership_discount_pct: appliedMembershipDiscountPct,
     membership_discount: membershipDiscountAmount,

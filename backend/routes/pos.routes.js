@@ -105,12 +105,20 @@ const buildSalesSummaryWhere = (req, dateKeys) => {
   return { sql, params };
 };
 
-async function resolveMembershipContext(conn, businessId, memberId, fallbackCustomer, items = []) {
+async function resolveMembershipContext(
+  conn,
+  businessId,
+  memberId,
+  fallbackCustomer,
+  items = [],
+  options = {}
+) {
   const normalizedItems = Array.isArray(items) ? items : [];
   const normalizedSubtotal = roundMoney(
     normalizedItems.reduce((sum, item) => sum + getItemLineTotal(item), 0)
   );
   const fallbackName = String(fallbackCustomer || "Walk-in").trim() || "Walk-in";
+  const applyMembershipDiscount = Boolean(options.applyMembershipDiscount);
 
   if (!memberId) {
     return {
@@ -149,7 +157,7 @@ async function resolveMembershipContext(conn, businessId, memberId, fallbackCust
   let discountByCategory = new Map();
   let productCategoryById = new Map();
 
-  if (tierId) {
+  if (tierId && applyMembershipDiscount) {
     const [discountRows] = await conn.execute(
       `SELECT category_id, discount_pct
        FROM membership_tier_category_discounts
@@ -170,7 +178,7 @@ async function resolveMembershipContext(conn, businessId, memberId, fallbackCust
     )
   );
 
-  if (productIds.length) {
+  if (productIds.length && applyMembershipDiscount) {
     const placeholders = productIds.map(() => "?").join(", ");
     const [productRows] = await conn.execute(
       `SELECT id, category_id
@@ -184,18 +192,20 @@ async function resolveMembershipContext(conn, businessId, memberId, fallbackCust
     );
   }
 
-  const membershipDiscountAmount = roundMoney(
-    normalizedItems.reduce((sum, item) => {
-      const productId = Number(item.product_id);
-      const categoryId = productCategoryById.get(productId) || null;
-      const categoryDiscountPct =
-        categoryId && discountByCategory.has(categoryId)
-          ? discountByCategory.get(categoryId)
-          : fallbackDiscountPct;
+  const membershipDiscountAmount = applyMembershipDiscount
+    ? roundMoney(
+        normalizedItems.reduce((sum, item) => {
+          const productId = Number(item.product_id);
+          const categoryId = productCategoryById.get(productId) || null;
+          const categoryDiscountPct =
+            categoryId && discountByCategory.has(categoryId)
+              ? discountByCategory.get(categoryId)
+              : fallbackDiscountPct;
 
-      return sum + getItemLineTotal(item) * (categoryDiscountPct / 100);
-    }, 0)
-  );
+          return sum + getItemLineTotal(item) * (categoryDiscountPct / 100);
+        }, 0)
+      )
+    : 0;
   const membershipDiscountPct =
     normalizedSubtotal > 0
       ? roundMoney((membershipDiscountAmount / normalizedSubtotal) * 100)
@@ -204,8 +214,8 @@ async function resolveMembershipContext(conn, businessId, memberId, fallbackCust
   return {
     customerName: String(member.name || fallbackName).trim() || fallbackName,
     memberId: member.id,
-    membershipTierId: tierId,
-    membershipTierName: member.membership_tier_name || null,
+    membershipTierId: applyMembershipDiscount ? tierId : null,
+    membershipTierName: applyMembershipDiscount ? member.membership_tier_name || null : null,
     membershipDiscountPct,
     membershipDiscountAmount
   };
@@ -788,7 +798,8 @@ router.post("/pending", requirePermission("pos"), branchAccessMiddleware, async 
       req.user.business_id,
       member_id,
       customer,
-      items
+      items,
+      { applyMembershipDiscount: roundMoney(wallet_payment) > 0 }
     );
     const totals = buildCheckoutTotals({
       subtotal,
@@ -1068,7 +1079,8 @@ router.put("/pending/:id", requirePermission("pos"), branchAccessMiddleware, asy
       req.user.business_id,
       member_id,
       customer,
-      items
+      items,
+      { applyMembershipDiscount: roundMoney(wallet_payment) > 0 }
     );
     const totals = buildCheckoutTotals({
       subtotal,
@@ -1289,9 +1301,34 @@ router.post("/pending/:id/checkout", requirePermission("pos"), branchAccessMiddl
 
     const saleCode = `SALE-${Date.now()}`;
     const rewardPointsRedeemed = Math.max(0, Math.floor(Number(cart.reward_points_redeemed || 0)));
+    const membershipDiscountAllowed = roundMoney(cart.wallet_payment || 0) > 0;
+    const saleMembershipTierId = membershipDiscountAllowed
+      ? cart.membership_tier_id || null
+      : null;
+    const saleMembershipTierName = membershipDiscountAllowed
+      ? cart.membership_tier_name || null
+      : null;
+    const saleMembershipDiscountPct = membershipDiscountAllowed
+      ? cart.membership_discount_pct || 0
+      : 0;
+    const saleMembershipDiscount = membershipDiscountAllowed
+      ? cart.membership_discount || 0
+      : 0;
+    const saleTotal = membershipDiscountAllowed
+      ? roundMoney(cart.total || 0)
+      : roundMoney(
+          Math.max(
+            0,
+            Number(cart.subtotal || 0) -
+              Number(cart.discount || 0) -
+              Number(cart.loyalty_discount || 0) -
+              Number(cart.giftcard_discount || 0) +
+              Number(cart.tax || 0)
+          )
+        );
     const pointsEarned = cart.points_awarded_at
       ? Number(cart.points_earned || 0)
-      : calculatePointsEarned(Number(cart.total || 0) + Number(cart.wallet_payment || 0));
+      : calculatePointsEarned(saleTotal + Number(cart.wallet_payment || 0));
 
     const [saleResult] = await conn.execute(
       `INSERT INTO sales
@@ -1301,10 +1338,10 @@ router.post("/pending/:id/checkout", requirePermission("pos"), branchAccessMiddl
         saleCode,
         cart.customer,
         cart.member_id || null,
-        cart.membership_tier_id || null,
-        cart.membership_tier_name || null,
-        cart.membership_discount_pct || 0,
-        cart.membership_discount || 0,
+        saleMembershipTierId,
+        saleMembershipTierName,
+        saleMembershipDiscountPct,
+        saleMembershipDiscount,
         req.user.id,
         cart.shift_id,
         cart.subtotal,
@@ -1315,7 +1352,7 @@ router.post("/pending/:id/checkout", requirePermission("pos"), branchAccessMiddl
         cart.wallet_payment || 0,
         pointsEarned,
         cart.tax,
-        cart.total,
+        saleTotal,
         payment_method,
         cart.currency,
         cart.business_id || req.user.business_id,
@@ -1548,7 +1585,8 @@ router.post("/checkout", requirePermission("pos"), branchAccessMiddleware, async
       req.user.business_id,
       member_id,
       customer,
-      items
+      items,
+      { applyMembershipDiscount: roundMoney(wallet_payment) > 0 }
     );
     const totals = buildCheckoutTotals({
       subtotal,

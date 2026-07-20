@@ -611,29 +611,35 @@ router.put("/tiers/:id", requirePermission("members"), async (req, res) => {
       `UPDATE pending_carts pc
        SET
         pc.membership_tier_name = ?,
-        pc.membership_discount_pct = (
-          SELECT COALESCE(
-            ROUND((SUM(pci.final_price * (COALESCE(mtcd.discount_pct, mt.discount_pct, 0) / 100)) / NULLIF(pc.subtotal, 0)) * 100, 2),
-            0
+        pc.membership_discount_pct = CASE
+          WHEN COALESCE(pc.wallet_payment, 0) > 0 THEN (
+            SELECT COALESCE(
+              ROUND((SUM(pci.final_price * (COALESCE(mtcd.discount_pct, mt.discount_pct, 0) / 100)) / NULLIF(pc.subtotal, 0)) * 100, 2),
+              0
+            )
+            FROM pending_cart_items pci
+            LEFT JOIN products p ON p.id = pci.product_id
+            LEFT JOIN membership_tiers mt ON mt.id = pc.membership_tier_id
+            LEFT JOIN membership_tier_category_discounts mtcd
+              ON mtcd.membership_tier_id = pc.membership_tier_id
+             AND mtcd.category_id = p.category_id
+            WHERE pci.pending_cart_id = pc.id
           )
-          FROM pending_cart_items pci
-          LEFT JOIN products p ON p.id = pci.product_id
-          LEFT JOIN membership_tiers mt ON mt.id = pc.membership_tier_id
-          LEFT JOIN membership_tier_category_discounts mtcd
-            ON mtcd.membership_tier_id = pc.membership_tier_id
-           AND mtcd.category_id = p.category_id
-          WHERE pci.pending_cart_id = pc.id
-        ),
-        pc.membership_discount = (
-          SELECT COALESCE(ROUND(SUM(pci.final_price * (COALESCE(mtcd.discount_pct, mt.discount_pct, 0) / 100)), 2), 0)
-          FROM pending_cart_items pci
-          LEFT JOIN products p ON p.id = pci.product_id
-          LEFT JOIN membership_tier_category_discounts mtcd
-            ON mtcd.membership_tier_id = pc.membership_tier_id
-           AND mtcd.category_id = p.category_id
-          LEFT JOIN membership_tiers mt ON mt.id = pc.membership_tier_id
-          WHERE pci.pending_cart_id = pc.id
-        )
+          ELSE 0
+        END,
+        pc.membership_discount = CASE
+          WHEN COALESCE(pc.wallet_payment, 0) > 0 THEN (
+            SELECT COALESCE(ROUND(SUM(pci.final_price * (COALESCE(mtcd.discount_pct, mt.discount_pct, 0) / 100)), 2), 0)
+            FROM pending_cart_items pci
+            LEFT JOIN products p ON p.id = pci.product_id
+            LEFT JOIN membership_tier_category_discounts mtcd
+              ON mtcd.membership_tier_id = pc.membership_tier_id
+             AND mtcd.category_id = p.category_id
+            LEFT JOIN membership_tiers mt ON mt.id = pc.membership_tier_id
+            WHERE pci.pending_cart_id = pc.id
+          )
+          ELSE 0
+        END
        WHERE pc.membership_tier_id = ? AND pc.business_id = ? AND pc.status = 'pending'`,
       [name, tierId, req.user.business_id]
     );
