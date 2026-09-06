@@ -9,8 +9,8 @@ export const loginUser = async (payload) => {
   return data;
 };
 
-export const getBranchSlugs = async () => {
-  const { data } = await API.get("/auth/branch-slugs");
+export const getBranchSlugs = async (config = {}) => {
+  const { data } = await API.get("/auth/branch-slugs", config);
   return data;
 };
 

@@ -6,32 +6,60 @@ const authMiddleware = require("../middleware/authMiddleware");
 
 const router = express.Router();
 
+const BRANCH_CACHE_TTL_MS = 60 * 1000;
+const BRANCH_CACHE_STALE_MS = 15 * 60 * 1000;
+const TRANSIENT_DB_ERRORS = new Set(["ECONNRESET", "ETIMEDOUT", "EPIPE", "PROTOCOL_CONNECTION_LOST", "ER_CON_COUNT_ERROR", "ER_LOCK_DEADLOCK", "ER_LOCK_WAIT_TIMEOUT"]);
+let branchCache = { data: [], updatedAt: 0 };
+let branchRequest = null;
+
+const wait = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
+
+const loadBranchSlugs = async () => {
+  const sql = `SELECT bb.slug, bb.name, bb.business_id, b.name AS business_name
+    FROM business_branches bb
+    JOIN businesses b ON b.id = bb.business_id
+    WHERE bb.is_active = 1 AND b.is_active = 1
+    ORDER BY b.name ASC, bb.name ASC`;
+  let lastError;
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      return await query(sql);
+    } catch (error) {
+      lastError = error;
+      if (!TRANSIENT_DB_ERRORS.has(error?.code) || attempt === 2) throw error;
+      await wait(150 * (attempt + 1));
+    }
+  }
+  throw lastError;
+};
+
 // /api/auth/branch-slugs - get active branch slugs for login selector
 router.get("/branch-slugs", async (req, res) => {
+  const now = Date.now();
+  if (branchCache.data.length && now - branchCache.updatedAt < BRANCH_CACHE_TTL_MS) {
+    res.set("Cache-Control", "public, max-age=30, stale-while-revalidate=300");
+    return res.json({ success: true, data: branchCache.data, cached: true });
+  }
+
   try {
-    const rows = await query(
-      `
-      SELECT
-        bb.slug,
-        bb.name,
-        bb.business_id,
-        b.name AS business_name
-      FROM business_branches bb
-      JOIN businesses b ON b.id = bb.business_id
-      WHERE bb.is_active = 1
-        AND b.is_active = 1
-      ORDER BY b.name ASC, bb.name ASC
-      `
-    );
+    branchRequest ||= loadBranchSlugs().finally(() => { branchRequest = null; });
+    const rows = await branchRequest;
+    branchCache = { data: rows, updatedAt: Date.now() };
+    res.set("Cache-Control", "public, max-age=30, stale-while-revalidate=300");
 
     return res.json({
       success: true,
       data: rows
     });
   } catch (error) {
+    if (branchCache.data.length && now - branchCache.updatedAt < BRANCH_CACHE_STALE_MS) {
+      res.set("Warning", '110 - "Response is stale"');
+      return res.json({ success: true, data: branchCache.data, cached: true, stale: true });
+    }
+    console.error("Unable to load login branches:", error);
     return res.status(500).json({
       success: false,
-      message: error.message
+      message: "Branches are temporarily unavailable. Please try again."
     });
   }
 });
